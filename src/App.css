@@ -345,6 +345,33 @@ nav {
   display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px; padding: 16px 24px;
 }
+.npm-autofill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 24px 16px;
+}
+.npm-autofill-options {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.npm-radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text2);
+  cursor: pointer;
+}
+.npm-radio-option input[type="radio"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
 .npm-tab {
   border: 1px solid var(--border); background: var(--surface2);
   border-radius: 10px; padding: 10px 8px;
@@ -601,4 +628,11 @@ select.npm-input {
   .npm-modal { border-radius: 18px; }
   .npm-header, .npm-body { padding-left: 16px; padding-right: 16px; }
   .npm-tabs { padding-left: 16px; padding-right: 16px; }
+  .npm-autofill {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .npm-autofill-options { gap: 12px; }
 }
