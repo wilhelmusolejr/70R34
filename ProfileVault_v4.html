@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProfileVault</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f5f5f7; --surface: #fff; --surface2: #fafafa;
+  --border: rgba(0,0,0,0.07); --border2: rgba(0,0,0,0.12);
+  --text: #0a0a0a; --text2: #6e6e73; --text3: #aeaeb2;
+  --accent: #0071e3; --accent-l: #e8f1fb;
+  --green: #30d158; --green-bg: #f0faf2; --green-t: #1a7a34;
+  --amber: #ff9f0a; --amber-bg: #fff8ec; --amber-t: #9b5a00;
+  --red: #ff3b30; --red-bg: #fff3f2; --red-t: #c0180f;
+  --orange: #ff6b35; --orange-bg: #fff5f0; --orange-t: #c23a00;
+  --purple: #bf5af2; --purple-bg: #f8f0ff; --purple-t: #7a2fa0;
+  --cyan: #32ade6; --cyan-bg: #eef8fd; --cyan-t: #0a6a9a;
+  --today-yes: #f0faf2; --today-no: #fff8ec;
+  --r: 12px; --r-sm: 8px; --r-lg: 16px; --r-xl: 20px;
+  --sh-sm: 0 1px 3px rgba(0,0,0,0.05); --sh: 0 4px 20px rgba(0,0,0,0.07);
+  --sh-lg: 0 12px 48px rgba(0,0,0,0.1);
+  --font: 'Sora', system-ui, sans-serif; --mono: 'JetBrains Mono', monospace;
+  --t: 0.18s cubic-bezier(0.4,0,0.2,1);
+}
+html { font-size: 14px; scroll-behavior: smooth; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+
+/* NAV */
+nav { position: sticky; top: 0; z-index: 200; background: rgba(255,255,255,0.9); backdrop-filter: blur(20px) saturate(1.6); -webkit-backdrop-filter: blur(20px) saturate(1.6); border-bottom: 1px solid var(--border); height: 62px; }
+.nav-inner { max-width: 1440px; margin: 0 auto; padding: 0 24px; height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.nav-brand { display: flex; align-items: center; gap: 9px; cursor: pointer; }
+.nav-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--text); display: flex; align-items: center; justify-content: center; }
+.nav-icon svg { width: 16px; height: 16px; fill: white; }
+.nav-word { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.03em; }
+.nav-pill { background: var(--bg); color: var(--text3); font-size: 10px; font-weight: 600; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--border2); }
+.nav-links { display: flex; align-items: center; gap: 2px; }
+.nav-links a { color: var(--text2); text-decoration: none; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: var(--r-sm); transition: all var(--t); cursor: pointer; }
+.nav-links a:hover { color: var(--text); background: var(--bg); }
+.nav-links a.active { color: var(--text); background: var(--bg); font-weight: 600; }
+.nav-today { font-size: 12px; color: var(--text3); font-weight: 500; padding: 6px 12px; background: var(--bg); border-radius: var(--r-sm); border: 1px solid var(--border2); white-space: nowrap; }
+
+/* PAGE */
+.page { max-width: 1440px; margin: 0 auto; padding: 30px 24px 80px; }
+
+/* HEADER */
+.page-header { margin-bottom: 24px; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+.page-header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+.page-header p { font-size: 13px; color: var(--text2); margin-top: 5px; }
+.hdr-acts { display: flex; gap: 8px; align-items: center; }
+.btn-p { background: var(--text); color: white; border: none; border-radius: var(--r-sm); padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all var(--t); }
+.btn-p:hover { background: #222; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
+.btn-s { background: var(--surface); color: var(--text); border: 1px solid var(--border2); border-radius: var(--r-sm); padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--font); transition: all var(--t); }
+.btn-s:hover { background: var(--bg); }
+.mark-all-btn { background: var(--green-bg); color: var(--green-t); border: 1px solid rgba(48,209,88,0.3); border-radius: var(--r-sm); padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all var(--t); display: flex; align-items: center; gap: 6px; }
+.mark-all-btn:hover { background: #dcfce7; }
+.mark-all-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2.5; }
+
+/* STATS */
+.stats-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 20px; }
+.sc { background: var(--surface); border-radius: var(--r-lg); border: 1px solid var(--border); padding: 16px 18px; box-shadow: var(--sh-sm); transition: all var(--t); }
+.sc:hover { box-shadow: var(--sh); transform: translateY(-1px); }
+.snum { font-size: 26px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+.slabel { font-size: 11px; font-weight: 500; color: var(--text2); margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+.sdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+
+/* FILTERS */
+.filters { background: var(--surface); border-radius: var(--r-lg); border: 1px solid var(--border); padding: 12px 16px; margin-bottom: 14px; display: flex; gap: 9px; flex-wrap: wrap; align-items: center; box-shadow: var(--sh-sm); }
+.sw { flex: 1; min-width: 200px; position: relative; }
+.si { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; }
+.si svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+.fsearch { width: 100%; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 13px 8px 33px; font-size: 13px; font-family: var(--font); background: var(--surface2); color: var(--text); outline: none; transition: border-color var(--t), box-shadow var(--t); }
+.fsearch:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,0.11); background: white; }
+.fsearch::placeholder { color: var(--text3); }
+.fsel { border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 28px 8px 11px; font-size: 13px; font-family: var(--font); background: var(--surface2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%23aeaeb2' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center; color: var(--text); cursor: pointer; outline: none; appearance: none; transition: border-color var(--t); }
+.fsel:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,0.11); }
+.rc { margin-left: auto; font-size: 12px; color: var(--text3); font-weight: 500; white-space: nowrap; }
+
+/* TABLE */
+.twrap { background: var(--surface); border-radius: var(--r-lg); border: 1px solid var(--border); overflow: auto; box-shadow: var(--sh-sm); }
+.tbl { width: 100%; border-collapse: collapse; min-width: 1060px; }
+.tbl thead tr { background: var(--surface2); border-bottom: 1px solid var(--border); }
+.tbl th { padding: 11px 14px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); text-align: left; white-space: nowrap; }
+.tbl th:first-child { padding-left: 20px; }
+.tbl th:last-child { padding-right: 20px; text-align: center; }
+.tbl td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.tbl td:first-child { padding-left: 20px; }
+.tbl td:last-child { padding-right: 20px; }
+.tbl tbody tr:last-child td { border-bottom: none; }
+.tbl tbody tr { cursor: pointer; transition: background var(--t); }
+.tbl tbody tr:hover { background: #f0f4ff; }
+.tbl tbody tr:hover .vbtn { opacity: 1; }
+
+/* PROCESSED ROW HIGHLIGHT */
+.tbl tbody tr.processed-today { background: rgba(48,209,88,0.04); }
+.tbl tbody tr.processed-today:hover { background: rgba(48,209,88,0.08); }
+
+/* PROFILE CELL */
+.pcell { display: flex; align-items: center; gap: 11px; }
+.av { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: white; }
+.pname { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.02em; white-space: nowrap; }
+.pcity { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* STATUS */
+.sbadge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.sdot2 { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.sa { background: var(--green-bg); color: var(--green-t); } .sa .sdot2 { background: var(--green); }
+.sbn { background: var(--red-bg); color: var(--red-t); } .sbn .sdot2 { background: var(--red); }
+.sflag { background: var(--orange-bg); color: var(--orange-t); } .sflag .sdot2 { background: var(--orange); }
+.sp { background: var(--amber-bg); color: var(--amber-t); } .sp .sdot2 { background: var(--amber); }
+
+/* DATE CELL */
+.dcell .dv { font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; }
+.dcell .da { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* PROFILE LINKS CELL */
+.lcell { display: flex; flex-direction: column; gap: 5px; }
+.el { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--accent); text-decoration: none; white-space: nowrap; transition: opacity var(--t); }
+.el:hover { opacity: 0.7; }
+.el svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
+.nol { font-size: 11px; color: var(--text3); font-style: italic; }
+
+/* REQUIREMENTS CHECKLIST */
+.cklist { display: flex; flex-direction: column; gap: 4px; }
+.cki { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.ckbox { width: 15px; height: 15px; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.ckbox.yes { background: var(--green-bg); }
+.ckbox.yes svg { width: 9px; height: 9px; stroke: var(--green-t); fill: none; stroke-width: 2.5; }
+.ckbox.no { background: #f2f2f7; }
+.ckbox.no svg { width: 9px; height: 9px; stroke: var(--text3); fill: none; stroke-width: 2.5; }
+.cklabel.yes { color: var(--text2); }
+.cklabel.no { color: var(--text3); }
+
+/* DAILY TRACKER CELL */
+.tracker-cell { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.track-badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.track-done { background: var(--green-bg); color: var(--green-t); border: 1px solid rgba(48,209,88,0.25); }
+.track-done::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 2px; }
+.track-pending { background: var(--amber-bg); color: var(--amber-t); border: 1px solid rgba(255,159,10,0.25); }
+.track-pending::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); margin-right: 2px; }
+.track-time { font-size: 10px; color: var(--text3); font-family: var(--mono); }
+.mark-btn { background: none; border: 1px solid var(--border2); border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600; color: var(--text2); cursor: pointer; font-family: var(--font); transition: all var(--t); white-space: nowrap; }
+.mark-btn:hover { background: var(--green-bg); border-color: rgba(48,209,88,0.4); color: var(--green-t); }
+.mark-btn.done-btn { background: var(--green-bg); border-color: rgba(48,209,88,0.3); color: var(--green-t); }
+.mark-btn.done-btn:hover { background: #dcfce7; }
+
+/* VIEW BTN */
+.vbtn { opacity: 0; background: none; border: 1px solid var(--border2); border-radius: var(--r-sm); padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--text); cursor: pointer; font-family: var(--font); transition: all var(--t); white-space: nowrap; }
+.tbl tbody tr:hover .vbtn { opacity: 1; }
+.vbtn:hover { background: var(--text); color: white; border-color: var(--text); }
+
+/* TAGS */
+.tag { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 10px; font-weight: 600; margin: 1px; }
+.tv { background: var(--accent-l); color: #0058b3; }
+.tbn { background: var(--red-bg); color: var(--red-t); }
+.tf2 { background: var(--orange-bg); color: var(--orange-t); }
+.tbt { background: var(--purple-bg); color: var(--purple-t); }
+.tn { background: var(--cyan-bg); color: var(--cyan-t); }
+.tp { background: var(--amber-bg); color: var(--amber-t); }
+
+.empty-st { padding: 56px; text-align: center; }
+.et { font-size: 15px; font-weight: 600; margin-bottom: 5px; }
+.ed { font-size: 13px; color: var(--text2); }
+
+/* ── DETAIL PAGE ── */
+#dp { display: none; }
+.back-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; color: var(--text2); font-size: 13px; font-weight: 500; font-family: var(--font); padding: 0; margin-bottom: 24px; transition: color var(--t); }
+.back-btn:hover { color: var(--text); }
+.back-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+.dhero { background: var(--surface); border-radius: var(--r-xl); border: 1px solid var(--border); overflow: hidden; margin-bottom: 16px; box-shadow: var(--sh); }
+.hcover { height: 110px; position: relative; }
+.haw { position: absolute; bottom: -40px; left: 28px; }
+.hav { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; color: white; border: 4px solid var(--surface); box-shadow: var(--sh); }
+.hbody { padding: 52px 28px 24px; }
+.htop { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
+.hname { font-size: 24px; font-weight: 700; letter-spacing: -0.04em; margin-bottom: 3px; }
+.hsub { font-size: 13px; color: var(--text2); margin-bottom: 10px; }
+.hbrow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.hmeta { font-size: 11px; color: var(--text3); font-family: var(--mono); text-align: right; line-height: 1.9; }
+.hbio { font-size: 13px; color: var(--text2); line-height: 1.7; padding: 14px 18px; background: var(--bg); border-radius: var(--r-sm); border-left: 3px solid var(--accent); }
+.dgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.dc { background: var(--surface); border-radius: var(--r-lg); border: 1px solid var(--border); padding: 22px; box-shadow: var(--sh-sm); }
+.dct { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text3); margin-bottom: 16px; }
+.dr { display: flex; align-items: flex-start; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.dr:last-child { border-bottom: none; padding-bottom: 0; }
+.dr:first-of-type { padding-top: 0; }
+.dl { min-width: 115px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text3); padding-top: 1px; flex-shrink: 0; }
+.dv { flex: 1; font-size: 12px; color: var(--text); word-break: break-all; line-height: 1.5; }
+.dv.mono { font-family: var(--mono); font-size: 11.5px; }
+.dv.muted { color: var(--text3); font-style: italic; }
+.cpbtn { flex-shrink: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 3px 9px; font-size: 11px; font-weight: 500; color: var(--text2); cursor: pointer; font-family: var(--font); transition: all var(--t); white-space: nowrap; }
+.cpbtn:hover { background: var(--accent-l); border-color: var(--accent); color: var(--accent); }
+.cpbtn.ok { background: var(--green-bg); border-color: var(--green); color: var(--green-t); }
+
+/* Requirements in detail */
+.req-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.req-item { display: flex; align-items: center; gap: 9px; padding: 10px 14px; border-radius: var(--r-sm); }
+.req-item.ryes { background: var(--green-bg); }
+.req-item.rno { background: var(--bg); }
+.req-icon { width: 20px; height: 20px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.req-item.ryes .req-icon { background: rgba(48,209,88,0.2); }
+.req-item.rno .req-icon { background: #e5e5ea; }
+.req-item svg { width: 10px; height: 10px; stroke-width: 2.5; fill: none; }
+.req-item.ryes svg { stroke: var(--green-t); }
+.req-item.rno svg { stroke: var(--text3); }
+.req-name { font-size: 12px; font-weight: 600; }
+.req-item.ryes .req-name { color: var(--green-t); }
+.req-item.rno .req-name { color: var(--text3); }
+
+/* Tracker in detail */
+.tracker-detail { padding: 4px 0; }
+.track-status-big { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: var(--r); margin-bottom: 14px; }
+.tsd-done { background: var(--green-bg); border: 1px solid rgba(48,209,88,0.2); }
+.tsd-pending { background: var(--amber-bg); border: 1px solid rgba(255,159,10,0.2); }
+.tsd-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.tsd-done .tsd-icon { background: rgba(48,209,88,0.2); }
+.tsd-pending .tsd-icon { background: rgba(255,159,10,0.2); }
+.tsd-icon svg { width: 16px; height: 16px; stroke-width: 2.5; fill: none; }
+.tsd-done .tsd-icon svg { stroke: var(--green-t); }
+.tsd-pending .tsd-icon svg { stroke: var(--amber-t); }
+.tsd-text .tsd-title { font-size: 14px; font-weight: 700; }
+.tsd-done .tsd-text .tsd-title { color: var(--green-t); }
+.tsd-pending .tsd-text .tsd-title { color: var(--amber-t); }
+.tsd-text .tsd-sub { font-size: 12px; margin-top: 2px; }
+.tsd-done .tsd-text .tsd-sub { color: #2d9a4a; }
+.tsd-pending .tsd-text .tsd-sub { color: var(--amber-t); }
+.tsd-btn { margin-left: auto; border: none; border-radius: var(--r-sm); padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: all var(--t); }
+.tsd-done .tsd-btn { background: rgba(48,209,88,0.15); color: var(--green-t); }
+.tsd-done .tsd-btn:hover { background: rgba(48,209,88,0.25); }
+.tsd-pending .tsd-btn { background: var(--text); color: white; }
+.tsd-pending .tsd-btn:hover { background: #222; }
+.log-section { margin-top: 8px; }
+.log-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); margin-bottom: 8px; }
+.log-empty { font-size: 12px; color: var(--text3); font-style: italic; }
+.log-entry { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg); border-radius: var(--r-sm); margin-bottom: 4px; }
+.log-date { font-size: 12px; font-weight: 600; color: var(--text); font-family: var(--mono); }
+.log-time { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-left: auto; }
+.log-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+/* TOAST */
+.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--text); color: white; padding: 11px 22px; border-radius: var(--r); font-size: 13px; font-weight: 500; z-index: 9999; opacity: 0; transition: all 0.28s cubic-bezier(0.4,0,0.2,1); pointer-events: none; box-shadow: var(--sh-lg); white-space: nowrap; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* SCORE PILL */
+.spill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+.sp-full { background: var(--green-bg); color: var(--green-t); }
+.sp-part { background: var(--amber-bg); color: var(--amber-t); }
+.sp-low { background: var(--red-bg); color: var(--red-t); }
+
+/* RESPONSIVE */
+@media(max-width:1024px) { .stats-row { grid-template-columns: repeat(3,1fr); } }
+@media(max-width:768px) { .dgrid { grid-template-columns: 1fr; } .nav-links { display: none; } .page { padding: 20px 16px 60px; } }
+@media(max-width:640px) { .stats-row { grid-template-columns: repeat(2,1fr); } .hdr-acts { flex-wrap: wrap; } }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d1d6; border-radius: 99px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="nav-brand" onclick="showList()">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+      <span class="nav-word">ProfileVault</span>
+      <span class="nav-pill">DEMO</span>
+    </div>
+    <div class="nav-links">
+      <a class="active" onclick="showList()">Profiles</a>
+      <a>Analytics</a>
+      <a>Anti-Bot ML</a>
+      <a>Settings</a>
+    </div>
+    <div class="nav-today" id="nav-today"></div>
+  </div>
+</nav>
+
+<!-- LIST PAGE -->
+<div id="lp">
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <h1>Profiles</h1>
+        <p>Track accounts, monitor requirements, and log daily activity.</p>
+      </div>
+      <div class="hdr-acts">
+        <button class="btn-s">Export CSV</button>
+        <button class="mark-all-btn" onclick="markAllToday()">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          Mark All Done Today
+        </button>
+        <button class="btn-p">+ New Profile</button>
+      </div>
+    </div>
+
+    <div class="stats-row" id="sr"></div>
+
+    <div class="filters">
+      <div class="sw">
+        <span class="si"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></span>
+        <input class="fsearch" id="si" placeholder="Search name, city, workplace…" oninput="renderTable()">
+      </div>
+      <select class="fsel" id="sf" onchange="renderTable()">
+        <option value="">All Statuses</option>
+        <option>Active</option><option>Banned</option><option>Flagged</option><option>Pending Review</option>
+      </select>
+      <select class="fsel" id="tf" onchange="renderTable()">
+        <option value="">All Tags</option>
+        <option>Verified</option><option>Banned</option><option>Flagged</option>
+        <option>Bot Suspect</option><option>New User</option><option>Pending Review</option>
+      </select>
+      <select class="fsel" id="sb" onchange="renderTable()">
+        <option value="id">Sort: ID</option>
+        <option value="name">Sort: Name</option>
+        <option value="status">Sort: Status</option>
+        <option value="unprocessed">Unprocessed First</option>
+        <option value="ready">Ready First</option>
+      </select>
+      <select class="fsel" id="trk" onchange="renderTable()">
+        <option value="">All Tracker</option>
+        <option value="done">Done Today</option>
+        <option value="pending">Not Done Today</option>
+      </select>
+      <span class="rc" id="rc"></span>
+    </div>
+
+    <div class="twrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Profile</th>
+            <th>Status</th>
+            <th>Profile Created</th>
+            <th>Account Created</th>
+            <th>Links</th>
+            <th>Requirements</th>
+            <th style="text-align:center">Daily Tracker</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL PAGE -->
+<div id="dp">
+  <div class="page">
+    <button class="back-btn" onclick="showList()">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      All Profiles
+    </button>
+    <div id="di"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TODAY = new Date().toLocaleDateString('en-CA');
+const AVC = ["#1c1c1e","#3a3a3c","#5e5ce6","#0071e3","#30b0c7","#34c759","#ff9f0a","#ff6b35","#bf5af2","#ff375f"];
+const SC = {"Active":"sa","Banned":"sbn","Flagged":"sflag","Pending Review":"sp"};
+const TC = {"Verified":"tv","Banned":"tbn","Flagged":"tf2","Bot Suspect":"tbt","New User":"tn","Pending Review":"tp"};
+
+// Display today in nav
+const navToday = document.getElementById('nav-today');
+navToday.textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+
+const PROFILES = [
+  {id:1,firstName:"Crescentia",lastName:"Wylde",dob:"06-17-1993",gender:"Female",email:"crescentia.wylde93@socialplatform.dev",mailPw:"Xv7$Lm!4Bq",bonkPw:"Zt5@Wk#9Ny",city:"Baltimore, MD",hometown:"Frederick, MD",workplace:"Johns Hopkins Children's Center",position:"Pediatric Palliative Care Nurse",bio:"Pediatric palliative care nurse and certified child life specialist. Makes handmade memory boxes for bereaved families.",status:"Active",profileUrl:"https://platform.dev/profile/crescentia",pageUrl:"https://platform.dev/page/crescentia",tags:["Verified"],proxy:"192.168.1.101:8080:user101:pass101",profileCreated:"2025-11-03",accountCreated:"2025-10-28",friends:247,has2FA:true,hasPage:true,profileSetup:true},
+  {id:2,firstName:"Peregrin",lastName:"Alcott",dob:"03-22-1986",gender:"Male",email:"peregrin.alcott1986@socialplatform.dev",mailPw:"Kn8!Bz$6Wv",bonkPw:"Jq4@Xm#7Lp",city:"Portland, ME",hometown:"Bath, ME",workplace:"TideGen Ocean Energy",position:"Marine Renewable Energy Engineer",bio:"Marine renewable energy engineer designing tidal stream turbine arrays for coastal grid integration.",status:"Active",profileUrl:"https://platform.dev/profile/peregrin",pageUrl:"https://platform.dev/page/peregrin",tags:["Verified"],proxy:"192.168.1.102:8080:user102:pass102",profileCreated:"2025-11-10",accountCreated:"2025-11-04",friends:134,has2FA:true,hasPage:true,profileSetup:true},
+  {id:3,firstName:"Talitha",lastName:"Moss",dob:"10-14-1997",gender:"Female",email:"talitha.moss@socialplatform.dev",mailPw:"Mw5$Xb!9Jz",bonkPw:"Rp3@Vn#6Yk",city:"Los Angeles, CA",hometown:"Long Beach, CA",workplace:"LA County DA's Office",position:"Deputy District Attorney",bio:"Victim-centered prosecutor specializing in human trafficking and domestic violence cases.",status:"Pending Review",profileUrl:"",pageUrl:"",tags:["Pending Review"],proxy:"",profileCreated:"2026-01-15",accountCreated:"2026-01-12",friends:18,has2FA:false,hasPage:false,profileSetup:false},
+  {id:4,firstName:"Hadleigh",lastName:"Stanhope",dob:"08-05-1984",gender:"Male",email:"hadleigh84stanhope@socialplatform.dev",mailPw:"Zy9$Qn!5Xw",bonkPw:"Lk6@Bm#4Ht",city:"Virginia Beach, VA",hometown:"Norfolk, VA",workplace:"VA Emergency Response Training",position:"HAZMAT Response Instructor",bio:"EOD technician turned HAZMAT emergency response instructor. Mentors veterans transitioning from military service.",status:"Active",profileUrl:"https://platform.dev/profile/hadleigh",pageUrl:"https://platform.dev/page/hadleigh",tags:["Verified"],proxy:"192.168.1.104:8080:user104:pass104",profileCreated:"2025-10-20",accountCreated:"2025-10-15",friends:312,has2FA:true,hasPage:true,profileSetup:true},
+  {id:5,firstName:"Cormoran",lastName:"Aldridge",dob:"07-11-1987",gender:"Male",email:"cormoran.aldridge@socialplatform.dev",mailPw:"Xt6$Jv!5Wq",bonkPw:"Nb9@Lm#4Yz",city:"Seattle, WA",hometown:"Spokane, WA",workplace:"NarrativEdge Studios",position:"Narrative Designer",bio:"Independent game narrative designer for three award-winning AAA titles.",status:"Flagged",profileUrl:"https://platform.dev/profile/cormoran",pageUrl:"",tags:["Flagged","Bot Suspect"],proxy:"192.168.1.105:8080:user105:pass105",profileCreated:"2025-12-01",accountCreated:"2025-11-28",friends:62,has2FA:true,hasPage:false,profileSetup:true},
+  {id:6,firstName:"Rosalind",lastName:"Pryce",dob:"05-03-2000",gender:"Female",email:"rosalind.pryce2000@socialplatform.dev",mailPw:"Jm4!Bv$9Yz",bonkPw:"Wd7@Xp#2Lk",city:"Providence, RI",hometown:"Pawtucket, RI",workplace:"Brown University",position:"Pre-Law Student & Reform Advocate",bio:"Pre-law student and juvenile justice reform advocate. Published a white paper on youth solitary confinement.",status:"Active",profileUrl:"https://platform.dev/profile/rosalind",pageUrl:"https://platform.dev/page/rosalind",tags:["New User"],proxy:"192.168.1.106:8080:user106:pass106",profileCreated:"2026-02-18",accountCreated:"2026-02-15",friends:45,has2FA:false,hasPage:true,profileSetup:false},
+  {id:7,firstName:"Leofric",lastName:"Bauer",dob:"11-18-1985",gender:"Male",email:"leofric.bauer@socialplatform.dev",mailPw:"Qn9$Ht!6Wv",bonkPw:"Pb3@Mz#7Yx",city:"Charlotte, NC",hometown:"Raleigh, NC",workplace:"FireStruct Forensic Engineering",position:"Forensic Structural Fire Investigator",bio:"Forensic structural fire investigator and expert witness. Has testified in 60+ insurance litigation cases.",status:"Banned",profileUrl:"",pageUrl:"",tags:["Banned"],proxy:"",profileCreated:"2025-09-12",accountCreated:"2025-09-08",friends:0,has2FA:false,hasPage:false,profileSetup:false},
+  {id:8,firstName:"Caoimhe",lastName:"Dunmore",dob:"04-26-1994",gender:"Female",email:"caoimhe.dunmore@socialplatform.dev",mailPw:"Sk2!Cy$7Rp",bonkPw:"Xe8@Vn#4Jq",city:"Morgantown, WV",hometown:"Elkins, WV",workplace:"Hollow Mountain Community Radio",position:"Founder & Station Director",bio:"Community radio station founder and audio documentarian telling stories of rural Appalachian communities.",status:"Active",profileUrl:"https://platform.dev/profile/caoimhe",pageUrl:"https://platform.dev/page/caoimhe",tags:["Verified"],proxy:"192.168.1.108:8080:user108:pass108",profileCreated:"2025-10-30",accountCreated:"2025-10-25",friends:188,has2FA:true,hasPage:true,profileSetup:true},
+  {id:9,firstName:"Tancred",lastName:"Holloway",dob:"09-08-1982",gender:"Male",email:"tancred.holloway@socialplatform.dev",mailPw:"Lv5$Jw!9Mc",bonkPw:"Tg3@Yk#6Bz",city:"Charlotte, NC",hometown:"Concord, NC",workplace:"Apex Race Engineering",position:"CFD Aerodynamics Engineer",bio:"CFD aerodynamics engineer optimizing performance for Formula E. Former motorsport test driver.",status:"Active",profileUrl:"https://platform.dev/profile/tancred",pageUrl:"https://platform.dev/page/tancred",tags:["Verified"],proxy:"192.168.1.109:8080:user109:pass109",profileCreated:"2025-11-22",accountCreated:"2025-11-18",friends:521,has2FA:true,hasPage:true,profileSetup:true},
+  {id:10,firstName:"Silvana",lastName:"Pringle",dob:"02-11-1996",gender:"Female",email:"silvana.pringle@socialplatform.dev",mailPw:"Rx4!Pb$2Wn",bonkPw:"Hy9@Lc#7Zt",city:"New Haven, CT",hometown:"Bridgeport, CT",workplace:"Blue Harvest Ocean Farm",position:"Regenerative Aquaculture Farmer",bio:"Regenerative ocean farmer cultivating seaweed and shellfish in a multi-species aquaculture system.",status:"Pending Review",profileUrl:"",pageUrl:"",tags:["Pending Review","New User"],proxy:"",profileCreated:"2026-01-30",accountCreated:"2026-01-27",friends:9,has2FA:false,hasPage:false,profileSetup:false},
+  {id:11,firstName:"Zenobia",lastName:"Holloway",dob:"05-28-1991",gender:"Female",email:"zenobia91holloway@socialplatform.dev",mailPw:"Lv8$Xm!4Wz",bonkPw:"Kq5@Yt#9Nb",city:"Atlanta, GA",hometown:"Augusta, GA",workplace:"Emory Maternal Fetal Medicine Center",position:"Diagnostic Ultrasound Specialist",bio:"Maternal-fetal ultrasound specialist. Has performed 10,000+ diagnostic scans.",status:"Active",profileUrl:"https://platform.dev/profile/zenobia",pageUrl:"https://platform.dev/page/zenobia",tags:["Verified"],proxy:"192.168.1.111:8080:user111:pass111",profileCreated:"2025-12-14",accountCreated:"2025-12-10",friends:390,has2FA:true,hasPage:true,profileSetup:true},
+  {id:12,firstName:"Aldhelm",lastName:"Strand",dob:"09-16-1986",gender:"Male",email:"aldhelm86strand@socialplatform.dev",mailPw:"Wz5$Jv!8Xk",bonkPw:"Bm9@Lp#4Yq",city:"Key West, FL",hometown:"Tampa, FL",workplace:"Gulf Coast Marine Debris Research",position:"Marine Debris Researcher",bio:"Freediving record holder & marine debris researcher quantifying microplastics in Gulf of Mexico.",status:"Active",profileUrl:"https://platform.dev/profile/aldhelm",pageUrl:"https://platform.dev/page/aldhelm",tags:["Verified"],proxy:"192.168.1.112:8080:user112:pass112",profileCreated:"2025-11-05",accountCreated:"2025-11-01",friends:276,has2FA:true,hasPage:true,profileSetup:true},
+  {id:13,firstName:"Celestia",lastName:"Dunmore",dob:"02-19-1998",gender:"Female",email:"celestia1998dunmore@socialplatform.dev",mailPw:"Xp4!Wv$7Mz",bonkPw:"Jk9@Vn#5Lq",city:"Huntsville, TX",hometown:"Houston, TX",workplace:"TX Dept of Criminal Justice Education",position:"Prison Education Coordinator",bio:"Prison education coordinator who enrolled 200+ incarcerated students in college-credit programs.",status:"Flagged",profileUrl:"https://platform.dev/profile/celestia",pageUrl:"",tags:["Flagged"],proxy:"192.168.1.113:8080:user113:pass113",profileCreated:"2026-01-08",accountCreated:"2026-01-04",friends:34,has2FA:true,hasPage:false,profileSetup:false},
+  {id:14,firstName:"Leofric",lastName:"Whitmore",dob:"07-07-1984",gender:"Male",email:"leofric84whitmore@socialplatform.dev",mailPw:"Zt7$Kn!5Wv",bonkPw:"Mj4@Lx#8Yb",city:"Portland, OR",hometown:"Corvallis, OR",workplace:"Timber Elevation Structural Engineering",position:"Mass Timber Structural Engineer",bio:"Structural timber engineer designing low-carbon mass timber buildings over 10 stories tall.",status:"Active",profileUrl:"https://platform.dev/profile/leofricw",pageUrl:"https://platform.dev/page/leofricw",tags:["Verified"],proxy:"192.168.1.114:8080:user114:pass114",profileCreated:"2025-10-05",accountCreated:"2025-10-01",friends:443,has2FA:true,hasPage:true,profileSetup:true},
+  {id:15,firstName:"Iolanthe",lastName:"Stanhope",dob:"11-04-1995",gender:"Female",email:"iolanthe95stanhope@socialplatform.dev",mailPw:"Rn6!Zb$4Xm",bonkPw:"Vp8@Lk#7Wq",city:"San Jose, CA",hometown:"Fremont, CA",workplace:"NovaDrive Autonomous Systems",position:"AV Safety Validation Engineer",bio:"AV safety engineer running edge-case simulation testing for self-driving systems. Amateur rally car driver.",status:"Active",profileUrl:"https://platform.dev/profile/iolanthe",pageUrl:"https://platform.dev/page/iolanthe",tags:["Verified"],proxy:"192.168.1.115:8080:user115:pass115",profileCreated:"2025-09-28",accountCreated:"2025-09-24",friends:587,has2FA:true,hasPage:true,profileSetup:true},
+];
+
+// Tracker state: { id: [{date, time}] }
+let tracker = JSON.parse(localStorage.getItem('pv_tracker') || '{}');
+
+function saveTracker() { try { localStorage.setItem('pv_tracker', JSON.stringify(tracker)); } catch(e) {} }
+
+function isProcessedToday(id) {
+  const log = tracker[id] || [];
+  return log.some(e => e.date === TODAY);
+}
+
+function markToday(id, e) {
+  if(e) e.stopPropagation();
+  if(!tracker[id]) tracker[id] = [];
+  if(!isProcessedToday(id)) {
+    const now = new Date();
+    tracker[id].push({ date: TODAY, time: now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) });
+    saveTracker();
+    renderStats(); renderTable();
+    showToast('Marked as processed ✓');
+  } else {
+    // unmark
+    tracker[id] = (tracker[id]||[]).filter(e => e.date !== TODAY);
+    saveTracker();
+    renderStats(); renderTable();
+    showToast('Unmarked for today');
+  }
+}
+
+function markAllToday() {
+  const now = new Date();
+  const t = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  PROFILES.forEach(p => {
+    if(!tracker[p.id]) tracker[p.id] = [];
+    if(!isProcessedToday(p.id)) tracker[p.id].push({date: TODAY, time: t});
+  });
+  saveTracker(); renderStats(); renderTable();
+  showToast('All profiles marked as done today ✓');
+}
+
+function ago(s) {
+  const d = new Date(s), now = new Date();
+  const days = Math.floor((now - d) / 86400000);
+  if(days===0) return 'Today';
+  if(days===1) return 'Yesterday';
+  if(days<30) return days+'d ago';
+  if(days<365) return Math.floor(days/30)+'mo ago';
+  const y=Math.floor(days/365), m=Math.floor((days%365)/30);
+  return m>0?`${y}y ${m}mo ago`:`${y}y ago`;
+}
+function fmtDate(s) { return new Date(s).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+
+function score(p) {
+  let c=0;
+  if(p.has2FA) c++; if(p.hasPage) c++;
+  if(p.friends>=30) c++; if(p.profileSetup) c++;
+  return c;
+}
+
+function sbadge(s) { return `<span class="sbadge ${SC[s]||'sa'}"><span class="sdot2"></span>${s}</span>`; }
+function tagHtml(ts) { return ts.map(t=>`<span class="tag ${TC[t]||'tn'}">${t}</span>`).join(''); }
+
+function ckIcon(yes) {
+  return yes
+    ? `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`
+    : `<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+}
+
+function checklist(p) {
+  const items = [
+    {l:"2FA", v: p.has2FA},
+    {l:"Page", v: p.hasPage},
+    {l:"30+ Friends", v: p.friends>=30},
+    {l:"Profile Set Up", v: p.profileSetup},
+  ];
+  return `<div class="cklist">${items.map(i=>`
+    <div class="cki">
+      <div class="ckbox ${i.v?'yes':'no'}">${ckIcon(i.v)}</div>
+      <span class="cklabel ${i.v?'yes':'no'}">${i.l}</span>
+    </div>`).join('')}</div>`;
+}
+
+function trackerCell(p) {
+  const done = isProcessedToday(p.id);
+  const log = tracker[p.id] || [];
+  const todayEntry = log.find(e=>e.date===TODAY);
+  const btn = done
+    ? `<button class="mark-btn done-btn" onclick="markToday(${p.id},event)">✓ Done</button>`
+    : `<button class="mark-btn" onclick="markToday(${p.id},event)">Mark Done</button>`;
+  const badge = done
+    ? `<span class="track-badge track-done">Processed</span>`
+    : `<span class="track-badge track-pending">Pending</span>`;
+  const time = done && todayEntry ? `<div class="track-time">${todayEntry.time}</div>` : '';
+  return `<div class="tracker-cell">${badge}${time}${btn}</div>`;
+}
+
+function renderStats() {
+  const P = PROFILES;
+  const doneToday = P.filter(p=>isProcessedToday(p.id)).length;
+  const items = [
+    {l:"Total",v:P.length,c:"var(--text)",d:"#1c1c1e"},
+    {l:"Active",v:P.filter(p=>p.status==="Active").length,c:"var(--green-t)",d:"var(--green)"},
+    {l:"Flagged",v:P.filter(p=>p.status==="Flagged").length,c:"var(--orange-t)",d:"var(--orange)"},
+    {l:"Banned",v:P.filter(p=>p.status==="Banned").length,c:"var(--red-t)",d:"var(--red)"},
+    {l:"Ready (4/4)",v:P.filter(p=>score(p)===4).length,c:"#0058b3",d:"var(--accent)"},
+    {l:"Done Today",v:doneToday,c:"var(--green-t)",d:"var(--green)"},
+  ];
+  document.getElementById('sr').innerHTML = items.map(s=>`
+    <div class="sc">
+      <div class="snum" style="color:${s.c}">${s.v}</div>
+      <div class="slabel"><span class="sdot" style="background:${s.d}"></span>${s.l}</div>
+    </div>`).join('');
+}
+
+function getFiltered() {
+  const q = document.getElementById('si').value.toLowerCase();
+  const sf = document.getElementById('sf').value;
+  const tf = document.getElementById('tf').value;
+  const sb = document.getElementById('sb').value;
+  const trk = document.getElementById('trk').value;
+  let list = [...PROFILES];
+  if(q) list = list.filter(p =>
+    `${p.firstName} ${p.lastName}`.toLowerCase().includes(q)||
+    p.city.toLowerCase().includes(q)||p.workplace.toLowerCase().includes(q)||
+    p.position.toLowerCase().includes(q)||p.email.toLowerCase().includes(q)
+  );
+  if(sf) list = list.filter(p=>p.status===sf);
+  if(tf) list = list.filter(p=>p.tags.includes(tf));
+  if(trk==='done') list = list.filter(p=>isProcessedToday(p.id));
+  if(trk==='pending') list = list.filter(p=>!isProcessedToday(p.id));
+  if(sb==='name') list.sort((a,b)=>a.lastName.localeCompare(b.lastName));
+  else if(sb==='status') list.sort((a,b)=>a.status.localeCompare(b.status));
+  else if(sb==='ready') list.sort((a,b)=>score(b)-score(a));
+  else if(sb==='unprocessed') list.sort((a,b)=>isProcessedToday(a.id)-isProcessedToday(b.id));
+  else list.sort((a,b)=>a.id-b.id);
+  return list;
+}
+
+const EXT = `<svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
+
+function renderTable() {
+  const list = getFiltered();
+  document.getElementById('rc').textContent = `${list.length} of ${PROFILES.length}`;
+  if(!list.length) {
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="8"><div class="empty-st"><div style="font-size:32px;margin-bottom:10px">🔍</div><div class="et">No results</div><div class="ed">Try adjusting your search or filters</div></div></td></tr>`;
+    return;
+  }
+  document.getElementById('tbody').innerHTML = list.map(p => {
+    const color = AVC[p.id % AVC.length];
+    const done = isProcessedToday(p.id);
+    return `<tr class="${done?'processed-today':''}" onclick="showDetail(${p.id})">
+      <td>
+        <div class="pcell">
+          <div class="av" style="background:${color}">${p.firstName[0]}${p.lastName[0]}</div>
+          <div>
+            <div class="pname">${p.firstName} ${p.lastName}</div>
+            <div class="pcity">${p.city}</div>
+          </div>
+        </div>
+      </td>
+      <td>${sbadge(p.status)}</td>
+      <td class="dcell">
+        <div class="dv">${fmtDate(p.profileCreated)}</div>
+        <div class="da">${ago(p.profileCreated)}</div>
+      </td>
+      <td class="dcell">
+        <div class="dv">${fmtDate(p.accountCreated)}</div>
+        <div class="da">${ago(p.accountCreated)}</div>
+      </td>
+      <td>
+        <div class="lcell">
+          ${p.profileUrl?`<a class="el" onclick="event.stopPropagation()" href="${p.profileUrl}" target="_blank">${EXT} Profile</a>`:'<span class="nol">No profile</span>'}
+          ${p.pageUrl?`<a class="el" onclick="event.stopPropagation()" href="${p.pageUrl}" target="_blank">${EXT} Page</a>`:'<span class="nol">No page</span>'}
+        </div>
+      </td>
+      <td>${checklist(p)}</td>
+      <td>${trackerCell(p)}</td>
+      <td><button class="vbtn" onclick="event.stopPropagation();showDetail(${p.id})">View →</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function drow(label, val, mono, copy) {
+  const empty = !val||String(val).trim()==='';
+  const vc = empty?'muted':(mono?'mono':'');
+  const disp = empty?'—':val;
+  const esc = String(disp).replace(/'/g,"\\'");
+  const cb = copy&&!empty?`<button class="cpbtn" onclick="doCopy('${esc}',this)">Copy</button>`:'';
+  return `<div class="dr"><div class="dl">${label}</div><div class="dv ${vc}">${disp}</div>${cb}</div>`;
+}
+
+function showDetail(id) {
+  const p = PROFILES.find(x=>x.id===id);
+  const color = AVC[p.id % AVC.length];
+  const s = score(p);
+  const done = isProcessedToday(p.id);
+  const log = (tracker[p.id]||[]).slice().reverse();
+  const todayE = log.find(e=>e.date===TODAY);
+
+  const reqItems = [
+    {l:"2FA Enabled", v: p.has2FA},
+    {l:"Page Created", v: p.hasPage},
+    {l:"30+ Friends", v: p.friends>=30},
+    {l:"Profile Set Up", v: p.profileSetup},
+  ];
+
+  const logHtml = log.length===0
+    ? `<div class="log-empty">No activity recorded yet.</div>`
+    : log.slice(0,10).map(e=>`
+        <div class="log-entry">
+          <div class="log-dot"></div>
+          <div class="log-date">${new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
+          <div class="log-time">${e.time}</div>
+        </div>`).join('');
+
+  document.getElementById('di').innerHTML = `
+    <div class="dhero">
+      <div class="hcover" style="background:linear-gradient(135deg,${color}18,${color}35)">
+        <div class="haw"><div class="hav" style="background:${color}">${p.firstName[0]}${p.lastName[0]}</div></div>
+      </div>
+      <div class="hbody">
+        <div class="htop">
+          <div>
+            <div class="hname">${p.firstName} ${p.lastName}</div>
+            <div class="hsub">${p.position} · ${p.workplace}</div>
+            <div class="hbrow">${sbadge(p.status)} ${tagHtml(p.tags)}</div>
+          </div>
+          <div class="hmeta">#${String(p.id).padStart(4,'0')} · ${p.gender}<br>${p.city} · ${p.dob}<br>Requirements: ${s}/4</div>
+        </div>
+        <div class="hbio">${p.bio}</div>
+      </div>
+    </div>
+
+    <div class="dgrid">
+      <div class="dc">
+        <div class="dct">Personal</div>
+        ${drow('Full Name',p.firstName+' '+p.lastName,false,true)}
+        ${drow('Date of Birth',p.dob,false,true)}
+        ${drow('Gender',p.gender,false,false)}
+        ${drow('Current City',p.city,false,true)}
+        ${drow('Hometown',p.hometown,false,true)}
+      </div>
+      <div class="dc">
+        <div class="dct">Credentials</div>
+        ${drow('Email',p.email,true,true)}
+        ${drow('Mail PW',p.mailPw,true,true)}
+        ${drow('Bonk PW',p.bonkPw,true,true)}
+        ${drow('Proxy',p.proxy,true,!!p.proxy)}
+      </div>
+      <div class="dc">
+        <div class="dct">Dates & Links</div>
+        ${drow('Profile Created',fmtDate(p.profileCreated)+' · '+ago(p.profileCreated),false,false)}
+        ${drow('Account Created',fmtDate(p.accountCreated)+' · '+ago(p.accountCreated),false,false)}
+        ${p.profileUrl?`<div class="dr"><div class="dl">Profile URL</div><div class="dv mono">${p.profileUrl}</div><button class="cpbtn" onclick="doCopy('${p.profileUrl}',this)">Copy</button></div>`:drow('Profile URL','',false,false)}
+        ${p.pageUrl?`<div class="dr"><div class="dl">Page URL</div><div class="dv mono">${p.pageUrl}</div><button class="cpbtn" onclick="doCopy('${p.pageUrl}',this)">Copy</button></div>`:drow('Page URL','',false,false)}
+      </div>
+      <div class="dc">
+        <div class="dct">Requirements <span style="margin-left:6px"><span class="spill ${s===4?'sp-full':s>=2?'sp-part':'sp-low'}">${s}/4 ${s===4?'Ready':'Done'}</span></span></div>
+        <div class="req-grid">${reqItems.map(i=>`
+          <div class="req-item ${i.v?'ryes':'rno'}">
+            <div class="req-icon">${ckIcon(i.v)}</div>
+            <span class="req-name">${i.l}</span>
+          </div>`).join('')}
+        </div>
+      </div>
+
+      <div class="dc" style="grid-column: 1/-1">
+        <div class="dct">Daily Tracker</div>
+        <div class="tracker-detail">
+          <div class="track-status-big ${done?'tsd-done':'tsd-pending'}">
+            <div class="tsd-icon">${done?`<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`:`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`}</div>
+            <div class="tsd-text">
+              <div class="tsd-title">${done?'Processed Today':'Not Yet Processed Today'}</div>
+              <div class="tsd-sub">${done?`Last processed at ${todayE?todayE.time:'today'}`:`Today is ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}`}</div>
+            </div>
+            <button class="tsd-btn" onclick="markToday(${p.id},event);refreshDetail(${p.id})">${done?'Undo':'Mark Done Now'}</button>
+          </div>
+          <div class="log-section">
+            <div class="log-title">Activity Log (${log.length} sessions)</div>
+            ${logHtml}
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('lp').style.display = 'none';
+  document.getElementById('dp').style.display = 'block';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function refreshDetail(id) { setTimeout(()=>showDetail(id), 50); }
+
+function showList() {
+  document.getElementById('lp').style.display = 'block';
+  document.getElementById('dp').style.display = 'none';
+}
+
+function doCopy(text, btn) {
+  navigator.clipboard.writeText(text).then(()=>{
+    btn.textContent='✓ Copied'; btn.classList.add('ok');
+    showToast('Copied to clipboard');
+    setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('ok');},2000);
+  });
+}
+function showToast(msg) {
+  const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2400);
+}
+
+renderStats(); renderTable();
+</script>
+</body>
+</html>
