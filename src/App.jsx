@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Link, Routes, Route } from "react-router-dom";
 import { loginAccount, registerAccount } from "./api/auth";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ProfilesPage } from "./pages/ProfilesPage";
@@ -22,13 +22,16 @@ function AuthField({ label, value, onChange, type = "text" }) {
 
 function Layout({ children }) {
   const { currentUser, login, logout } = useAuth();
-  const [theme, setTheme] = useState(() => localStorage.getItem("pv_theme") || "light");
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("pv_theme") || "light",
+  );
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
+  const [wipFeature, setWipFeature] = useState("");
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -92,33 +95,50 @@ function Layout({ children }) {
     closeAuth();
   }
 
+  function showWipModal(e, feature) {
+    e.preventDefault();
+    setWipFeature(feature);
+  }
+
+  function closeWipModal() {
+    setWipFeature("");
+  }
+
   return (
     <div>
       {/* Nav */}
       <nav>
         <div className="nav-inner">
-          <div className="nav-brand">
-            <div className="nav-icon">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-              </svg>
-            </div>
+          <Link to="/" className="nav-brand">
             <span className="nav-word">70R34</span>
-            <span className="nav-pill">DEMO</span>
-          </div>
+          </Link>
           <div className="nav-links">
-            <a href="/" className="active">
+            <Link to="/" className="active">
               Profiles
+            </Link>
+            <a href="#" onClick={(e) => showWipModal(e, "Proxy")}>
+              Proxy
             </a>
-            <a href="#">Analytics</a>
-            <a href="#">Anti-Bot ML</a>
-            <a href="#">Settings</a>
+            <a href="#" onClick={(e) => showWipModal(e, "Images")}>
+              Images
+            </a>
+            <a href="#" onClick={(e) => showWipModal(e, "Pages")}>
+              Pages
+            </a>
+            <a href="#" onClick={(e) => showWipModal(e, "Anti-Bot ML")}>
+              Anti-Bot ML
+            </a>
+            <a href="#" onClick={(e) => showWipModal(e, "Analytics")}>
+              Analytics
+            </a>
           </div>
           <div className="nav-meta">
             <button
               type="button"
               className="theme-switcher"
-              onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+              onClick={() =>
+                setTheme((current) => (current === "dark" ? "light" : "dark"))
+              }
             >
               {theme === "dark" ? "Black" : "Light"}
             </button>
@@ -129,7 +149,9 @@ function Layout({ children }) {
             >
               {currentUser?.username || "Account"}
             </button>
-            {currentUser?.role === "guest" && <span className="nav-pill">GUEST</span>}
+            {currentUser?.role === "guest" && (
+              <span className="nav-pill">GUEST</span>
+            )}
             {currentUser && isAccountMenuOpen && (
               <div className="account-menu">
                 <button
@@ -200,7 +222,11 @@ function Layout({ children }) {
               </div>
 
               <div className="npm-grid auth-grid">
-                <AuthField label="Username" value={username} onChange={setUsername} />
+                <AuthField
+                  label="Username"
+                  value={username}
+                  onChange={setUsername}
+                />
                 <AuthField
                   label="Password"
                   type="password"
@@ -209,7 +235,9 @@ function Layout({ children }) {
                 />
               </div>
 
-              {authError ? <div className="npm-submit-error">{authError}</div> : null}
+              {authError ? (
+                <div className="npm-submit-error">{authError}</div>
+              ) : null}
 
               <div className="npm-footer">
                 <button type="button" className="btn-s" onClick={closeAuth}>
@@ -217,12 +245,63 @@ function Layout({ children }) {
                 </button>
                 <div className="npm-footer-actions">
                   {currentUser ? (
-                    <button type="button" className="btn-s" onClick={handleLogout}>
+                    <button
+                      type="button"
+                      className="btn-s"
+                      onClick={handleLogout}
+                    >
                       Logout
                     </button>
                   ) : null}
-                  <button type="button" className="btn-p" onClick={handleAuthSubmit}>
+                  <button
+                    type="button"
+                    className="btn-p"
+                    onClick={handleAuthSubmit}
+                  >
                     {authMode === "login" ? "Login" : "Register"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {wipFeature && (
+        <div className="npm-backdrop" onClick={closeWipModal}>
+          <div
+            className="npm-modal wip-modal max-w-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="npm-header">
+              <div>
+                <div className="npm-kicker">Work In Progress</div>
+                <h2 className="npm-title">{wipFeature}</h2>
+              </div>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={closeWipModal}
+              >
+                x
+              </button>
+            </div>
+
+            <div className="npm-body">
+              <div className="npm-grid auth-grid">
+                <div style={{ color: "var(--text2)", fontSize: "13px" }}>
+                  This feature is still under development.
+                </div>
+              </div>
+
+              <div className="npm-footer">
+                <div className="npm-footer-actions">
+                  <button
+                    type="button"
+                    className="btn-p"
+                    onClick={closeWipModal}
+                  >
+                    Close
                   </button>
                 </div>
               </div>

@@ -18,6 +18,15 @@ function sanitizeUser(user) {
   };
 }
 
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getSelectedEmail(profile) {
+  const selectedEmail = (profile?.emails || []).find((email) => email?.selected);
+  return normalizeText(selectedEmail?.address);
+}
+
 router.get("/", async (_req, res, next) => {
   try {
     const profiles = await Profile.find().sort({ id: 1 }).lean();
@@ -118,9 +127,27 @@ router.post("/", async (req, res, next) => {
   try {
     const userId = String(req.body?.userId || "").trim();
     let ownerUser = null;
+    const incomingSelectedEmail = getSelectedEmail(req.body);
 
     if (userId) {
       ownerUser = await User.findById(userId);
+    }
+
+    if (incomingSelectedEmail) {
+      const existingProfiles = await Profile.find(
+        { "emails.selected": true },
+        { id: 1, firstName: 1, lastName: 1, emails: 1 },
+      ).lean();
+
+      const duplicateProfile = existingProfiles.find(
+        (profile) => getSelectedEmail(profile) === incomingSelectedEmail,
+      );
+
+      if (duplicateProfile) {
+        return res.status(409).json({
+          message: `Profile already exists with the selected email ${incomingSelectedEmail}.`,
+        });
+      }
     }
 
     const payload = {
