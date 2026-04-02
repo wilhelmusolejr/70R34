@@ -361,7 +361,10 @@ export function NewProfileModal({
 
   return (
     <div className="npm-backdrop" onClick={onClose}>
-      <div className="npm-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="npm-modal npm-modal-fixed"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="npm-header">
           <div>
             <div className="npm-kicker">Manual Profile Entry</div>
@@ -385,9 +388,10 @@ export function NewProfileModal({
           ))}
         </div>
 
-        <form className="npm-body" onSubmit={handleSubmit}>
-          {activeTab === 0 && (
-            <div className="npm-grid">
+        <form className="npm-body npm-body-fixed" onSubmit={handleSubmit}>
+          <div className="npm-body-content">
+            {activeTab === 0 && (
+              <div className="npm-grid">
               <Field label="First Name" error={errors.firstName}>
                 <input
                   className="npm-input"
@@ -435,11 +439,11 @@ export function NewProfileModal({
                   ))}
                 </select>
               </Field>
-            </div>
-          )}
+              </div>
+            )}
 
-          {activeTab === 1 && (
-            <div className="npm-grid">
+            {activeTab === 1 && (
+              <div className="npm-grid">
               <Field label="Email" error={errors.email}>
                 <input
                   className="npm-input"
@@ -475,20 +479,30 @@ export function NewProfileModal({
                   onChange={(e) => setField("proxyLocation", e.target.value)}
                 />
               </Field>
-            </div>
-          )}
+              </div>
+            )}
 
-          {activeTab === 2 && (
-            <div>
+            {activeTab === 2 && (
+              <div>
               <SectionTitle
                 title="Work Experience"
                 action={
-                  <button type="button" className="add-item-btn" onClick={addWork}>
+                  <button
+                    type="button"
+                    className="add-item-btn"
+                    onClick={addWork}
+                  >
                     + Add
                   </button>
                 }
               />
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "14px",
+                }}
+              >
                 {form.work.map((item, index) => (
                   <div key={index} className="work-card">
                     <div className="work-header">
@@ -511,21 +525,27 @@ export function NewProfileModal({
                         <input
                           className="npm-input"
                           value={item.company}
-                          onChange={(e) => updateWork(index, "company", e.target.value)}
+                          onChange={(e) =>
+                            updateWork(index, "company", e.target.value)
+                          }
                         />
                       </Field>
                       <Field label="Position">
                         <input
                           className="npm-input"
                           value={item.position}
-                          onChange={(e) => updateWork(index, "position", e.target.value)}
+                          onChange={(e) =>
+                            updateWork(index, "position", e.target.value)
+                          }
                         />
                       </Field>
                       <Field label="From">
                         <input
                           className="npm-input"
                           value={item.from}
-                          onChange={(e) => updateWork(index, "from", e.target.value)}
+                          onChange={(e) =>
+                            updateWork(index, "from", e.target.value)
+                          }
                         />
                       </Field>
                       {!item.current && (
@@ -533,7 +553,9 @@ export function NewProfileModal({
                           <input
                             className="npm-input"
                             value={item.to}
-                            onChange={(e) => updateWork(index, "to", e.target.value)}
+                            onChange={(e) =>
+                              updateWork(index, "to", e.target.value)
+                            }
                           />
                         </Field>
                       )}
@@ -553,18 +575,22 @@ export function NewProfileModal({
                         <input
                           className="npm-input"
                           value={item.city}
-                          onChange={(e) => updateWork(index, "city", e.target.value)}
+                          onChange={(e) =>
+                            updateWork(index, "city", e.target.value)
+                          }
                         />
                       </Field>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+              </div>
+            )}
 
-          {activeTab === 3 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+            {activeTab === 3 && (
+              <div
+              style={{ display: "flex", flexDirection: "column", gap: "18px" }}
+              >
               <div>
                 <SectionTitle title="College" />
                 <div className="npm-grid">
@@ -655,7 +681,11 @@ export function NewProfileModal({
                         type="checkbox"
                         checked={form.education.highSchool.graduated}
                         onChange={(e) =>
-                          setEducation("highSchool", "graduated", e.target.checked)
+                          setEducation(
+                            "highSchool",
+                            "graduated",
+                            e.target.checked,
+                          )
                         }
                       />
                       Graduated
@@ -663,11 +693,11 @@ export function NewProfileModal({
                   </Field>
                 </div>
               </div>
-            </div>
-          )}
+              </div>
+            )}
 
-          {activeTab === 4 && (
-            <div className="npm-grid">
+            {activeTab === 4 && (
+              <div className="npm-grid">
               <Field label="Relationship Status">
                 <select
                   className="npm-input"
@@ -728,20 +758,30 @@ export function NewProfileModal({
                   onChange={(e) => setField("bio", e.target.value)}
                 />
               </Field>
-            </div>
-          )}
+              </div>
+            )}
 
-          {activeTab === 5 && (
-            <div>
+            {activeTab === 5 && (
+              <div>
               <SectionTitle
                 title="Travel"
                 action={
-                  <button type="button" className="add-item-btn" onClick={addTravel}>
+                  <button
+                    type="button"
+                    className="add-item-btn"
+                    onClick={addTravel}
+                  >
                     + Add
                   </button>
                 }
               />
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "14px",
+                }}
+              >
                 {form.travel.map((item, index) => (
                   <div key={index} className="work-card">
                     <div className="work-header">
@@ -764,7 +804,9 @@ export function NewProfileModal({
                         <input
                           className="npm-input"
                           value={item.place}
-                          onChange={(e) => updateTravel(index, "place", e.target.value)}
+                          onChange={(e) =>
+                            updateTravel(index, "place", e.target.value)
+                          }
                         />
                       </Field>
                       <Field label="Date">
@@ -772,18 +814,20 @@ export function NewProfileModal({
                           className="npm-input"
                           placeholder="YYYY-MM"
                           value={item.date}
-                          onChange={(e) => updateTravel(index, "date", e.target.value)}
+                          onChange={(e) =>
+                            updateTravel(index, "date", e.target.value)
+                          }
                         />
                       </Field>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+              </div>
+            )}
 
-          {activeTab === 6 && (
-            <div className="npm-grid">
+            {activeTab === 6 && (
+              <div className="npm-grid">
               <Field label="Profile Created" error={errors.profileCreated}>
                 <input
                   className="npm-input"
@@ -800,18 +844,37 @@ export function NewProfileModal({
                   onChange={(e) => setField("accountCreated", e.target.value)}
                 />
               </Field>
-            </div>
-          )}
+              <Field label="Profile URL">
+                <input
+                  className="npm-input"
+                  placeholder="https://facebook.com/your-profile"
+                  value={form.profileUrl}
+                  onChange={(e) => setField("profileUrl", e.target.value)}
+                />
+              </Field>
+              <Field label="Page URL">
+                <input
+                  className="npm-input"
+                  placeholder="https://facebook.com/your-page"
+                  value={form.pageUrl}
+                  onChange={(e) => setField("pageUrl", e.target.value)}
+                />
+              </Field>
+              </div>
+            )}
 
-          {submitError ? (
-            <div className="npm-submit-error">{submitError}</div>
-          ) : null}
+            {submitError ? (
+              <div className="npm-submit-error">{submitError}</div>
+            ) : null}
+          </div>
 
           <div className="npm-footer">
             <button
               type="button"
               className="btn-s"
-              onClick={() => setActiveTab((current) => Math.max(current - 1, 0))}
+              onClick={() =>
+                setActiveTab((current) => Math.max(current - 1, 0))
+              }
               disabled={activeTab === 0}
             >
               Previous

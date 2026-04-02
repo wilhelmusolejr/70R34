@@ -316,6 +316,12 @@ nav {
   border-radius: 24px;
   box-shadow: var(--sh-lg);
 }
+.npm-modal-fixed {
+  height: min(88vh, 920px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 .npm-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 16px; padding: 22px 24px 14px;
@@ -352,6 +358,18 @@ nav {
 .npm-tab:hover:not(.active) { background: var(--bg); border-color: var(--border2); color: var(--text); }
 .npm-tab.error { border-color: rgba(255,98,87,0.5); color: var(--red-t); }
 .npm-body { padding: 0 24px 24px; }
+.npm-body-fixed {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.npm-body-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-top: 2px;
+}
 .npm-grid {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px 18px;
