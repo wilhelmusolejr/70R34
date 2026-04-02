@@ -155,6 +155,9 @@ function Layout({ children }) {
             )}
             {currentUser && isAccountMenuOpen && (
               <div className="account-menu">
+                <div className="account-menu-label">Signed in as</div>
+                <div className="account-menu-user">{currentUser.username}</div>
+                <div className="account-menu-divider" />
                 <button
                   type="button"
                   className="account-menu-item"

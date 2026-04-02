@@ -124,31 +124,56 @@ nav {
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  min-width: 160px;
-  padding: 6px;
-  border-radius: 14px;
+  min-width: 220px;
+  padding: 10px;
+  border-radius: 16px;
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: var(--sh-lg);
   z-index: 220;
 }
+.account-menu-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text3);
+  padding: 2px 4px 0;
+}
+.account-menu-user {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  padding: 4px;
+}
+.account-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 0 6px;
+}
 .account-menu-item {
   width: 100%;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  text-align: left;
+  border: 1px solid rgba(255, 98, 87, 0.18);
+  background: var(--red-bg);
+  color: var(--red-t);
+  text-align: center;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   font-family: var(--font);
-  transition: all var(--t);
+  transition:
+    transform var(--t),
+    background var(--t),
+    border-color var(--t),
+    box-shadow var(--t);
 }
 .account-menu-item:hover {
-  background: var(--surface2);
-  color: var(--red-t);
+  background: #ffe8e5;
+  border-color: rgba(255, 98, 87, 0.28);
+  box-shadow: 0 6px 18px rgba(255, 98, 87, 0.12);
+  transform: translateY(-1px);
 }
 .auth-modal {
   max-height: unset;

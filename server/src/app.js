@@ -16,7 +16,7 @@ export function createApp() {
   app.use("/api/auth", authRouter);
   app.use("/api/profiles", profilesRouter);
 
-  app.use(function errorHandler(err, _req, res) {
+  app.use(function errorHandler(err, _req, res, _next) {
     console.error("Unhandled error:", err.message);
     res.status(500).json({
       message: err.message || "Internal server error",
