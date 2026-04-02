@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f5f5f7;
+  --surface: #fff;
+  --surface2: #fafafa;
+  --border: rgba(0,0,0,0.07);
+  --border2: rgba(0,0,0,0.12);
+  --text: #0a0a0a;
+  --text2: #6e6e73;
+  --text3: #aeaeb2;
+  --accent: #0071e3;
+  --accent-l: #e8f1fb;
+  --green: #30d158;
+  --green-bg: #f0faf2;
+  --green-t: #1a7a34;
+  --amber: #ff9f0a;
+  --amber-bg: #fff8ec;
+  --amber-t: #9b5a00;
+  --red: #ff3b30;
+  --red-bg: #fff3f2;
+  --red-t: #c0180f;
+  --orange: #ff6b35;
+  --orange-bg: #fff5f0;
+  --orange-t: #c23a00;
+  --purple: #bf5af2;
+  --purple-bg: #f8f0ff;
+  --purple-t: #7a2fa0;
+  --cyan: #32ade6;
+  --cyan-bg: #eef8fd;
+  --cyan-t: #0a6a9a;
+  --r: 12px;
+  --r-sm: 8px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --sh-sm: 0 1px 3px rgba(0,0,0,0.05);
+  --sh: 0 4px 20px rgba(0,0,0,0.07);
+  --sh-md: 0 8px 28px rgba(0,0,0,0.10);
+  --sh-lg: 0 12px 48px rgba(0,0,0,0.1);
+  --font: 'Poppins', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --t: 0.18s cubic-bezier(0.4,0,0.2,1);
+}
+
+:root[data-theme="dark"] {
+  --bg: #050505;
+  --surface: #0b0b0c;
+  --surface2: #121214;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f5f5f7;
+  --text2: #b0b0b7;
+  --text3: #7f7f88;
+  --accent: #4da3ff;
+  --accent-l: rgba(77,163,255,0.14);
+  --green: #38d66b;
+  --green-bg: rgba(56,214,107,0.13);
+  --green-t: #7ce79f;
+  --amber: #ffb547;
+  --amber-bg: rgba(255,181,71,0.12);
+  --amber-t: #ffd089;
+  --red: #ff6257;
+  --red-bg: rgba(255,98,87,0.12);
+  --red-t: #ff9a93;
+  --orange: #ff8b4d;
+  --orange-bg: rgba(255,139,77,0.12);
+  --orange-t: #ffb080;
+  --purple: #c985ff;
+  --purple-bg: rgba(201,133,255,0.12);
+  --purple-t: #ddb1ff;
+  --cyan: #4dcfff;
+  --cyan-bg: rgba(77,207,255,0.12);
+  --cyan-t: #97e6ff;
+  --sh-sm: 0 1px 3px rgba(0,0,0,0.35);
+  --sh: 0 10px 30px rgba(0,0,0,0.45);
+  --sh-md: 0 8px 28px rgba(0,0,0,0.5);
+  --sh-lg: 0 18px 58px rgba(0,0,0,0.6);
+}
+
+html { font-size: 14px; scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
