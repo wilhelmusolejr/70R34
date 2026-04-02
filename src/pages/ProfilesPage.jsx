@@ -12,7 +12,11 @@ const TODAY = new Date().toLocaleDateString("en-CA");
 
 function getSelectedEmail(profile) {
   if (!profile?.emails?.length) return "";
-  return profile.emails.find((entry) => entry.selected)?.address || profile.emails[0].address || "";
+  return (
+    profile.emails.find((entry) => entry.selected)?.address ||
+    profile.emails[0].address ||
+    ""
+  );
 }
 
 function ago(s) {
@@ -66,7 +70,6 @@ function getAvatarColor(id) {
 function getInitials(firstName, lastName) {
   return (firstName[0] + lastName[0]).toUpperCase();
 }
-
 
 export function ProfilesPage() {
   const navigate = useNavigate();
@@ -179,7 +182,10 @@ export function ProfilesPage() {
           ? profile
           : {
               ...profile,
-              trackerLog: [...(profile.trackerLog || []), { date: TODAY, note }],
+              trackerLog: [
+                ...(profile.trackerLog || []),
+                { date: TODAY, note },
+              ],
             },
       ),
     );
@@ -187,18 +193,28 @@ export function ProfilesPage() {
 
   const visibleProfiles = isMaker
     ? profiles.filter((profile) =>
-        (currentUser?.profiles || []).some((entry) => entry.profileId === profile.id),
+        (currentUser?.profiles || []).some(
+          (entry) => entry.profileId === profile.id,
+        ),
       )
     : profiles;
 
   const totalProfiles = visibleProfiles.length;
-  const activeProfiles = visibleProfiles.filter((p) => p.status === "Active").length;
+  const activeProfiles = visibleProfiles.filter(
+    (p) => p.status === "Active",
+  ).length;
   const pendingProfiles = visibleProfiles.filter(
     (p) => p.status === "Pending Profile",
   ).length;
-  const bannedProfiles = visibleProfiles.filter((p) => p.status === "Banned").length;
-  const readyProfiles = visibleProfiles.filter((p) => p.status === "Ready").length;
-  const doneTodayCount = visibleProfiles.filter((p) => isProcessedToday(p)).length;
+  const bannedProfiles = visibleProfiles.filter(
+    (p) => p.status === "Banned",
+  ).length;
+  const readyProfiles = visibleProfiles.filter(
+    (p) => p.status === "Ready",
+  ).length;
+  const doneTodayCount = visibleProfiles.filter((p) =>
+    isProcessedToday(p),
+  ).length;
   const trackableProfiles = visibleProfiles.filter((p) =>
     ["Active", "Flagged", "Need Setup"].includes(p.status),
   ).length;
@@ -210,7 +226,8 @@ export function ProfilesPage() {
     const matchesSearch =
       `${profile.firstName} ${profile.lastName} ${profile.city || ""} ${primaryWork?.company || ""} ${primaryWork?.position || ""}`
         .toLowerCase()
-        .includes(q) || (confidential && selectedEmail.includes(q));
+        .includes(q) ||
+      (confidential && selectedEmail.includes(q));
     const matchesStatus =
       statusFilter.length === 0 || statusFilter.includes(profile.status);
     const matchesTracker =
@@ -239,7 +256,8 @@ export function ProfilesPage() {
   });
 
   const nextId =
-    visibleProfiles.reduce((maxId, profile) => Math.max(maxId, profile.id), 0) + 1;
+    visibleProfiles.reduce((maxId, profile) => Math.max(maxId, profile.id), 0) +
+    1;
 
   function handleProfileCreated(createdProfile) {
     setProfiles((current) =>
@@ -266,7 +284,9 @@ export function ProfilesPage() {
         isOpen={isGenerateOpen}
         onClose={() => setIsGenerateOpen(false)}
         onGenerated={(newProfiles) =>
-          setProfiles((cur) => [...cur, ...newProfiles].sort((a, b) => a.id - b.id))
+          setProfiles((cur) =>
+            [...cur, ...newProfiles].sort((a, b) => a.id - b.id),
+          )
         }
         onToast={setToast}
       />
@@ -291,7 +311,11 @@ export function ProfilesPage() {
                   Mark {trackerTarget.firstName} {trackerTarget.lastName}
                 </h2>
               </div>
-              <button className="npm-close" type="button" onClick={closeTrackerModal}>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={closeTrackerModal}
+              >
                 x
               </button>
             </div>
@@ -313,11 +337,19 @@ export function ProfilesPage() {
                 </label>
               </div>
               <div className="npm-footer">
-                <button type="button" className="btn-s" onClick={closeTrackerModal}>
+                <button
+                  type="button"
+                  className="btn-s"
+                  onClick={closeTrackerModal}
+                >
                   Cancel
                 </button>
                 <div className="npm-footer-actions">
-                  <button type="button" className="btn-p" onClick={saveTrackerEntry}>
+                  <button
+                    type="button"
+                    className="btn-p"
+                    onClick={saveTrackerEntry}
+                  >
                     Save Tracker Entry
                   </button>
                 </div>
@@ -335,7 +367,11 @@ export function ProfilesPage() {
           <div className="hdr-acts">
             <button className="btn-s">Export CSV</button>
             {isAdmin && (
-              <button className="mark-all-btn" onClick={markAllToday}>
+              <button
+                className="mark-all-btn"
+                onClick={markAllToday}
+                style={{ display: "none" }}
+              >
                 <svg viewBox="0 0 24 24">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
@@ -430,7 +466,9 @@ export function ProfilesPage() {
             >
               <span>Status</span>
               <span className="status-filter-count">
-                {statusFilter.length === 0 ? "All" : `${statusFilter.length} selected`}
+                {statusFilter.length === 0
+                  ? "All"
+                  : `${statusFilter.length} selected`}
               </span>
             </button>
             {isStatusFilterOpen && (
@@ -530,7 +568,9 @@ export function ProfilesPage() {
                             </div>
                             <div className="pcity">{profile.city}</div>
                             <div className="pcity">
-                              {confidential ? getSelectedEmail(profile) || "-" : mask("")}
+                              {confidential
+                                ? getSelectedEmail(profile) || "-"
+                                : mask("")}
                             </div>
                           </div>
                         </div>
@@ -548,14 +588,14 @@ export function ProfilesPage() {
                           <div className="dv">
                             {fmtDate(profile.profileCreated)}
                           </div>
-                          <div className="da">{ago(profile.profileCreated)}</div>
+                          <div className="da">
+                            {ago(profile.profileCreated)}
+                          </div>
                         </div>
                       </td>
                       <td>
                         <div className="dcell">
-                          <div className="dv">
-                            {getInactiveDays(profile)}
-                          </div>
+                          <div className="dv">{getInactiveDays(profile)}</div>
                           <div className="da">Since last tracked</div>
                         </div>
                       </td>
@@ -602,23 +642,37 @@ export function ProfilesPage() {
                           {[
                             { label: "2FA", value: profile.has2FA },
                             { label: "Page", value: profile.hasPage },
-                            { label: "Friends", value: getFriendsDisplay(profile) },
+                            {
+                              label: "Friends",
+                              value: getFriendsDisplay(profile),
+                            },
                           ].map(({ label, value }) => (
                             <div key={label} className="cki">
                               {label === "Friends" ? (
                                 <>
-                                  <div className={`ckbox ${value !== "-" ? "yes" : "no"}`}>
-                                    <span style={{ fontSize: "10px", fontWeight: 700 }}>
+                                  <div
+                                    className={`ckbox ${value !== "-" ? "yes" : "no"}`}
+                                  >
+                                    <span
+                                      style={{
+                                        fontSize: "10px",
+                                        fontWeight: 700,
+                                      }}
+                                    >
                                       {value}
                                     </span>
                                   </div>
-                                  <span className={`cklabel ${value !== "-" ? "yes" : "no"}`}>
+                                  <span
+                                    className={`cklabel ${value !== "-" ? "yes" : "no"}`}
+                                  >
                                     {label}
                                   </span>
                                 </>
                               ) : (
                                 <>
-                                  <div className={`ckbox ${value ? "yes" : "no"}`}>
+                                  <div
+                                    className={`ckbox ${value ? "yes" : "no"}`}
+                                  >
                                     {value ? (
                                       <svg viewBox="0 0 24 24">
                                         <polyline points="20 6 9 17 4 12" />
@@ -687,4 +741,3 @@ export function ProfilesPage() {
     </div>
   );
 }
-
