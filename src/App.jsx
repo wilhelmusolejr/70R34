@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter as Router, Link, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Link, NavLink, Routes, Route } from "react-router-dom";
 import { loginAccount, registerAccount } from "./api/auth";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ProfilesPage } from "./pages/ProfilesPage";
+import { PagesPage } from "./pages/PagesPage";
 import { ProfileDetailPage } from "./pages/ProfileDetailPage";
 import "./App.css";
 
@@ -113,18 +114,18 @@ function Layout({ children }) {
             <span className="nav-word">70R34</span>
           </Link>
           <div className="nav-links">
-            <Link to="/" className="active">
+            <NavLink to="/" end>
               Profiles
-            </Link>
+            </NavLink>
             <a href="#" onClick={(e) => showWipModal(e, "Proxy")}>
               Proxy
             </a>
             <a href="#" onClick={(e) => showWipModal(e, "Images")}>
               Images
             </a>
-            <a href="#" onClick={(e) => showWipModal(e, "Pages")}>
+            <NavLink to="/pages">
               Pages
-            </a>
+            </NavLink>
             <a href="#" onClick={(e) => showWipModal(e, "Anti-Bot ML")}>
               Anti-Bot ML
             </a>
@@ -320,6 +321,7 @@ function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<ProfilesPage />} />
+            <Route path="/pages" element={<PagesPage />} />
             <Route path="/profile/:id" element={<ProfileDetailPage />} />
           </Routes>
         </Layout>

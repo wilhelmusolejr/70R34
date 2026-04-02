@@ -210,6 +210,40 @@ nav {
   color: var(--text2);
   margin-top: 5px;
 }
+.page-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.page-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.page-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.page-section-head h2 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.page-section-head span {
+  font-size: 12px;
+  color: var(--text3);
+  font-weight: 600;
+}
+.page-name-cell {
+  min-width: 180px;
+}
+.page-bio-cell {
+  min-width: 260px;
+  color: var(--text2);
+  line-height: 1.45;
+}
 .hdr-acts {
   display: flex;
   gap: 8px;
