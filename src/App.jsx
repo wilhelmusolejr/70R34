@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter as Router, Link, NavLink, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Link,
+  NavLink,
+  Routes,
+  Route,
+} from "react-router-dom";
 import { loginAccount, registerAccount } from "./api/auth";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ImageAssetDetailPage } from "./pages/ImageAssetDetailPage";
@@ -122,12 +128,8 @@ function Layout({ children }) {
             <a href="#" onClick={(e) => showWipModal(e, "Proxy")}>
               Proxy
             </a>
-            <NavLink to="/images">
-              Images
-            </NavLink>
-            <NavLink to="/pages">
-              Pages
-            </NavLink>
+            <NavLink to="/images">Images</NavLink>
+            <NavLink to="/pages">Pages</NavLink>
             <a href="#" onClick={(e) => showWipModal(e, "Anti-Bot ML")}>
               Anti-Bot ML
             </a>
@@ -292,7 +294,7 @@ function Layout({ children }) {
                 x
               </button>
             </div>
-
+            asda
             <div className="npm-body">
               <div className="npm-grid auth-grid">
                 <div style={{ color: "var(--text2)", fontSize: "13px" }}>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { fetchHumanAsset } from "../api/humanAssets";
 import { fetchProfiles } from "../api/profiles";
-import { getImageAssetById } from "../data/imageAssets";
 import "../App.css";
 
 function EmptyState({ title, description }) {
@@ -16,34 +16,47 @@ function EmptyState({ title, description }) {
 export function ImageAssetDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const asset = getImageAssetById(id);
+  const [asset, setAsset] = useState(null);
+  const [assetLoading, setAssetLoading] = useState(true);
+  const [assetError, setAssetError] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
   const [annotationMode, setAnnotationMode] = useState(false);
-  const [annotationsByImage, setAnnotationsByImage] = useState(
-    asset?.imageAnnotations || {},
-  );
+  const [annotationsByImage, setAnnotationsByImage] = useState({});
   const [profiles, setProfiles] = useState([]);
   const [pendingAnnotation, setPendingAnnotation] = useState(null);
   const [selectedProfileName, setSelectedProfileName] = useState("");
   const [draftBox, setDraftBox] = useState(null);
   const previewRef = useRef(null);
 
-  if (!asset) {
-    return (
-      <div className="page">
-        <button className="back-btn" onClick={() => navigate("/images")}>
-          <svg viewBox="0 0 24 24">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-          Back to Images
-        </button>
-        <EmptyState
-          title="Image asset not found"
-          description="The asset you are trying to view does not exist."
-        />
-      </div>
-    );
-  }
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAsset() {
+      try {
+        setAssetLoading(true);
+        setAssetError("");
+        const data = await fetchHumanAsset(id);
+        if (!cancelled) {
+          setAsset(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setAsset(null);
+          setAssetError(err.message || "Failed to load human asset.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAssetLoading(false);
+        }
+      }
+    }
+
+    loadAsset();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,11 +82,43 @@ export function ImageAssetDetailPage() {
   }, []);
 
   useEffect(() => {
+    setAnnotationsByImage({});
+  }, [asset]);
+
+  useEffect(() => {
     setAnnotationMode(false);
     setDraftBox(null);
     setPendingAnnotation(null);
     setSelectedProfileName("");
   }, [selectedImage]);
+
+  if (assetLoading) {
+    return (
+      <div className="page">
+        <EmptyState
+          title="Loading image asset"
+          description="Fetching human asset data from the backend..."
+        />
+      </div>
+    );
+  }
+
+  if (!asset) {
+    return (
+      <div className="page">
+        <button className="back-btn" onClick={() => navigate("/images")}>
+          <svg viewBox="0 0 24 24">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          Back to Images
+        </button>
+        <EmptyState
+          title="Image asset not found"
+          description={assetError || "The asset you are trying to view does not exist."}
+        />
+      </div>
+    );
+  }
 
   function getRelativePoint(event) {
     const bounds = previewRef.current?.getBoundingClientRect();
@@ -209,7 +254,7 @@ export function ImageAssetDetailPage() {
       <div className="page-header">
         <div>
           <h1>{asset.name}</h1>
-          <p>Extended asset profiling and gallery preview.</p>
+          <p>Human asset image gallery backed by live database records.</p>
         </div>
       </div>
 
@@ -228,29 +273,13 @@ export function ImageAssetDetailPage() {
             <div className="image-asset-value">{asset.possibleProfiles}</div>
           </div>
           <div className="sc">
-            <div className="slabel">Users Used Asset</div>
+            <div className="slabel">Profiles Using</div>
             <div className="image-asset-value">{asset.usedBy}</div>
           </div>
         </div>
 
         <div className="image-asset-link-row">
-          {asset.profileUrl ? (
-            <a
-              href={asset.profileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="el"
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-              Open Profile URL
-            </a>
-          ) : (
-            <span className="nol">No profile URL</span>
-          )}
+          <span className="nol">Human asset images are stored via linked image documents.</span>
         </div>
 
         <div className="page-section-head">
@@ -259,20 +288,22 @@ export function ImageAssetDetailPage() {
         </div>
 
         <div className="image-asset-gallery">
-          {asset.images.map((imagePath, index) => (
-            <div key={`${asset.id}-${imagePath}`} className="image-asset-tile">
+          {asset.images.map((image, index) => (
+            <div key={`${asset.id}-${image._id}`} className="image-asset-tile">
               <button
                 type="button"
                 className="image-asset-preview image-asset-preview-btn"
-                onClick={() => setSelectedImage(imagePath)}
+                onClick={() => setSelectedImage(image.filename)}
               >
                 <img
-                  src={imagePath}
+                  src={image.filename}
                   alt={`${asset.name} ${index + 1}`}
                   className="image-asset-img"
                 />
               </button>
-              <div className="image-asset-caption">Image {index + 1}</div>
+              <div className="image-asset-caption">
+                {image.annotation || `Image ${index + 1}`}
+              </div>
             </div>
           ))}
         </div>
@@ -411,15 +442,19 @@ export function ImageAssetDetailPage() {
                   <div className="image-asset-settings-card">
                     <div className="npm-label">Users Have Used This Image</div>
                     <div className="image-asset-user-list">
-                      {(asset.imageUsers?.[selectedImage] || ["Demo User"]).map(
-                        (user) => (
+                      {(asset.imageUsers?.[selectedImage] || []).length ? (
+                        (asset.imageUsers?.[selectedImage] || []).map((user) => (
                           <div
                             key={`${selectedImage}-${user}`}
                             className="image-asset-user-item"
                           >
                             {user}
                           </div>
-                        ),
+                        ))
+                      ) : (
+                        <div className="image-asset-helper">
+                          No profiles are using this human asset yet.
+                        </div>
                       )}
                     </div>
                   </div>

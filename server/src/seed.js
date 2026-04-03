@@ -3,6 +3,8 @@
 import dotenv from "dotenv";
 import { connectToDatabase } from "./config/db.js";
 import { Profile, PROFILE_STATUSES } from "./models/Profile.js";
+import { HumanAsset } from "./models/HumanAsset.js";
+import { Image } from "./models/Image.js";
 import { profiles } from "../../src/data.js";
 
 dotenv.config();
@@ -31,6 +33,29 @@ try {
 
 await Profile.deleteMany({});
 await Profile.insertMany(documents);
+await Image.deleteMany({});
+const seededImages = await Image.insertMany([
+  {
+    filename: "/images/jerome-hamoep-dummy.svg",
+    annotation: "jerome_hamoep_placeholder_portrait",
+    type: "profile",
+    sourceType: "generated",
+    aiGenerated: true,
+    generationModel: "local-dummy-svg",
+    usedBy: [],
+  },
+]);
+await HumanAsset.deleteMany({});
+await HumanAsset.insertMany([
+  {
+    name: "Jerome Hamoep",
+    numberPossibleProfile: 3,
+    numberProfileUsing: [],
+    images: [seededImages[0]._id],
+  },
+]);
 
 console.log(`Seeded ${documents.length} profiles.`);
+console.log(`Seeded ${seededImages.length} image.`);
+console.log("Seeded 1 human asset.");
 process.exit(0);

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720" role="img" aria-labelledby="title desc">
+  <title id="title">Jerome Hamoep Dummy Image</title>
+  <desc id="desc">A simple placeholder portrait card for Jerome Hamoep.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f4efe6" />
+      <stop offset="100%" stop-color="#d7e7f3" />
+    </linearGradient>
+  </defs>
+  <rect width="720" height="720" fill="url(#bg)" rx="48" />
+  <circle cx="360" cy="250" r="110" fill="#263238" />
+  <path d="M220 580c24-108 100-162 140-162s116 54 140 162" fill="#4f6d7a" />
+  <circle cx="325" cy="235" r="14" fill="#fff" />
+  <circle cx="395" cy="235" r="14" fill="#fff" />
+  <path d="M320 305c18 18 62 18 80 0" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="10" />
+  <text x="360" y="650" fill="#1f2933" font-family="Arial, sans-serif" font-size="42" font-weight="700" text-anchor="middle">
+    Jerome Hamoep
+  </text>
+</svg>

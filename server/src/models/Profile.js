@@ -83,6 +83,18 @@ const TrackerLogSchema = new Schema(
   { _id: false },
 );
 
+const ProfileImageAssignmentSchema = new Schema(
+  {
+    imageId: {
+      type: Schema.Types.ObjectId,
+      ref: "Image",
+      required: true,
+    },
+    assignedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const PersonalSchema = new Schema(
   {
     relationshipStatus: {
@@ -132,6 +144,7 @@ const ProfileSchema = new Schema(
     coverPhotoUrl: { type: String, default: "" },
     websites: { type: [String], default: [] },
     socialLinks: { type: [SocialLinkSchema], default: [] },
+    images: { type: [ProfileImageAssignmentSchema], default: [] },
     trackerLog: { type: [TrackerLogSchema], default: [] },
     personal: { type: PersonalSchema, default: () => ({}) },
     work: { type: [WorkSchema], default: [] },

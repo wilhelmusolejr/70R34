@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import authRouter from "./routes/auth.js";
+import humanAssetsRouter from "./routes/humanAssets.js";
 import profilesRouter from "./routes/profiles.js";
 
 export function createApp() {
@@ -14,6 +15,7 @@ export function createApp() {
   });
 
   app.use("/api/auth", authRouter);
+  app.use("/api/human-assets", humanAssetsRouter);
   app.use("/api/profiles", profilesRouter);
 
   app.use(function errorHandler(err, _req, res, _next) {
