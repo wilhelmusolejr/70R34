@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <rect width="1080" height="1080" fill="#ede1d3"/>
+  <rect x="230" y="240" width="620" height="420" rx="36" fill="#6d4c34"/>
+  <text x="540" y="830" text-anchor="middle" font-family="Arial, sans-serif" font-size="54" fill="#3d2a1d">Cafe Post 02</text>
+</svg>

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { BrowserRouter as Router, Link, NavLink, Routes, Route } from "react-router-dom";
 import { loginAccount, registerAccount } from "./api/auth";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ImageAssetDetailPage } from "./pages/ImageAssetDetailPage";
+import { ImagesPage } from "./pages/ImagesPage";
 import { ProfilesPage } from "./pages/ProfilesPage";
 import { PagesPage } from "./pages/PagesPage";
 import { ProfileDetailPage } from "./pages/ProfileDetailPage";
@@ -120,9 +122,9 @@ function Layout({ children }) {
             <a href="#" onClick={(e) => showWipModal(e, "Proxy")}>
               Proxy
             </a>
-            <a href="#" onClick={(e) => showWipModal(e, "Images")}>
+            <NavLink to="/images">
               Images
-            </a>
+            </NavLink>
             <NavLink to="/pages">
               Pages
             </NavLink>
@@ -324,6 +326,8 @@ function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<ProfilesPage />} />
+            <Route path="/images" element={<ImagesPage />} />
+            <Route path="/images/:id" element={<ImageAssetDetailPage />} />
             <Route path="/pages" element={<PagesPage />} />
             <Route path="/profile/:id" element={<ProfileDetailPage />} />
           </Routes>

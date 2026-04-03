@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <rect width="600" height="600" fill="#efe6d7"/>
+  <circle cx="300" cy="220" r="110" fill="#8f613f"/>
+  <rect x="150" y="360" width="300" height="120" rx="60" fill="#2c2119"/>
+  <text x="300" y="545" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" fill="#2c2119">Cafe Starter Avatar</text>
+</svg>

@@ -269,6 +269,163 @@ nav {
   color: var(--text2);
   line-height: 1.45;
 }
+.image-asset-profile {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.image-asset-basics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.image-asset-value {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+.image-asset-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.image-asset-gallery {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.image-asset-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.image-asset-preview {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  box-shadow: var(--sh-sm);
+}
+.image-asset-preview-btn {
+  width: 100%;
+  padding: 0;
+  cursor: pointer;
+  transition: transform var(--t), box-shadow var(--t);
+}
+.image-asset-preview-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sh);
+}
+.image-asset-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.image-asset-caption {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+}
+.image-asset-modal {
+  width: min(1080px, 100%);
+  max-height: min(88vh, 920px);
+}
+.image-asset-modal-body {
+  padding-top: 20px;
+}
+.image-asset-modal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
+  gap: 18px;
+}
+.image-asset-modal-preview {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--surface2);
+  min-height: 520px;
+}
+.image-asset-modal-preview.annotation-active {
+  cursor: crosshair;
+  user-select: none;
+}
+.image-asset-modal-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: var(--surface2);
+}
+.image-asset-annotation-layer {
+  position: absolute;
+  inset: 0;
+}
+.image-asset-annotation-box {
+  position: absolute;
+  border: 2px solid #ff6b35;
+  background: rgba(255, 107, 53, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(255, 107, 53, 0.18);
+}
+.image-asset-annotation-box.draft {
+  border-style: dashed;
+  background: rgba(0, 113, 227, 0.12);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 113, 227, 0.18);
+}
+.image-asset-annotation-label {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  transform: translateY(-100%);
+  background: #ff6b35;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 8px 8px 8px 0;
+  white-space: nowrap;
+}
+.image-asset-modal-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.image-asset-settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface2);
+}
+.image-asset-user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.image-asset-user-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 600;
+}
+.image-asset-helper {
+  color: var(--text3);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .hdr-acts {
   display: flex;
   gap: 8px;
@@ -1761,6 +1918,18 @@ select.npm-input {
   .interests-grid {
     grid-template-columns: 1fr;
   }
+  .image-asset-basics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .image-asset-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .image-asset-modal-layout {
+    grid-template-columns: 1fr;
+  }
+  .image-asset-modal-preview {
+    min-height: 340px;
+  }
   .npm-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1780,6 +1949,10 @@ select.npm-input {
 @media (max-width: 640px) {
   .stats-row {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .image-asset-basics,
+  .image-asset-gallery {
+    grid-template-columns: 1fr;
   }
   .hdr-acts {
     flex-wrap: wrap;
