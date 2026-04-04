@@ -1,6 +1,7 @@
 /* global process */
 import dotenv from "dotenv";
 import express from "express";
+import fs from "node:fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createApp } from "./app.js";
@@ -18,7 +19,11 @@ const app = createApp();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, "../../dist");
+const publicImagesPath = path.resolve(__dirname, "../../public/images");
 
+fs.mkdirSync(publicImagesPath, { recursive: true });
+
+app.use("/images", express.static(publicImagesPath));
 app.use(express.static(distPath));
 
 app.get("/{*path}", (_req, res) => {

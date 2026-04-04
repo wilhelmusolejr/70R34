@@ -9,6 +9,7 @@ import mongoose from "mongoose";
 import { Image } from "../models/Image.js";
 import { Page } from "../models/Page.js";
 import { Profile } from "../models/Profile.js";
+import { mapImageDoc } from "../utils/publicImageUrl.js";
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -68,11 +69,14 @@ function formatPage(page) {
     generationPrompt: page.generationPrompt,
     bio: String(page.bio || page.assets?.[0]?.postDescription || "").trim(),
     linkedIdentity: page.linkedIdentities?.[0] || null,
-    assets: page.assets || [],
+    assets: (page.assets || []).map((asset) => ({
+      ...asset,
+      imageId: mapImageDoc(asset.imageId),
+    })),
     posts: (page.posts || []).map((post) => ({
       id: String(post._id),
       post: post.post || "",
-      images: post.images || [],
+      images: (post.images || []).map((image) => mapImageDoc(image)),
       createdAt: post.createdAt || null,
       updatedAt: post.updatedAt || null,
     })),

@@ -8,6 +8,7 @@ import { HumanAsset } from "../models/HumanAsset.js";
 import { Image } from "../models/Image.js";
 import { Profile } from "../models/Profile.js";
 import { fileURLToPath } from "node:url";
+import { mapImageDoc } from "../utils/publicImageUrl.js";
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -57,8 +58,9 @@ function getHumanAssetUploadBaseName(type, sourceType) {
 }
 
 function formatHumanAsset(humanAsset) {
+  const normalizedImages = (humanAsset.images || []).map((image) => mapImageDoc(image));
   const imageUsers = Object.fromEntries(
-    (humanAsset.images || []).map((image) => [
+    normalizedImages.map((image) => [
       image.filename,
       (image.usedBy || [])
         .map((entry) => [entry.userId?.firstName, entry.userId?.lastName].filter(Boolean).join(" ").trim())
@@ -67,7 +69,7 @@ function formatHumanAsset(humanAsset) {
   );
 
   const annotationsByImage = Object.fromEntries(
-    (humanAsset.images || []).map((image) => [
+    normalizedImages.map((image) => [
       image.filename,
       (image.annotations || []).map((annotation) => ({
         id: String(annotation._id),
@@ -87,7 +89,7 @@ function formatHumanAsset(humanAsset) {
     possibleProfiles: humanAsset.numberPossibleProfile || 0,
     usedBy: (humanAsset.numberProfileUsing || []).length,
     numberProfileUsing: humanAsset.numberProfileUsing || [],
-    images: humanAsset.images || [],
+    images: normalizedImages,
     imageUsers,
     annotationsByImage,
     createdAt: humanAsset.createdAt,

@@ -8,6 +8,7 @@ import { Image } from "../models/Image.js";
 import { Profile } from "../models/Profile.js";
 import { User } from "../models/User.js";
 import "../models/Page.js";
+import { mapImageDoc } from "../utils/publicImageUrl.js";
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -49,7 +50,7 @@ function formatLinkedPage(page) {
     assets: (page.assets || [])
       .filter((asset) => asset?.imageId?.filename)
       .map((asset) => ({
-        imageId: asset.imageId,
+        imageId: mapImageDoc(asset.imageId),
         type: asset.type || "post",
         postDescription: asset.postDescription || "",
         engagementScore: asset.engagementScore || 0,
@@ -57,7 +58,9 @@ function formatLinkedPage(page) {
     posts: (page.posts || []).map((post) => ({
       id: String(post._id),
       post: post.post || "",
-      images: (post.images || []).filter((image) => image?.filename),
+      images: (post.images || [])
+        .filter((image) => image?.filename)
+        .map((image) => mapImageDoc(image)),
       createdAt: post.createdAt || null,
     })),
   };
@@ -65,9 +68,14 @@ function formatLinkedPage(page) {
 
 function formatProfile(profile) {
   const linkedPage = formatLinkedPage(profile?.pageId);
+  const images = (profile?.images || []).map((entry) => ({
+    ...entry,
+    imageId: mapImageDoc(entry.imageId),
+  }));
 
   return {
     ...profile,
+    images,
     pageId: linkedPage?.id || (profile?.pageId ? String(profile.pageId) : ""),
     linkedPage,
   };
