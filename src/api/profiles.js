@@ -4,13 +4,18 @@ const API_BASE =
   "";
 
 async function apiFetch(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+  } catch {
+    throw new Error("Unable to reach the server. Check your connection.");
+  }
 
   if (!response.ok) {
     let message = "Request failed";
@@ -32,7 +37,11 @@ async function apiFetch(path, options = {}) {
     return null;
   }
 
-  return response.json();
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
 
 export function fetchProfiles() {

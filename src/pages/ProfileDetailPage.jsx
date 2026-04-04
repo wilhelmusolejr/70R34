@@ -136,7 +136,7 @@ function getDefaultProfile() {
 }
 
 function serializeProfile(profile) {
-  const { linkedPage, ...rest } = profile || {};
+  const { linkedPage: _linkedPage, ...rest } = profile || {};
 
   return {
     ...rest,

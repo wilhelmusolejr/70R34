@@ -1,3 +1,4 @@
+/* global Buffer, process */
 /**
  * Batch Image Generator
  * Supports Gemini and Hugging Face based on key/model.
@@ -174,13 +175,7 @@ async function main() {
   const errors = [];
 
   for (let i = 0; i < TOTAL_IMAGES; i++) {
-    const prompt = `A wide Facebook cover photo for a business page called "Ross Creative Agency". 
-Reflect the type of business and brand personality suggested by the name. 
-Choose an appropriate visual style and color palette. Include subtle design 
-elements, textures, or imagery relevant to the business niche. The layout 
-should have visual breathing room on the left side for the overlapping profile 
-picture. Optionally include the business name as stylized text. 
-Professional, eye-catching, high quality. 16:9 aspect ratio, 820x312px..`;
+    const prompt = getPrompt(i);
     try {
       const filename = await generateImage(prompt, i);
       printProgress(i + 1, TOTAL_IMAGES, filename, failed);
@@ -205,3 +200,5 @@ Professional, eye-catching, high quality. 16:9 aspect ratio, 820x312px..`;
 }
 
 main();
+
+
