@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getPageImagesDownloadUrl } from "../api/pageDownloads";
 import { fetchProfiles } from "../api/profiles";
-import { addPagePost, fetchPage, updatePage } from "../api/pages";
+import { addPageImages, addPagePost, fetchPage, updatePage } from "../api/pages";
 import "../App.css";
 
 function derivePageStatus(page) {
@@ -29,14 +29,26 @@ function fmtDate(value) {
 }
 
 function getPageColor(seed) {
-  const palette = ["#3b82f6", "#0f766e", "#d97706", "#dc2626", "#7c3aed", "#0891b2"];
+  const palette = [
+    "#3b82f6",
+    "#0f766e",
+    "#d97706",
+    "#dc2626",
+    "#7c3aed",
+    "#0891b2",
+  ];
   const text = String(seed || "page");
   const hash = [...text].reduce((total, char) => total + char.charCodeAt(0), 0);
   return palette[hash % palette.length];
 }
 
 function getPageInitial(value) {
-  return String(value || "P").trim().charAt(0).toUpperCase() || "P";
+  return (
+    String(value || "P")
+      .trim()
+      .charAt(0)
+      .toUpperCase() || "P"
+  );
 }
 
 function CopyRow({ label, value, mono = false }) {
@@ -57,11 +69,17 @@ function CopyRow({ label, value, mono = false }) {
   return (
     <div className="dr">
       <div className="dl">{label}</div>
-      <div className={`dv${mono ? " mono" : ""}${displayValue ? "" : " muted"}`}>
+      <div
+        className={`dv${mono ? " mono" : ""}${displayValue ? "" : " muted"}`}
+      >
         {displayValue || "-"}
       </div>
       {displayValue ? (
-        <button type="button" className={`cpbtn${copied ? " ok" : ""}`} onClick={copy}>
+        <button
+          type="button"
+          className={`cpbtn${copied ? " ok" : ""}`}
+          onClick={copy}
+        >
           {copied ? "Copied!" : "Copy"}
         </button>
       ) : null}
@@ -79,10 +97,6 @@ function EditableField({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value ?? ""));
-
-  useEffect(() => {
-    setDraft(String(value ?? ""));
-  }, [value]);
 
   async function save() {
     await onSave(draft);
@@ -139,11 +153,16 @@ function EditableField({
         <div className={`ef-read${multiline ? " multi" : ""}`}>
           <div
             className={`ef-display${mono ? " mono" : ""}`}
-            onDoubleClick={() => setEditing(true)}
+            onDoubleClick={() => {
+              setDraft(String(value ?? ""));
+              setEditing(true);
+            }}
             title="Double-click to edit"
           >
             {String(value ?? "").trim() ? (
-              <span className={mono ? "dv mono" : undefined}>{String(value ?? "").trim()}</span>
+              <span className={mono ? "dv mono" : undefined}>
+                {String(value ?? "").trim()}
+              </span>
             ) : (
               <em className="ef-empty">Double-click to add...</em>
             )}
@@ -175,12 +194,22 @@ export function PageDetailPage() {
   const [profiles, setProfiles] = useState([]);
   const [postText, setPostText] = useState("");
   const [postFiles, setPostFiles] = useState([]);
+  const [pageImageFiles, setPageImageFiles] = useState([]);
+  const [pageImageBatchType, setPageImageBatchType] = useState("post");
+  const [pageImageDescription, setPageImageDescription] = useState("");
+  const [pageImageEngagementScore, setPageImageEngagementScore] = useState("0");
+  const [isAddingImages, setIsAddingImages] = useState(false);
+  const [addImagesError, setAddImagesError] = useState("");
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
   const [postError, setPostError] = useState("");
   const [isAddPostModalOpen, setIsAddPostModalOpen] = useState(false);
+  const [isAddImagesModalOpen, setIsAddImagesModalOpen] = useState(false);
   const [showAssignProfileInput, setShowAssignProfileInput] = useState(false);
   const [assignProfileName, setAssignProfileName] = useState("");
   const [isSavingPage, setIsSavingPage] = useState(false);
+  const [isEditingBio, setIsEditingBio] = useState(false);
+  const [bioDraft, setBioDraft] = useState("");
+  const [bioCopied, setBioCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -232,27 +261,48 @@ export function PageDetailPage() {
     };
   }, []);
 
-  useEffect(() => () => {
-    postFiles.forEach((entry) => {
-      if (entry.previewUrl) {
-        URL.revokeObjectURL(entry.previewUrl);
-      }
-    });
-  }, [postFiles]);
+  useEffect(
+    () => () => {
+      postFiles.forEach((entry) => {
+        if (entry.previewUrl) {
+          URL.revokeObjectURL(entry.previewUrl);
+        }
+      });
+    },
+    [postFiles],
+  );
+
+  useEffect(
+    () => () => {
+      pageImageFiles.forEach((entry) => {
+        if (entry.previewUrl) {
+          URL.revokeObjectURL(entry.previewUrl);
+        }
+      });
+    },
+    [pageImageFiles],
+  );
+
+  useEffect(() => {
+    if (!isEditingBio) {
+      setBioDraft(String(page?.bio || ""));
+    }
+  }, [isEditingBio, page?.bio]);
 
   const status = useMemo(() => derivePageStatus(page), [page]);
   const posts = page?.posts || [];
   const gallery = useMemo(
     () => [
-      ...((page?.assets || [])
+      ...(page?.assets || [])
         .filter((asset) => asset?.imageId?.filename)
         .map((asset) => ({
           id: `asset-${asset.imageId._id}`,
           image: asset.imageId,
           kind: asset.type || "post",
-          label: asset.imageId.annotation || asset.imageId.filename.split("/").pop(),
-        }))),
-      ...((page?.posts || []).flatMap((post, postIndex) =>
+          label:
+            asset.imageId.annotation || asset.imageId.filename.split("/").pop(),
+        })),
+      ...(page?.posts || []).flatMap((post, postIndex) =>
         (post.images || [])
           .filter((image) => image?.filename)
           .map((image, imageIndex) => ({
@@ -260,13 +310,17 @@ export function PageDetailPage() {
             image,
             kind: `Post ${postIndex + 1}`,
             label: image.annotation || image.filename.split("/").pop(),
-          })))),
+          })),
+      ),
     ],
     [page],
   );
   const heroImage = gallery[0]?.image?.filename || "";
   const linkedProfileName = page?.linkedIdentity
-    ? [page.linkedIdentity.firstName, page.linkedIdentity.lastName].filter(Boolean).join(" ").trim()
+    ? [page.linkedIdentity.firstName, page.linkedIdentity.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim()
     : "";
   const assignableProfiles = profiles.filter((profile) => {
     const hasPage = String(profile.pageUrl || "").trim().length > 0;
@@ -275,7 +329,10 @@ export function PageDetailPage() {
   });
   const assignableProfileOptions = assignableProfiles
     .map((profile) => {
-      const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+      const fullName = [profile.firstName, profile.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
       return {
         id: profile._id,
         label: fullName || `Profile #${profile.id}`,
@@ -296,6 +353,23 @@ export function PageDetailPage() {
       setError(err.message || "Failed to save page.");
     } finally {
       setIsSavingPage(false);
+    }
+  }
+
+  async function handleSaveBio() {
+    await savePageChanges({ bio: bioDraft });
+    setIsEditingBio(false);
+  }
+
+  async function handleCopyBio() {
+    const value = String(page?.bio || "").trim();
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setBioCopied(true);
+      setTimeout(() => setBioCopied(false), 1500);
+    } catch {
+      // Ignore clipboard failures.
     }
   }
 
@@ -326,6 +400,31 @@ export function PageDetailPage() {
         previewUrl: URL.createObjectURL(file),
       }));
     });
+  }
+
+  function setSelectedPageImageFiles(fileList) {
+    setPageImageFiles((current) => {
+      current.forEach((entry) => {
+        if (entry.previewUrl) {
+          URL.revokeObjectURL(entry.previewUrl);
+        }
+      });
+
+      return fileList.map((file) => ({
+        file,
+        previewUrl: URL.createObjectURL(file),
+        checked: false,
+        type: "post",
+      }));
+    });
+  }
+
+  function applyBatchAssetTypeToChecked() {
+    setPageImageFiles((current) =>
+      current.map((entry) =>
+        entry.checked ? { ...entry, type: pageImageBatchType } : entry,
+      ),
+    );
   }
 
   async function handleAddPost(event) {
@@ -372,6 +471,57 @@ export function PageDetailPage() {
     setSelectedPostFiles([]);
   }
 
+  function openAddImagesModal() {
+    setAddImagesError("");
+    setPageImageDescription(page?.bio || "");
+    setPageImageEngagementScore("0");
+    setPageImageBatchType("post");
+    setSelectedPageImageFiles([]);
+    setIsAddImagesModalOpen(true);
+  }
+
+  function closeAddImagesModal() {
+    setIsAddImagesModalOpen(false);
+    setAddImagesError("");
+    setPageImageDescription("");
+    setPageImageEngagementScore("0");
+    setPageImageBatchType("post");
+    setSelectedPageImageFiles([]);
+  }
+
+  async function handleAddImages(event) {
+    event.preventDefault();
+
+    if (!pageImageFiles.length) {
+      setAddImagesError("Upload at least one image.");
+      return;
+    }
+
+    try {
+      setIsAddingImages(true);
+      setAddImagesError("");
+
+      const formData = new FormData();
+      formData.append("postDescription", pageImageDescription);
+      formData.append("engagementScore", pageImageEngagementScore);
+      formData.append(
+        "assetTypes",
+        JSON.stringify(pageImageFiles.map((entry) => entry.type || "post")),
+      );
+      pageImageFiles.forEach((entry) => {
+        formData.append("images", entry.file);
+      });
+
+      const updatedPage = await addPageImages(page.id, formData);
+      setPage(updatedPage);
+      closeAddImagesModal();
+    } catch (err) {
+      setAddImagesError(err.message || "Failed to add images.");
+    } finally {
+      setIsAddingImages(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="page">
@@ -404,7 +554,10 @@ export function PageDetailPage() {
       </button>
 
       {error && (
-        <div className="empty-st" style={{ padding: "16px 0 20px", textAlign: "left" }}>
+        <div
+          className="empty-st"
+          style={{ padding: "16px 0 20px", textAlign: "left" }}
+        >
           <div className="ed">{error}</div>
         </div>
       )}
@@ -419,12 +572,17 @@ export function PageDetailPage() {
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                 }
-              : { background: `linear-gradient(135deg, ${pageAccent}22, ${pageAccent}55)` }
+              : {
+                  background: `linear-gradient(135deg, ${pageAccent}22, ${pageAccent}55)`,
+                }
           }
         >
           <div className="haw">
             {heroImage ? (
-              <div className="hav hav-img-wrap" style={{ background: pageAccent }}>
+              <div
+                className="hav hav-img-wrap"
+                style={{ background: pageAccent }}
+              >
                 <img src={heroImage} alt={page.pageName} className="hav-img" />
               </div>
             ) : (
@@ -442,7 +600,9 @@ export function PageDetailPage() {
                 {page.category || "No category"} · {page.pageId || "No page ID"}
               </div>
               <div className="hbrow">
-                <span className={`sbadge ${status === "Available" ? "sp" : status === "Pending" ? "sa" : "sg"}`}>
+                <span
+                  className={`sbadge ${status === "Available" ? "sp" : status === "Pending" ? "sa" : "sg"}`}
+                >
                   <span className="sdot2" />
                   {status}
                 </span>
@@ -459,13 +619,82 @@ export function PageDetailPage() {
             </div>
           </div>
           <div className="hbio-wrap">
-            {page.bio || "No bio added yet."}
+            {isEditingBio ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <textarea
+                  className="npm-input npm-textarea"
+                  value={bioDraft}
+                  onChange={(event) => setBioDraft(event.target.value)}
+                  placeholder="Write the page bio..."
+                />
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button type="button" className="btn-s" onClick={handleSaveBio} disabled={isSavingPage}>
+                    {isSavingPage ? "Saving..." : "Save Bio"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-s"
+                    onClick={() => {
+                      setBioDraft(String(page.bio || ""));
+                      setIsEditingBio(false);
+                    }}
+                    disabled={isSavingPage}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                <div
+                  className="ef-display"
+                  onDoubleClick={() => {
+                    setBioDraft(String(page.bio || ""));
+                    setIsEditingBio(true);
+                  }}
+                  title="Double-click to edit"
+                  style={{ cursor: "text", flex: 1 }}
+                >
+                  {String(page.bio || "").trim() ? (
+                    page.bio
+                  ) : (
+                    <em className="ef-empty">Double-click to add bio...</em>
+                  )}
+                </div>
+                {String(page.bio || "").trim() ? (
+                  <button
+                    type="button"
+                    className={`cpbtn${bioCopied ? " ok" : ""}`}
+                    onClick={handleCopyBio}
+                  >
+                    {bioCopied ? "Copied!" : "Copy"}
+                  </button>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       <div className="dgrid">
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <SectionCard title="Overview">
+            <div className="dr">
+              <div className="dl">Gallery Images</div>
+              <div className="dv">{gallery.length}</div>
+            </div>
+            <div className="dr">
+              <div className="dl">Posts</div>
+              <div className="dv">{posts.length}</div>
+            </div>
+            <div className="dr" style={{ borderBottom: "none" }}>
+              <div className="dl">Assigned Profile</div>
+              <div className={`dv${linkedProfileName ? "" : " muted"}`}>
+                {linkedProfileName || "None"}
+              </div>
+            </div>
+          </SectionCard>
+
           <SectionCard title="Page Information">
             <EditableField
               label="Page Name"
@@ -499,7 +728,6 @@ export function PageDetailPage() {
               onSave={(value) => savePageChanges({ likeCount: value })}
             />
           </SectionCard>
-
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -522,12 +750,36 @@ export function PageDetailPage() {
             {page.linkedIdentity ? (
               <>
                 <CopyRow label="Profile Name" value={linkedProfileName} />
+                <CopyRow
+                  label="Page URL"
+                  value={page.linkedIdentity?.pageUrl || ""}
+                />
                 <div className="dr" style={{ borderBottom: "none" }}>
                   <div className="dl">Open Profile</div>
                   <div className="dv">
-                    <Link to={`/profile/${page.linkedIdentity.id}`} className="image-asset-user-link">
+                    <Link
+                      to={`/profile/${page.linkedIdentity.id}`}
+                      className="image-asset-user-link"
+                    >
                       Open profile
                     </Link>
+                  </div>
+                </div>
+                <div className="dr" style={{ borderBottom: "none" }}>
+                  <div className="dl">Open Page</div>
+                  <div className="dv">
+                    {String(page.linkedIdentity?.pageUrl || "").trim() ? (
+                      <a
+                        href={page.linkedIdentity.pageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="image-asset-user-link"
+                      >
+                        Open page
+                      </a>
+                    ) : (
+                      <span className="muted">No page URL</span>
+                    )}
                   </div>
                 </div>
               </>
@@ -535,12 +787,19 @@ export function PageDetailPage() {
               <div className="muted">No profile linked to this page yet.</div>
             )}
             {showAssignProfileInput ? (
-              <div style={{ marginTop: "14px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div
+                style={{
+                  marginTop: "14px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
                 {assignableProfileOptions.length ? (
                   <>
                     <div className="muted">
-                      Type the profile name from the dataset. Only profiles without a page URL
-                      are available here.
+                      Type the profile name from the dataset. Only profiles
+                      without a page URL are available here.
                     </div>
                     <input
                       type="text"
@@ -548,7 +807,9 @@ export function PageDetailPage() {
                       className="fsearch"
                       style={{ paddingLeft: "13px" }}
                       value={assignProfileName}
-                      onChange={(event) => setAssignProfileName(event.target.value)}
+                      onChange={(event) =>
+                        setAssignProfileName(event.target.value)
+                      }
                       placeholder="Type a profile name"
                       disabled={isSavingPage}
                     />
@@ -557,7 +818,9 @@ export function PageDetailPage() {
                         <option key={profile.id} value={profile.label} />
                       ))}
                     </datalist>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <div
+                      style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
+                    >
                       <button
                         type="button"
                         className="btn-s"
@@ -569,7 +832,9 @@ export function PageDetailPage() {
                       <button
                         type="button"
                         className="btn-s"
-                        onClick={() => savePageChanges({ linkedIdentityId: "" })}
+                        onClick={() =>
+                          savePageChanges({ linkedIdentityId: "" })
+                        }
                         disabled={isSavingPage || !page?.linkedIdentity}
                       >
                         Clear Assigned Profile
@@ -592,28 +857,15 @@ export function PageDetailPage() {
             />
           </SectionCard>
 
-          <SectionCard title="Overview">
-            <div className="dr">
-              <div className="dl">Gallery Images</div>
-              <div className="dv">{gallery.length}</div>
-            </div>
-            <div className="dr">
-              <div className="dl">Posts</div>
-              <div className="dv">{posts.length}</div>
-            </div>
-            <div className="dr" style={{ borderBottom: "none" }}>
-              <div className="dl">Assigned Profile</div>
-              <div className={`dv${linkedProfileName ? "" : " muted"}`}>
-                {linkedProfileName || "None"}
-              </div>
-            </div>
-          </SectionCard>
-
           <SectionCard
             title="Posts"
             badge={
               <div className="page-post-header-actions">
-                <button type="button" className="btn-s" onClick={openAddPostModal}>
+                <button
+                  type="button"
+                  className="btn-s"
+                  onClick={openAddPostModal}
+                >
                   Add Post
                 </button>
                 <span className="page-detail-chip">{posts.length}</span>
@@ -627,15 +879,26 @@ export function PageDetailPage() {
                     <summary className="page-post-summary">
                       <div className="page-post-card-head">
                         <div className="page-post-head-main">
-                          <div className="page-post-card-date">{fmtDate(post.createdAt)}</div>
-                          <div className={`page-post-preview${post.post ? "" : " muted"}`}>
+                          <div className="page-post-card-date">
+                            {fmtDate(post.createdAt)}
+                          </div>
+                          <div
+                            className={`page-post-preview${post.post ? "" : " muted"}`}
+                          >
                             {post.post || "No description added."}
                           </div>
                         </div>
                         <div className="page-post-head-side">
-                          <span className="page-detail-chip">{post.images?.length || 0} images</span>
-                          <div className="page-post-number">Post {postIndex + 1}</div>
-                          <span className="page-post-chevron" aria-hidden="true">
+                          <span className="page-detail-chip">
+                            {post.images?.length || 0} images
+                          </span>
+                          <div className="page-post-number">
+                            Post {postIndex + 1}
+                          </div>
+                          <span
+                            className="page-post-chevron"
+                            aria-hidden="true"
+                          >
                             <svg viewBox="0 0 24 24">
                               <polyline points="6 9 12 15 18 9" />
                             </svg>
@@ -648,7 +911,10 @@ export function PageDetailPage() {
                       {post.images?.length ? (
                         <div className="page-post-image-grid">
                           {post.images.map((image, index) => (
-                            <div key={`${image._id || index}`} className="profile-image-tile">
+                            <div
+                              key={`${image._id || index}`}
+                              className="profile-image-tile"
+                            >
                               <div className="profile-image-frame">
                                 <img
                                   src={image.filename}
@@ -658,14 +924,17 @@ export function PageDetailPage() {
                               </div>
                               <div className="profile-image-meta">
                                 <div className="profile-image-name">
-                                  {image.annotation || image.filename.split("/").pop()}
+                                  {image.annotation ||
+                                    image.filename.split("/").pop()}
                                 </div>
                               </div>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <div className="muted">No images attached to this post.</div>
+                        <div className="muted">
+                          No images attached to this post.
+                        </div>
                       )}
                     </div>
                   </details>
@@ -681,11 +950,16 @@ export function PageDetailPage() {
       <SectionCard
         title="Images Gallery"
         badge={
-          gallery.length ? (
-            <a href={getPageImagesDownloadUrl(page.id)} className="btn-s">
-              Download ZIP
-            </a>
-          ) : null
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button type="button" className="btn-s" onClick={openAddImagesModal}>
+              Add Images
+            </button>
+            {gallery.length ? (
+              <a href={getPageImagesDownloadUrl(page.id)} className="btn-s">
+                Download ZIP
+              </a>
+            ) : null}
+          </div>
         }
       >
         {gallery.length ? (
@@ -695,7 +969,10 @@ export function PageDetailPage() {
             </div>
             <div className="page-gallery-grid">
               {gallery.map((asset, index) => (
-                <div key={`${asset.id || index}`} className="profile-image-tile">
+                <div
+                  key={`${asset.id || index}`}
+                  className="profile-image-tile"
+                >
                   <div className="profile-image-frame">
                     <img
                       src={asset.image.filename}
@@ -728,7 +1005,11 @@ export function PageDetailPage() {
                 <div className="npm-kicker">Page Post</div>
                 <h2 className="npm-title">Add Post</h2>
               </div>
-              <button className="npm-close" type="button" onClick={closeAddPostModal}>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={closeAddPostModal}
+              >
                 x
               </button>
             </div>
@@ -749,13 +1030,18 @@ export function PageDetailPage() {
                   multiple
                   accept="image/*"
                   className="npm-input"
-                  onChange={(event) => setSelectedPostFiles(Array.from(event.target.files || []))}
+                  onChange={(event) =>
+                    setSelectedPostFiles(Array.from(event.target.files || []))
+                  }
                 />
               </label>
               {postFiles.length ? (
                 <div className="page-post-upload-grid">
                   {postFiles.map((entry, index) => (
-                    <div key={`${entry.file.name}-${index}`} className="page-post-upload-item">
+                    <div
+                      key={`${entry.file.name}-${index}`}
+                      className="page-post-upload-item"
+                    >
                       <div className="image-upload-preview-frame">
                         <img
                           src={entry.previewUrl}
@@ -763,19 +1049,169 @@ export function PageDetailPage() {
                           className="image-upload-preview-img"
                         />
                       </div>
-                      <div className="profile-image-date">{entry.file.name}</div>
+                      <div className="profile-image-date">
+                        {entry.file.name}
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : null}
-              {postError ? <div className="npm-submit-error">{postError}</div> : null}
+              {postError ? (
+                <div className="npm-submit-error">{postError}</div>
+              ) : null}
               <div className="npm-footer">
-                <button type="button" className="btn-s" onClick={closeAddPostModal}>
+                <button
+                  type="button"
+                  className="btn-s"
+                  onClick={closeAddPostModal}
+                >
                   Cancel
                 </button>
                 <div className="npm-footer-actions">
-                  <button type="submit" className="btn-p" disabled={isSubmittingPost}>
+                  <button
+                    type="submit"
+                    className="btn-p"
+                    disabled={isSubmittingPost}
+                  >
                     {isSubmittingPost ? "Adding Post..." : "Add Post"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isAddImagesModalOpen ? (
+        <div className="npm-backdrop" onClick={closeAddImagesModal}>
+          <div
+            className="npm-modal"
+            onClick={(event) => event.stopPropagation()}
+            style={{ width: "min(860px, 100%)" }}
+          >
+            <div className="npm-header">
+              <div>
+                <div className="npm-kicker">Page Assets</div>
+                <h2 className="npm-title">Add Images</h2>
+              </div>
+              <button className="npm-close" type="button" onClick={closeAddImagesModal}>
+                x
+              </button>
+            </div>
+            <form className="npm-body" onSubmit={handleAddImages}>
+              <div className="npm-grid">
+                <label className="npm-field" style={{ gridColumn: "1 / -1" }}>
+                  <span className="npm-label">Description</span>
+                  <textarea
+                    className="npm-input npm-textarea"
+                    value={pageImageDescription}
+                    onChange={(event) => setPageImageDescription(event.target.value)}
+                    placeholder="Optional description for these images..."
+                  />
+                </label>
+                <label className="npm-field">
+                  <span className="npm-label">Engagement Score</span>
+                  <input
+                    type="number"
+                    min="0"
+                    className="npm-input"
+                    value={pageImageEngagementScore}
+                    onChange={(event) => setPageImageEngagementScore(event.target.value)}
+                  />
+                </label>
+                <label className="npm-field" style={{ gridColumn: "1 / -1" }}>
+                  <span className="npm-label">Upload Images</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="npm-input"
+                    onChange={(event) =>
+                      setSelectedPageImageFiles(Array.from(event.target.files || []))
+                    }
+                  />
+                  <span className="image-asset-helper">
+                    {pageImageFiles.length
+                      ? `${pageImageFiles.length} file(s) selected`
+                      : "Upload one or more page images."}
+                  </span>
+                </label>
+                {pageImageFiles.length ? (
+                  <div className="npm-field" style={{ gridColumn: "1 / -1" }}>
+                    <span className="npm-label">Selected Images</span>
+                    <div className="image-upload-batch-bar">
+                      <select
+                        className="npm-input"
+                        value={pageImageBatchType}
+                        onChange={(event) => setPageImageBatchType(event.target.value)}
+                      >
+                        <option value="profile">Profile</option>
+                        <option value="cover">Cover</option>
+                        <option value="post">Post</option>
+                        <option value="reels">Reels</option>
+                      </select>
+                      <button type="button" className="btn-s" onClick={applyBatchAssetTypeToChecked}>
+                        Apply Type To Checked
+                      </button>
+                    </div>
+                    <div className="image-upload-file-list">
+                      {pageImageFiles.map((entry, index) => (
+                        <div key={`${entry.file.name}-${index}`} className="image-upload-file-item">
+                          <div className="image-upload-preview-frame">
+                            <img
+                              src={entry.previewUrl}
+                              alt={entry.file.name}
+                              className="image-upload-preview-img"
+                            />
+                          </div>
+                          <label className="image-upload-file-check">
+                            <input
+                              type="checkbox"
+                              checked={entry.checked}
+                              onChange={(event) =>
+                                setPageImageFiles((current) =>
+                                  current.map((fileEntry, fileIndex) =>
+                                    fileIndex === index
+                                      ? { ...fileEntry, checked: event.target.checked }
+                                      : fileEntry,
+                                  ),
+                                )
+                              }
+                            />
+                            <span>{entry.file.name}</span>
+                          </label>
+                          <select
+                            className="npm-input"
+                            value={entry.type}
+                            onChange={(event) =>
+                              setPageImageFiles((current) =>
+                                current.map((fileEntry, fileIndex) =>
+                                  fileIndex === index
+                                    ? { ...fileEntry, type: event.target.value }
+                                    : fileEntry,
+                                ),
+                              )
+                            }
+                          >
+                            <option value="profile">Profile</option>
+                            <option value="cover">Cover</option>
+                            <option value="post">Post</option>
+                            <option value="reels">Reels</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              {addImagesError ? <div className="npm-submit-error">{addImagesError}</div> : null}
+              <div className="npm-footer">
+                <button type="button" className="btn-s" onClick={closeAddImagesModal}>
+                  Cancel
+                </button>
+                <div className="npm-footer-actions">
+                  <button type="submit" className="btn-p" disabled={isAddingImages}>
+                    {isAddingImages ? "Adding..." : "Add Images"}
                   </button>
                 </div>
               </div>

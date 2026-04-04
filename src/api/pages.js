@@ -51,6 +51,13 @@ export function addPagePost(pageId, formData) {
   });
 }
 
+export function addPageImages(pageId, formData) {
+  return apiFetch(`/api/pages/${pageId}/images`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
 export function updatePage(pageId, payload) {
   return apiFetch(`/api/pages/${pageId}`, {
     method: "PATCH",

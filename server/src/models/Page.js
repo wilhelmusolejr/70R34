@@ -47,6 +47,7 @@ const PageSchema = new Schema(
     category: { type: String, default: "", trim: true },
     followerCount: { type: Number, default: 0 },
     likeCount: { type: Number, default: 0 },
+    bio: { type: String, default: "" },
     generationPrompt: { type: String, default: "" },
     linkedIdentities: [
       {

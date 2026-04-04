@@ -52,6 +52,10 @@ function renameUploadedFile(file, nextBaseName) {
   };
 }
 
+function getPageUploadBaseName(type) {
+  return `page_${slugify(type || "post", "post")}_${randomUUID()}`;
+}
+
 function formatPage(page) {
   return {
     id: String(page._id),
@@ -62,7 +66,7 @@ function formatPage(page) {
     followerCount: page.followerCount,
     likeCount: page.likeCount,
     generationPrompt: page.generationPrompt,
-    bio: page.assets?.[0]?.postDescription || "",
+    bio: String(page.bio || page.assets?.[0]?.postDescription || "").trim(),
     linkedIdentity: page.linkedIdentities?.[0] || null,
     assets: page.assets || [],
     posts: (page.posts || []).map((post) => ({
@@ -167,12 +171,19 @@ router.post("/", upload.array("images"), async (req, res, next) => {
       return res.status(404).json({ message: "Assigned profile not found" });
     }
 
-    const createdImages = files.length
+    const renamedFiles = files.map((file, index) =>
+      renameUploadedFile(
+        file,
+        getPageUploadBaseName(String(assetTypes[index] || "post").trim() || "post"),
+      ),
+    );
+
+    const createdImages = renamedFiles.length
       ? await Image.insertMany(
-          files.map((file) => ({
+          renamedFiles.map((file, index) => ({
             filename: `/images/${file.filename}`,
             annotation: pageName,
-            type: "post",
+            type: String(assetTypes[index] || "post").trim() || "post",
             sourceType: "scraped",
             aiGenerated: false,
             generationModel: null,
@@ -188,6 +199,7 @@ router.post("/", upload.array("images"), async (req, res, next) => {
       category,
       followerCount,
       likeCount,
+      bio,
       generationPrompt,
       linkedIdentities: linkedIdentity ? [linkedIdentity._id] : [],
       assets: createdImages.map((image, index) => ({
@@ -253,6 +265,7 @@ router.patch("/:id", async (req, res, next) => {
     }
     if (Object.prototype.hasOwnProperty.call(updates, "bio")) {
       const bio = String(updates.bio || "").trim();
+      page.bio = bio;
       page.assets = (page.assets || []).map((asset) => ({
         ...asset.toObject?.() ? asset.toObject() : asset,
         postDescription: bio,
@@ -371,10 +384,8 @@ router.post("/:id/posts", upload.array("images"), async (req, res, next) => {
     }
 
     const linkedIdentity = page.linkedIdentities?.[0]?._id || null;
-    const postNumber = (page.posts?.length || 0) + 1;
-    const pageSlug = slugify(page.pageName, "page");
-    const renamedFiles = files.map((file, index) =>
-      renameUploadedFile(file, `${pageSlug}-post-${postNumber}-${index + 1}`),
+    const renamedFiles = files.map((file) =>
+      renameUploadedFile(file, getPageUploadBaseName("post")),
     );
 
     const createdImages = renamedFiles.length
@@ -404,6 +415,76 @@ router.post("/:id/posts", upload.array("images"), async (req, res, next) => {
       },
       { new: true, runValidators: true },
     );
+
+    const populatedPage = await Page.findById(id)
+      .populate("linkedIdentities", "id firstName lastName pageUrl")
+      .populate("assets.imageId")
+      .populate("posts.images")
+      .lean();
+
+    res.status(201).json(formatPage(populatedPage));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:id/images", upload.array("images"), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!ensureValidPageId(id)) {
+      return res.status(400).json({ message: "Invalid page id" });
+    }
+
+    const files = req.files || [];
+    if (!files.length) {
+      return res.status(400).json({ message: "Upload at least one image" });
+    }
+
+    const page = await Page.findById(id).populate("linkedIdentities", "_id");
+    if (!page) {
+      return res.status(404).json({ message: "Page not found" });
+    }
+
+    const linkedIdentityId = page.linkedIdentities?.[0]?._id || null;
+    const postDescription = String(req.body?.postDescription || page.bio || "").trim();
+    const engagementScore = Number.parseInt(req.body?.engagementScore || "0", 10) || 0;
+    const rawAssetTypes = JSON.parse(String(req.body?.assetTypes || "[]"));
+
+    const renamedFiles = files.map((file, index) =>
+      renameUploadedFile(
+        file,
+        getPageUploadBaseName(String(rawAssetTypes[index] || "post").trim() || "post"),
+      ),
+    );
+
+    const createdImages = await Image.insertMany(
+      renamedFiles.map((file, index) => ({
+        filename: `/images/${file.filename}`,
+        annotation: page.pageName,
+        type: String(rawAssetTypes[index] || "post").trim() || "post",
+        sourceType: "scraped",
+        aiGenerated: false,
+        generationModel: null,
+        usedBy: linkedIdentityId ? [{ userId: linkedIdentityId }] : [],
+        annotations: [],
+      })),
+    );
+
+    page.assets.push(
+      ...createdImages.map((image, index) => ({
+        imageId: image._id,
+        type: String(rawAssetTypes[index] || "post").trim() || "post",
+        postDescription,
+        postedAt: null,
+        engagementScore,
+      })),
+    );
+
+    if (postDescription && !page.bio) {
+      page.bio = postDescription;
+    }
+
+    await page.save();
 
     const populatedPage = await Page.findById(id)
       .populate("linkedIdentities", "id firstName lastName pageUrl")

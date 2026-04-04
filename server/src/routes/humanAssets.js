@@ -29,6 +29,33 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+function slugifyPart(value, fallback = "asset") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || fallback;
+}
+
+function renameUploadedFile(file, nextBaseName) {
+  const ext = path.extname(file.originalname || file.filename || "");
+  const finalName = `${nextBaseName}${ext || ".png"}`;
+  const nextAbsolutePath = path.resolve(publicImagesDir, finalName);
+
+  fs.renameSync(file.path, nextAbsolutePath);
+
+  return {
+    ...file,
+    filename: finalName,
+    path: nextAbsolutePath,
+  };
+}
+
+function getHumanAssetUploadBaseName(type, sourceType) {
+  const normalizedType = slugifyPart(type || sourceType || "post", "post");
+  return `image_${normalizedType}_${randomUUID()}`;
+}
+
 function formatHumanAsset(humanAsset) {
   const imageUsers = Object.fromEntries(
     (humanAsset.images || []).map((image) => [
@@ -141,9 +168,18 @@ router.post("/", upload.array("images"), async (req, res, next) => {
       ? await Profile.find({ _id: { $in: selectedProfileIds } }, { _id: 1 }).lean()
       : [];
     const linkedProfileIds = linkedProfiles.map((profile) => profile._id);
+    const renamedFiles = files.map((file, index) =>
+      renameUploadedFile(
+        file,
+        getHumanAssetUploadBaseName(
+          String(imageTypes[index] || "post").trim() || "post",
+          imageSourceType,
+        ),
+      ),
+    );
 
     const createdImages = await Image.insertMany(
-      files.map((file, index) => ({
+      renamedFiles.map((file, index) => ({
         filename: `/images/${file.filename}`,
         annotation: imageAnnotation || path.basename(file.filename, path.extname(file.filename)),
         type: String(imageTypes[index] || "post").trim() || "post",
@@ -217,9 +253,18 @@ router.post("/:id/images", upload.array("images"), async (req, res, next) => {
       ? await Profile.find({ _id: { $in: selectedProfileIds } }, { _id: 1 }).lean()
       : [];
     const linkedProfileIds = linkedProfiles.map((profile) => profile._id);
+    const renamedFiles = files.map((file, index) =>
+      renameUploadedFile(
+        file,
+        getHumanAssetUploadBaseName(
+          String(imageTypes[index] || "post").trim() || "post",
+          imageSourceType,
+        ),
+      ),
+    );
 
     const createdImages = await Image.insertMany(
-      files.map((file, index) => ({
+      renamedFiles.map((file, index) => ({
         filename: `/images/${file.filename}`,
         annotation: imageAnnotation || path.basename(file.filename, path.extname(file.filename)),
         type: String(imageTypes[index] || "post").trim() || "post",

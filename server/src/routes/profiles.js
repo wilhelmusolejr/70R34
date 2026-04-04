@@ -3,9 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { Router } from "express";
 import { fileURLToPath } from "node:url";
+import { HumanAsset } from "../models/HumanAsset.js";
+import { Image } from "../models/Image.js";
 import { Profile } from "../models/Profile.js";
 import { User } from "../models/User.js";
-import "../models/Image.js";
 import "../models/Page.js";
 
 const router = Router();
@@ -72,6 +73,19 @@ function formatProfile(profile) {
   };
 }
 
+function getPopulatedProfileQuery(id) {
+  return Profile.findOne({ id })
+    .populate("images.imageId")
+    .populate({
+      path: "pageId",
+      select: "pageName pageId assets posts createdAt updatedAt",
+      populate: [
+        { path: "assets.imageId" },
+        { path: "posts.images" },
+      ],
+    });
+}
+
 router.get("/", async (_req, res, next) => {
   try {
     const profiles = await Profile.find()
@@ -92,22 +106,86 @@ router.get("/:id", async (req, res, next) => {
       return res.status(400).json({ message: "Invalid profile id" });
     }
 
-    const profile = await Profile.findOne({ id })
-      .populate("images.imageId")
-      .populate({
-        path: "pageId",
-        select: "pageName pageId assets posts",
-        populate: [
-          { path: "assets.imageId" },
-          { path: "posts.images" },
-        ],
-      })
-      .lean();
+    const profile = await getPopulatedProfileQuery(id).lean();
     if (!profile) {
       return res.status(404).json({ message: "Profile not found" });
     }
 
     res.json(formatProfile(profile));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/:id/images/:imageId", async (req, res, next) => {
+  try {
+    const id = parseId(req.params.id);
+    const imageId = String(req.params.imageId || "").trim();
+
+    if (id === null) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+
+    if (!imageId) {
+      return res.status(400).json({ message: "Invalid image id" });
+    }
+
+    const profile = await Profile.findOne({ id });
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    const hadAssignment = (profile.images || []).some(
+      (entry) => String(entry.imageId) === imageId,
+    );
+
+    if (!hadAssignment) {
+      return res.status(404).json({ message: "Image is not assigned to this profile" });
+    }
+
+    profile.images = (profile.images || []).filter(
+      (entry) => String(entry.imageId) !== imageId,
+    );
+    await profile.save();
+
+    await Image.updateOne(
+      { _id: imageId },
+      {
+        $pull: {
+          usedBy: {
+            userId: profile._id,
+          },
+          annotations: {
+            profileId: profile._id,
+          },
+        },
+      },
+    );
+
+    const impactedAssets = await HumanAsset.find({ images: imageId });
+
+    await Promise.all(
+      impactedAssets.map(async (asset) => {
+        const remainingImages = await Image.find(
+          { _id: { $in: asset.images } },
+          { usedBy: 1 },
+        ).lean();
+
+        const stillUsesAsset = remainingImages.some((image) =>
+          (image.usedBy || []).some((entry) => String(entry.userId) === String(profile._id)),
+        );
+
+        if (!stillUsesAsset) {
+          asset.numberProfileUsing = (asset.numberProfileUsing || []).filter(
+            (entry) => String(entry) !== String(profile._id),
+          );
+          await asset.save();
+        }
+      }),
+    );
+
+    const populatedProfile = await getPopulatedProfileQuery(id).lean();
+    res.json(formatProfile(populatedProfile));
   } catch (error) {
     next(error);
   }
@@ -281,7 +359,8 @@ router.patch("/:id", async (req, res, next) => {
       return res.status(404).json({ message: "Profile not found" });
     }
 
-    res.json(profile);
+    const populatedProfile = await getPopulatedProfileQuery(id).lean();
+    res.json(formatProfile(populatedProfile));
   } catch (error) {
     next(error);
   }
@@ -294,16 +373,17 @@ router.get("/:id/images/download", async (req, res, next) => {
       return res.status(400).json({ message: "Invalid profile id" });
     }
 
-    const profile = await Profile.findOne({ id })
-      .populate("images.imageId")
-      .lean();
+    const profile = await getPopulatedProfileQuery(id).lean();
 
     if (!profile) {
       return res.status(404).json({ message: "Profile not found" });
     }
 
-    const validImages = (profile.images || [])
-      .map((entry) => entry.imageId)
+    const validImages = [
+      ...(profile.images || []).map((entry) => entry.imageId),
+      ...((profile.pageId?.assets || []).map((asset) => asset.imageId)),
+      ...((profile.pageId?.posts || []).flatMap((post) => post.images || [])),
+    ]
       .filter((image) => image?.filename);
 
     if (!validImages.length) {

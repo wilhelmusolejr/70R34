@@ -60,7 +60,7 @@ function getInactiveDays(profile) {
 }
 
 function getFriendsDisplay(profile) {
-  return Number.isFinite(profile?.friends) ? String(profile.friends) : "-";
+  return `${Number(profile?.friends || 0)} Friends`;
 }
 
 function getAvatarColor(id) {
@@ -69,6 +69,24 @@ function getAvatarColor(id) {
 
 function getInitials(firstName, lastName) {
   return (firstName[0] + lastName[0]).toUpperCase();
+}
+
+function getUserAvatarFilename(profile) {
+  const userImages = (profile?.images || [])
+    .map((entry) => entry?.imageId || entry?.image)
+    .filter((image) => image?.filename);
+
+  if (!userImages.length) return "";
+
+  const preferred =
+    userImages.find(
+      (image) =>
+        String(image?.type || "")
+          .trim()
+          .toLowerCase() === "profile",
+    ) || userImages[0];
+
+  return preferred?.filename || "";
 }
 
 export function ProfilesPage() {
@@ -548,6 +566,7 @@ export function ProfilesPage() {
                 {sorted.map((profile) => {
                   const done = isProcessedToday(profile);
                   const lastEntry = getLatestTrackerEntry(profile);
+                  const userAvatar = getUserAvatarFilename(profile);
 
                   return (
                     <tr
@@ -560,7 +579,15 @@ export function ProfilesPage() {
                             className="av"
                             style={{ background: getAvatarColor(profile.id) }}
                           >
-                            {getInitials(profile.firstName, profile.lastName)}
+                            {userAvatar ? (
+                              <img
+                                src={userAvatar}
+                                alt={`${profile.firstName} ${profile.lastName}`}
+                                className="av-img"
+                              />
+                            ) : (
+                              getInitials(profile.firstName, profile.lastName)
+                            )}
                           </div>
                           <div>
                             <div className="pname">
@@ -643,54 +670,26 @@ export function ProfilesPage() {
                             { label: "2FA", value: profile.has2FA },
                             { label: "Page", value: profile.hasPage },
                             {
-                              label: "Friends",
-                              value: getFriendsDisplay(profile),
+                              label: getFriendsDisplay(profile),
+                              value: Number(profile?.friends || 0) >= 30,
                             },
                           ].map(({ label, value }) => (
                             <div key={label} className="cki">
-                              {label === "Friends" ? (
-                                <>
-                                  <div
-                                    className={`ckbox ${value !== "-" ? "yes" : "no"}`}
-                                  >
-                                    <span
-                                      style={{
-                                        fontSize: "10px",
-                                        fontWeight: 700,
-                                      }}
-                                    >
-                                      {value}
-                                    </span>
-                                  </div>
-                                  <span
-                                    className={`cklabel ${value !== "-" ? "yes" : "no"}`}
-                                  >
-                                    {label}
-                                  </span>
-                                </>
-                              ) : (
-                                <>
-                                  <div
-                                    className={`ckbox ${value ? "yes" : "no"}`}
-                                  >
-                                    {value ? (
-                                      <svg viewBox="0 0 24 24">
-                                        <polyline points="20 6 9 17 4 12" />
-                                      </svg>
-                                    ) : (
-                                      <svg viewBox="0 0 24 24">
-                                        <line x1="18" y1="6" x2="6" y2="18" />
-                                        <line x1="6" y1="6" x2="18" y2="18" />
-                                      </svg>
-                                    )}
-                                  </div>
-                                  <span
-                                    className={`cklabel ${value ? "yes" : "no"}`}
-                                  >
-                                    {label}
-                                  </span>
-                                </>
-                              )}
+                              <div className={`ckbox ${value ? "yes" : "no"}`}>
+                                {value ? (
+                                  <svg viewBox="0 0 24 24">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                ) : (
+                                  <svg viewBox="0 0 24 24">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span className={`cklabel ${value ? "yes" : "no"}`}>
+                                {label}
+                              </span>
                             </div>
                           ))}
                         </div>

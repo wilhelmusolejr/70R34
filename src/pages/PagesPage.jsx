@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchProfiles } from "../api/profiles";
 import { createPage, fetchPages } from "../api/pages";
+import { generatePageInformation } from "../generator/pages";
 import "../App.css";
 
 function EmptyState({ title, description }) {
@@ -214,6 +215,22 @@ export function PagesPage() {
     }));
   }
 
+  function handleGeneratePageInformation() {
+    const generated = generatePageInformation();
+    setPageForm((current) => ({
+      ...current,
+      pageName: generated.pageName,
+      pageId: generated.pageId,
+      category: generated.category,
+      followerCount: generated.followerCount,
+      likeCount: generated.likeCount,
+      engagementScore: generated.engagementScore,
+      generationPrompt: generated.generationPrompt,
+      bio: generated.bio,
+    }));
+    setSubmitError("");
+  }
+
   async function handleCreatePage(event) {
     event.preventDefault();
 
@@ -382,6 +399,17 @@ export function PagesPage() {
             </div>
             <form className="npm-body" onSubmit={handleCreatePage}>
               <div className="npm-grid">
+                <div className="npm-field" style={{ gridColumn: "1 / -1" }}>
+                  <span className="npm-label">Quick Generator</span>
+                  <div style={{ display: "flex", gap: "0.65rem", alignItems: "center", flexWrap: "wrap" }}>
+                    <button type="button" className="btn-s" onClick={handleGeneratePageInformation}>
+                      Generate Page Info
+                    </button>
+                    <span className="image-asset-helper">
+                      Fills page name, category, ID, bio, prompt, and starter metrics.
+                    </span>
+                  </div>
+                </div>
                 <label className="npm-field">
                   <span className="npm-label">Page Name</span>
                   <input

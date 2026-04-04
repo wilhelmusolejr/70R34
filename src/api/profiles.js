@@ -69,3 +69,9 @@ export function deleteProfile(id) {
     method: "DELETE",
   });
 }
+
+export function unassignProfileImage(id, imageId) {
+  return apiFetch(`/api/profiles/${id}/images/${imageId}`, {
+    method: "DELETE",
+  });
+}

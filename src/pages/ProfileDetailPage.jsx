@@ -1,8 +1,13 @@
 ﻿import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { updateAssignmentStatus } from "../api/auth";
+import { fetchPages, updatePage } from "../api/pages";
 import { getProfileImagesDownloadUrl } from "../api/profileDownloads";
-import { fetchProfile, updateProfile } from "../api/profiles";
+import {
+  fetchProfile,
+  unassignProfileImage,
+  updateProfile,
+} from "../api/profiles";
 import { AVC, STATUS_CLASS, STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
 import { canViewConfidential, mask, reveal } from "../utils/access";
@@ -66,8 +71,9 @@ function hasPageUrl(profile) {
 const TODAY = new Date().toLocaleDateString("en-CA");
 
 function score(p) {
-  return [p.has2FA, hasPageUrl(p), p.friends >= 30, p.profileSetup].filter(Boolean)
-    .length;
+  return [p.has2FA, hasPageUrl(p), p.friends >= 30, p.profileSetup].filter(
+    Boolean,
+  ).length;
 }
 
 function getDefaultProfile() {
@@ -596,6 +602,10 @@ export function ProfileDetailPage() {
   const [trackerNote, setTrackerNote] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submittingProfile, setSubmittingProfile] = useState(false);
+  const [removingImageId, setRemovingImageId] = useState("");
+  const [pages, setPages] = useState([]);
+  const [pageDatasetInput, setPageDatasetInput] = useState("");
+  const [isSavingPageOwnership, setIsSavingPageOwnership] = useState(false);
   const role = currentUser?.role || "";
   const isAdmin = role === "admin";
   const isMaker = role === "maker";
@@ -639,6 +649,29 @@ export function ProfileDetailPage() {
     };
   }, [numId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPages() {
+      try {
+        const data = await fetchPages();
+        if (!cancelled) {
+          setPages(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setPages([]);
+        }
+      }
+    }
+
+    loadPages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function persistProfile(updater) {
     if (!profile || !canPersist) return;
 
@@ -656,6 +689,73 @@ export function ProfileDetailPage() {
     } catch (err) {
       setProfile(previous);
       setError(err.message || "Failed to save profile changes.");
+    }
+  }
+
+  async function handleUnassignProfileImage(imageId) {
+    if (!profile || !imageId) return;
+
+    try {
+      setRemovingImageId(imageId);
+      const updated = await unassignProfileImage(numId, imageId);
+      setProfile(normalizeProfile(updated));
+      setError("");
+    } catch (err) {
+      setError(err.message || "Failed to unassign image.");
+    } finally {
+      setRemovingImageId("");
+    }
+  }
+
+  async function refreshProfileAndPages() {
+    const [nextProfile, nextPages] = await Promise.all([
+      fetchProfile(numId),
+      fetchPages(),
+    ]);
+    setProfile(normalizeProfile(nextProfile));
+    setPages(Array.isArray(nextPages) ? nextPages : []);
+  }
+
+  async function handleAssignPageToProfile() {
+    const normalized = pageDatasetInput.trim().toLowerCase();
+    const match = assignablePages.find(
+      (page) =>
+        String(page.pageName || "")
+          .trim()
+          .toLowerCase() === normalized,
+    );
+
+    if (!match || !profile?._id) {
+      setError("Choose a valid available page from the dataset.");
+      return;
+    }
+
+    try {
+      setIsSavingPageOwnership(true);
+      await updatePage(match.id, { linkedIdentityId: profile._id });
+      await refreshProfileAndPages();
+      setPageDatasetInput("");
+      setError("");
+    } catch (err) {
+      setError(err.message || "Failed to assign page.");
+    } finally {
+      setIsSavingPageOwnership(false);
+    }
+  }
+
+  async function handleUnassignPageFromProfile() {
+    if (!profile?.linkedPage?.id) return;
+
+    try {
+      setIsSavingPageOwnership(true);
+      await updatePage(profile.linkedPage.id, { linkedIdentityId: "" });
+      await refreshProfileAndPages();
+      setPageDatasetInput("");
+      setError("");
+    } catch (err) {
+      setError(err.message || "Failed to unassign page.");
+    } finally {
+      setIsSavingPageOwnership(false);
     }
   }
 
@@ -860,18 +960,17 @@ export function ProfileDetailPage() {
   const s = score(profile);
   const college = profile.education?.college || {};
   const hs = profile.education?.highSchool || {};
-  const linkedPageImages = [
-    ...((profile.linkedPage?.assets || []).map((asset) => ({
+  const pageModelImages = [
+    ...(profile.linkedPage?.assets || []).map((asset) => ({
       image: asset.imageId,
       assignedAt:
         profile.linkedPage?.updatedAt || profile.linkedPage?.createdAt || null,
       imageType: asset.type || asset.imageId?.type || "post",
+      source: "page",
       pageName: profile.linkedPage?.pageName || "",
-      pageLink: profile.linkedPage?.id
-        ? `/pages/${profile.linkedPage.id}`
-        : "",
-    }))),
-    ...((profile.linkedPage?.posts || []).flatMap((post) =>
+      pageLink: profile.linkedPage?.id ? `/pages/${profile.linkedPage.id}` : "",
+    })),
+    ...(profile.linkedPage?.posts || []).flatMap((post) =>
       (post.images || []).map((image) => ({
         image,
         assignedAt:
@@ -880,54 +979,53 @@ export function ProfileDetailPage() {
           profile.linkedPage?.createdAt ||
           null,
         imageType: image.type || "post",
+        source: "page",
         pageName: profile.linkedPage?.pageName || "",
         pageLink: profile.linkedPage?.id
           ? `/pages/${profile.linkedPage.id}`
           : "",
-      })))),
+      })),
+    ),
   ].filter((entry) => entry.image?.filename);
-  const profileImages = [
+  const humanAssetImages = [
     ...(profile.images || []).map((entry) => ({
       ...entry,
       image: entry.imageId,
       imageType: entry.imageId?.type || "other",
+      source: "human-asset",
       pageName: profile.linkedPage?.pageName || "",
-      pageLink: profile.linkedPage?.id
-        ? `/pages/${profile.linkedPage.id}`
-        : "",
+      pageLink: profile.linkedPage?.id ? `/pages/${profile.linkedPage.id}` : "",
     })),
-    ...linkedPageImages,
-  ]
-    .filter((entry) => entry.image?.filename);
-  const profileImageGroups = profileImages.reduce((groups, entry) => {
-    const key =
-      String(entry.imageType || entry.image?.type || "other")
-        .trim()
-        .toLowerCase() || "other";
-    if (!groups[key]) {
-      groups[key] = [];
-    }
-    groups[key].push(entry);
-    return groups;
-  }, {});
-  const orderedImageGroups = [
-    "profile",
-    "cover",
-    "post",
-    "reels",
-    "document",
-    "other",
-  ]
-    .filter((key) => profileImageGroups[key]?.length)
-    .map((key) => ({
-      key,
-      label: formatImageTypeLabel(key),
-      items: profileImageGroups[key],
-    }));
+  ].filter((entry) => entry.image?.filename);
+  const profileImages = [...humanAssetImages, ...pageModelImages];
+  const assignablePages = pages.filter((page) => !page?.linkedIdentity);
+  const imageSourceSections = [
+    {
+      key: "human-asset",
+      title: "User Images",
+      subtitle:
+        "Images that are about the user and assigned directly to this profile.",
+      items: humanAssetImages,
+      empty: "No user images assigned yet.",
+    },
+    {
+      key: "page-model",
+      title: "Page Images",
+      subtitle: profile.linkedPage
+        ? "Images about the page that this user owns."
+        : "Link a page to show page images here.",
+      items: pageModelImages,
+      empty: profile.linkedPage
+        ? "No page images assigned yet."
+        : "No linked page yet.",
+    },
+  ];
   const primaryProfileImage =
     (
-      profileImageGroups.profile?.[0] ||
-      profileImageGroups.cover?.[0] ||
+      humanAssetImages.find((entry) => entry.imageType === "profile") ||
+      humanAssetImages.find((entry) => entry.imageType === "cover") ||
+      pageModelImages.find((entry) => entry.imageType === "profile") ||
+      pageModelImages.find((entry) => entry.imageType === "cover") ||
       profileImages[0]
     )?.image?.filename || "";
   const trackerEntries = sortedTrackerLog();
@@ -1383,7 +1481,9 @@ export function ProfileDetailPage() {
           </SectionCard>
 
           <SectionCard title="Interests">
-            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+            >
               {[
                 { key: "music", label: "Music" },
                 { key: "tvShows", label: "TV Shows" },
@@ -1598,17 +1698,7 @@ export function ProfileDetailPage() {
             />
             <div className="dr">
               <div className="dl">Friends</div>
-              <div className="dv">
-                <EditableText
-                  value={String(profile.friends ?? "")}
-                  onSave={(v) =>
-                    upTopLevel("friends", Number.parseInt(v || "0", 10) || 0)
-                  }
-                  placeholder="Friends count"
-                  copyable
-                  editable={writeable}
-                />
-              </div>
+              <div className="dv">{Number(profile.friends || 0)} Friends</div>
             </div>
             <div className="dr">
               <div className="dl">Profile URL</div>
@@ -1639,75 +1729,229 @@ export function ProfileDetailPage() {
           </SectionCard>
 
           <SectionCard title="Images Gallery">
-            {profileImages.length ? (
-              <>
-                <div className="profile-image-gallery-head">
-                  <span className="muted">
-                    {profileImages.length} images assigned
-                  </span>
-                  <a
-                    href={getProfileImagesDownloadUrl(profile.id)}
-                    className="btn-s"
-                  >
-                    Download ZIP
-                  </a>
+            <>
+              <div className="profile-gallery-shell">
+                <div className="profile-image-gallery-head profile-image-gallery-head-redesign">
+                  <div className="profile-gallery-summary">
+                    <div className="profile-gallery-kicker">Image Library</div>
+                    <div className="profile-gallery-total">
+                      {profileImages.length} images
+                    </div>
+                    <div className="profile-gallery-subcopy">
+                      Direct profile images and linked page assets are shown
+                      here.
+                    </div>
+                  </div>
+                  {profileImages.length ? (
+                    <a
+                      href={getProfileImagesDownloadUrl(profile.id)}
+                      className="btn-s"
+                    >
+                      Download ZIP
+                    </a>
+                  ) : null}
                 </div>
-                <div className="profile-image-groups">
-                  {orderedImageGroups.map((group) => (
-                    <div key={group.key} className="profile-image-group">
-                      <div className="profile-image-group-head">
-                        <div
-                          className="profile-image-group-title"
-                          style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
-                        >
-                          <span>{group.label}</span>
-                          {group.key === "post" && profile.linkedPage?.id ? (
-                            <Link
-                              to={`/pages/${profile.linkedPage.id}`}
-                              className="image-asset-user-link"
-                            >
-                              Open page
-                            </Link>
-                          ) : null}
+
+                <div className="profile-page-dataset profile-page-dataset-redesign">
+                  <div className="profile-page-dataset-head">
+                    <div className="profile-image-group-title">
+                      Page Ownership
+                    </div>
+                    <div className="profile-image-date">
+                      {profile.linkedPage
+                        ? "This profile currently owns one page."
+                        : "Assign an available page to this profile."}
+                    </div>
+                  </div>
+                  {profile.linkedPage ? (
+                    <div className="profile-page-ownership-card">
+                      <div className="profile-page-ownership-main">
+                        <div className="profile-page-ownership-name">
+                          {profile.linkedPage.pageName}
                         </div>
-                        <div className="profile-image-group-count">
-                          {group.items.length}
+                        <div className="profile-page-ownership-meta">
+                          {(profile.linkedPage.assets || []).length} assets
+                          {" · "}
+                          {(profile.linkedPage.posts || []).length} posts
                         </div>
                       </div>
-                      <div className="profile-image-grid">
-                        {group.items.map((entry, index) => (
-                          <div
-                            key={`${entry.image?._id || index}`}
-                            className="profile-image-tile"
+                      <div className="profile-page-ownership-actions">
+                        <Link
+                          to={`/pages/${profile.linkedPage.id}`}
+                          className="image-asset-user-link"
+                        >
+                          Open page
+                        </Link>
+                        {canPersist ? (
+                          <button
+                            type="button"
+                            className="profile-image-action"
+                            onClick={handleUnassignPageFromProfile}
+                            disabled={isSavingPageOwnership}
                           >
-                            <div className="profile-image-frame">
-                              <img
-                                src={entry.image.filename}
-                                alt={`${profile.firstName} ${profile.lastName} ${index + 1}`}
-                                className="profile-image-img"
-                              />
-                            </div>
-                            <div className="profile-image-meta">
-                              <div className="profile-image-name">
-                                {entry.image.annotation ||
-                                  entry.image.filename.split("/").pop()}
-                              </div>
-                              <div className="profile-image-date">
-                                Assigned {fmtDate(entry.assignedAt)}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                            {isSavingPageOwnership
+                              ? "Unassigning..."
+                              : "Unassign page"}
+                          </button>
+                        ) : null}
                       </div>
                     </div>
-                  ))}
+                  ) : assignablePages.length ? (
+                    <div className="profile-page-dataset-actions">
+                      <input
+                        type="text"
+                        list="profile-available-pages"
+                        className="fsearch profile-page-dataset-input"
+                        value={pageDatasetInput}
+                        onChange={(e) => setPageDatasetInput(e.target.value)}
+                        placeholder="Type a page name"
+                        disabled={isSavingPageOwnership}
+                      />
+                      <datalist id="profile-available-pages">
+                        {assignablePages.map((page) => (
+                          <option key={page.id} value={page.pageName} />
+                        ))}
+                      </datalist>
+                      <button
+                        type="button"
+                        className="btn-s"
+                        onClick={handleAssignPageToProfile}
+                        disabled={
+                          isSavingPageOwnership || !pageDatasetInput.trim()
+                        }
+                      >
+                        {isSavingPageOwnership ? "Assigning..." : "Assign Page"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="muted">
+                      No available pages without ownership.
+                    </div>
+                  )}
                 </div>
-              </>
-            ) : (
-              <div className="muted">
-                No images assigned to this profile yet.
               </div>
-            )}
+              {profileImages.length ? (
+                <>
+                  <div className="profile-image-groups">
+                    {imageSourceSections.map((section) => (
+                      <div
+                        key={section.key}
+                        className="profile-image-source-section"
+                      >
+                        {section.items.length ? (
+                          <div className="profile-image-group">
+                            <div className="profile-image-group-head">
+                              <div className="profile-image-group-title-block">
+                                <div className="profile-image-group-title">
+                                  <span>{section.title}</span>
+                                </div>
+                                <div className="profile-image-source-subtitle">
+                                  {section.subtitle}
+                                </div>
+                                {section.key === "page-model" &&
+                                profile.linkedPage?.id ? (
+                                  <div className="profile-image-group-subactions">
+                                    <Link
+                                      to={`/pages/${profile.linkedPage.id}`}
+                                      className="image-asset-user-link"
+                                    >
+                                      Open page
+                                    </Link>
+                                    {canPersist ? (
+                                      <button
+                                        type="button"
+                                        className="profile-image-action"
+                                        onClick={handleUnassignPageFromProfile}
+                                        disabled={isSavingPageOwnership}
+                                      >
+                                        {isSavingPageOwnership
+                                          ? "Unassigning..."
+                                          : "Unassign page"}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className="profile-image-group-count">
+                                {section.items.length}
+                              </div>
+                            </div>
+                            <div className="profile-image-grid">
+                              {section.items.map((entry, index) => (
+                                <div
+                                  key={`${entry.image?._id || index}`}
+                                  className="profile-image-tile"
+                                >
+                                  <div className="profile-image-frame">
+                                    <img
+                                      src={entry.image.filename}
+                                      alt={`${profile.firstName} ${profile.lastName} ${index + 1}`}
+                                      className="profile-image-img"
+                                    />
+                                  </div>
+                                  <div className="profile-image-meta">
+                                    <div className="profile-image-meta-top">
+                                      <span
+                                        className={`profile-image-source-pill ${section.key === "page-model" ? "page" : "profile"}`}
+                                      >
+                                        {section.key === "page-model"
+                                          ? "Page"
+                                          : "Profile"}
+                                      </span>
+                                      <span className="profile-image-date">
+                                        {formatImageTypeLabel(
+                                          entry.imageType || "other",
+                                        ).replace(" Images", "")}
+                                      </span>
+                                    </div>
+                                    <div className="profile-image-name">
+                                      {section.key === "page-model"
+                                        ? entry.image.filename.split("/").pop()
+                                        : entry.image.annotation ||
+                                          entry.image.filename.split("/").pop()}
+                                    </div>
+                                    <div className="profile-image-date">
+                                      Assigned {fmtDate(entry.assignedAt)}
+                                    </div>
+                                    {section.key === "human-asset" &&
+                                    canPersist ? (
+                                      <button
+                                        type="button"
+                                        className="profile-image-action"
+                                        onClick={() =>
+                                          handleUnassignProfileImage(
+                                            String(entry.image?._id || ""),
+                                          )
+                                        }
+                                        disabled={
+                                          removingImageId ===
+                                          String(entry.image?._id || "")
+                                        }
+                                      >
+                                        {removingImageId ===
+                                        String(entry.image?._id || "")
+                                          ? "Removing..."
+                                          : "Unassign image"}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="muted">{section.empty}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="muted">
+                  No images assigned to this profile yet.
+                </div>
+              )}
+            </>
           </SectionCard>
         </div>
       </div>

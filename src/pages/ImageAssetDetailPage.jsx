@@ -66,6 +66,25 @@ function getAnnotationColor(label) {
   return palettes[hash % palettes.length];
 }
 
+function getImageTags(image) {
+  const tags = [];
+
+  if (image?.type) {
+    tags.push(String(image.type));
+  }
+  if (image?.sourceType) {
+    tags.push(String(image.sourceType));
+  }
+  if (image?.aiGenerated) {
+    tags.push("ai");
+  }
+  if (image?.generationModel) {
+    tags.push(String(image.generationModel));
+  }
+
+  return tags;
+}
+
 export function ImageAssetDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -598,10 +617,10 @@ export function ImageAssetDetailPage() {
           <div>
             <div className="page-section-head">
               <h2>Gallery</h2>
-              <div className="image-asset-gallery-actions">
+              <div className="image-asset-gallery-actions image-asset-action-bar">
                 <button
                   type="button"
-                  className={isDeleteMode ? "btn-s" : "btn-p"}
+                  className={`image-asset-action-btn ${isDeleteMode ? "is-active is-danger" : "is-danger"}`}
                   onClick={() => {
                     setIsDeleteMode((current) => !current);
                     setSelectedImageIdsForDelete([]);
@@ -612,7 +631,7 @@ export function ImageAssetDetailPage() {
                 </button>
                 <button
                   type="button"
-                  className="btn-p"
+                  className="image-asset-action-btn is-primary"
                   onClick={() => {
                     resetAddImagesForm();
                     setIsAddImagesOpen(true);
@@ -622,11 +641,13 @@ export function ImageAssetDetailPage() {
                 </button>
                 <a
                   href={getHumanAssetImagesDownloadUrl(asset.id)}
-                  className="btn-s"
+                  className="image-asset-action-btn is-secondary"
                 >
                   Download ZIP
                 </a>
-                <span>{asset.images.length} images</span>
+                <span className="image-asset-action-count">
+                  {asset.images.length} images
+                </span>
               </div>
             </div>
 
@@ -643,6 +664,9 @@ export function ImageAssetDetailPage() {
 
             <div className="image-asset-gallery image-asset-gallery-compact">
               {asset.images.map((image, index) => (
+                (() => {
+                  const imageTags = getImageTags(image);
+                  return (
                 <div
                   key={`${asset.id}-${image._id}`}
                   className={`image-asset-tile${selectedImageIdsForDelete.includes(image._id) ? " selected" : ""}${isDeleteMode ? " delete-mode" : ""}`}
@@ -691,7 +715,18 @@ export function ImageAssetDetailPage() {
                   <div className="image-asset-caption">
                     {image.annotation || `Image ${index + 1}`}
                   </div>
+                  {imageTags.length ? (
+                    <div className="image-asset-tag-row">
+                      {imageTags.map((tag) => (
+                        <span key={`${image._id}-${tag}`} className="image-asset-tag">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
+                  );
+                })()
               ))}
             </div>
             {isDeleteMode ? (
@@ -794,6 +829,28 @@ export function ImageAssetDetailPage() {
 
                 <div className="image-asset-modal-settings">
                   <div className="image-asset-settings-card">
+                    <div className="image-asset-card-head">
+                      <div className="npm-label">Image Tags</div>
+                    </div>
+                    <div className="image-asset-tag-row">
+                      {getImageTags(selectedImage).length ? (
+                        getImageTags(selectedImage).map((tag) => (
+                          <span
+                            key={`${selectedImageId}-${tag}`}
+                            className="image-asset-tag"
+                          >
+                            {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <div className="image-asset-helper">
+                          No tags available for this image.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="image-asset-settings-card">
                     <div className="npm-label">Tools</div>
                     <button
                       type="button"
@@ -842,7 +899,7 @@ export function ImageAssetDetailPage() {
                         </datalist>
                         <button
                           type="button"
-                          className="btn-p"
+                          className="image-asset-action-btn is-primary"
                           onClick={handleAssignImage}
                           disabled={
                             isAssigningImage ||
@@ -890,7 +947,7 @@ export function ImageAssetDetailPage() {
                       </datalist>
                       <button
                         type="button"
-                        className="btn-p"
+                        className="image-asset-action-btn is-primary"
                         onClick={savePendingAnnotation}
                         disabled={
                           isSavingAnnotation ||
@@ -1116,7 +1173,7 @@ export function ImageAssetDetailPage() {
                       </select>
                       <button
                         type="button"
-                        className="btn-s"
+                        className="image-asset-action-btn is-secondary"
                         onClick={applyBatchTypeToChecked}
                       >
                         Apply Type To Checked
@@ -1187,7 +1244,7 @@ export function ImageAssetDetailPage() {
                     <>
                       <button
                         type="button"
-                        className="btn-s"
+                        className="image-asset-action-btn is-secondary"
                         onClick={() =>
                           setShowProfileAssignmentList((current) => !current)}
                       >
@@ -1252,13 +1309,17 @@ export function ImageAssetDetailPage() {
               <div className="npm-footer">
                 <button
                   type="button"
-                  className="btn-s"
+                  className="image-asset-action-btn is-secondary"
                   onClick={() => setIsAddImagesOpen(false)}
                 >
                   Cancel
                 </button>
                 <div className="npm-footer-actions">
-                  <button type="submit" className="btn-p" disabled={isAddingImages}>
+                  <button
+                    type="submit"
+                    className="image-asset-action-btn is-primary"
+                    disabled={isAddingImages}
+                  >
                     {isAddingImages ? "Adding..." : "Add Images"}
                   </button>
                 </div>
