@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { updateAssignmentStatus } from "../api/auth";
+import { getProfileImagesDownloadUrl } from "../api/profileDownloads";
 import { fetchProfile, updateProfile } from "../api/profiles";
 import { AVC, STATUS_CLASS, STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
@@ -23,6 +24,15 @@ function getInitials(f, l) {
   return (f[0] + l[0]).toUpperCase();
 }
 
+function getGenderBadgeClass(gender) {
+  const normalized = String(gender || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "female") return "female";
+  if (normalized === "male") return "male";
+  return "neutral";
+}
+
 function fmtDate(s) {
   if (!s) return "-";
   const date = new Date(s);
@@ -35,11 +45,28 @@ function fmtDate(s) {
   });
 }
 
+function formatImageTypeLabel(type) {
+  const normalized = String(type || "other")
+    .trim()
+    .toLowerCase();
+  if (normalized === "profile") return "Profile Photos";
+  if (normalized === "cover") return "Cover Photos";
+  if (normalized === "post") return "Post Images";
+  if (normalized === "reels") return "Reels";
+  if (normalized === "document") return "Documents";
+  return normalized
+    ? `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)} Images`
+    : "Other Images";
+}
+
+function hasPageUrl(profile) {
+  return String(profile?.pageUrl || "").trim().length > 0;
+}
+
 const TODAY = new Date().toLocaleDateString("en-CA");
 
-
 function score(p) {
-  return [p.has2FA, p.hasPage, p.friends >= 30, p.profileSetup].filter(Boolean)
+  return [p.has2FA, hasPageUrl(p), p.friends >= 30, p.profileSetup].filter(Boolean)
     .length;
 }
 
@@ -61,6 +88,8 @@ function getDefaultProfile() {
     status: "Available",
     profileUrl: "",
     pageUrl: "",
+    pageId: "",
+    linkedPage: null,
     tags: [],
     profileCreated: "",
     accountCreated: "",
@@ -73,10 +102,15 @@ function getDefaultProfile() {
     notes: "",
     websites: [],
     socialLinks: [],
+    images: [],
     trackerLog: [],
     avatarUrl: "",
     coverPhotoUrl: "",
-    personal: { relationshipStatus: "", relationshipStatusSince: "", languages: [] },
+    personal: {
+      relationshipStatus: "",
+      relationshipStatusSince: "",
+      languages: [],
+    },
     work: [],
     education: {
       college: { name: "", from: "", to: "", graduated: false, degree: "" },
@@ -92,6 +126,18 @@ function getDefaultProfile() {
     },
     travel: [],
     otherNames: [],
+  };
+}
+
+function serializeProfile(profile) {
+  const { linkedPage, ...rest } = profile || {};
+
+  return {
+    ...rest,
+    pageId:
+      typeof rest.pageId === "object" && rest.pageId
+        ? String(rest.pageId.id || rest.pageId._id || "")
+        : String(rest.pageId || ""),
   };
 }
 
@@ -121,6 +167,7 @@ function normalizeProfile(raw) {
       ...base.interests,
       ...(raw?.interests || {}),
     },
+    images: raw?.images || [],
     travel: raw?.travel || [],
     otherNames: raw?.otherNames || [],
   };
@@ -139,7 +186,12 @@ function selectEmail(profile, address) {
   }));
 }
 
-function EmailSelectField({ profile, onChange, disabled = false, confidential = true }) {
+function EmailSelectField({
+  profile,
+  onChange,
+  disabled = false,
+  confidential = true,
+}) {
   const [copied, setCopied] = useState(false);
   const selectedEmail = getSelectedEmail(profile);
 
@@ -191,7 +243,6 @@ function EditableText({
   const [draft, setDraft] = useState(value || "");
   const [copied, setCopied] = useState(false);
   const empty = !value || String(value).trim() === "";
-
 
   function save() {
     onSave(draft);
@@ -261,7 +312,11 @@ function EditableText({
         }}
         title={editable ? "Click to edit" : undefined}
       >
-        {value ? <span>{value}</span> : <em className="ef-empty">{placeholder}</em>}
+        {value ? (
+          <span>{value}</span>
+        ) : (
+          <em className="ef-empty">{placeholder}</em>
+        )}
         {editable && <span className="ef-pen">Edit</span>}
       </div>
       {copyable && !empty && (
@@ -544,8 +599,11 @@ export function ProfileDetailPage() {
   const role = currentUser?.role || "";
   const isAdmin = role === "admin";
   const isMaker = role === "maker";
-  const makerOwnsProfile = isMaker
-    && (currentUser?.profiles || []).some((entry) => entry.profileId === profile?.id);
+  const makerOwnsProfile =
+    isMaker &&
+    (currentUser?.profiles || []).some(
+      (entry) => entry.profileId === profile?.id,
+    );
   const generalConfidential = canViewConfidential(currentUser);
   const writeable = isAdmin;
   const confidential = generalConfidential;
@@ -592,7 +650,7 @@ export function ProfileDetailPage() {
     setProfile(nextProfile);
 
     try {
-      const saved = await updateProfile(numId, nextProfile);
+      const saved = await updateProfile(numId, serializeProfile(nextProfile));
       setProfile(normalizeProfile(saved));
       setError("");
     } catch (err) {
@@ -615,7 +673,9 @@ export function ProfileDetailPage() {
   function upWork(idx, field, value) {
     persistProfile((current) => ({
       ...current,
-      work: current.work.map((w, i) => (i === idx ? { ...w, [field]: value } : w)),
+      work: current.work.map((w, i) =>
+        i === idx ? { ...w, [field]: value } : w,
+      ),
     }));
   }
 
@@ -625,7 +685,14 @@ export function ProfileDetailPage() {
       ...current,
       work: [
         ...current.work,
-        { company: "", position: "", from: "", current: true, to: "", city: "" },
+        {
+          company: "",
+          position: "",
+          from: "",
+          current: true,
+          to: "",
+          city: "",
+        },
       ],
     }));
   }
@@ -675,7 +742,9 @@ export function ProfileDetailPage() {
   function upTravel(idx, field, value) {
     persistProfile((current) => ({
       ...current,
-      travel: current.travel.map((t, i) => (i === idx ? { ...t, [field]: value } : t)),
+      travel: current.travel.map((t, i) =>
+        i === idx ? { ...t, [field]: value } : t,
+      ),
     }));
   }
 
@@ -721,7 +790,9 @@ export function ProfileDetailPage() {
   async function handleSubmitProfile() {
     if (!profile || !showMakerSubmit || !currentUser?.id) return;
 
-    const hasSelectedEmail = (profile.emails || []).some((entry) => entry.selected);
+    const hasSelectedEmail = (profile.emails || []).some(
+      (entry) => entry.selected,
+    );
     if (!hasSelectedEmail) {
       setSubmitError("Select an email before submitting this profile.");
       return;
@@ -739,7 +810,11 @@ export function ProfileDetailPage() {
       });
       setProfile(normalizeProfile(savedProfile));
 
-      const result = await updateAssignmentStatus(currentUser.id, profile.id, "completed");
+      const result = await updateAssignmentStatus(
+        currentUser.id,
+        profile.id,
+        "completed",
+      );
       if (result.user) {
         login(result.user);
       }
@@ -769,7 +844,11 @@ export function ProfileDetailPage() {
           <div className="et">Profile Not Found</div>
           <div className="ed">{error}</div>
           <br />
-          <button className="btn-p" style={{ marginTop: "12px" }} onClick={() => navigate("/")}>
+          <button
+            className="btn-p"
+            style={{ marginTop: "12px" }}
+            onClick={() => navigate("/")}
+          >
             Back to Profiles
           </button>
         </div>
@@ -781,10 +860,83 @@ export function ProfileDetailPage() {
   const s = score(profile);
   const college = profile.education?.college || {};
   const hs = profile.education?.highSchool || {};
+  const linkedPageImages = [
+    ...((profile.linkedPage?.assets || []).map((asset) => ({
+      image: asset.imageId,
+      assignedAt:
+        profile.linkedPage?.updatedAt || profile.linkedPage?.createdAt || null,
+      imageType: asset.type || asset.imageId?.type || "post",
+      pageName: profile.linkedPage?.pageName || "",
+      pageLink: profile.linkedPage?.id
+        ? `/pages/${profile.linkedPage.id}`
+        : "",
+    }))),
+    ...((profile.linkedPage?.posts || []).flatMap((post) =>
+      (post.images || []).map((image) => ({
+        image,
+        assignedAt:
+          post.createdAt ||
+          profile.linkedPage?.updatedAt ||
+          profile.linkedPage?.createdAt ||
+          null,
+        imageType: image.type || "post",
+        pageName: profile.linkedPage?.pageName || "",
+        pageLink: profile.linkedPage?.id
+          ? `/pages/${profile.linkedPage.id}`
+          : "",
+      })))),
+  ].filter((entry) => entry.image?.filename);
+  const profileImages = [
+    ...(profile.images || []).map((entry) => ({
+      ...entry,
+      image: entry.imageId,
+      imageType: entry.imageId?.type || "other",
+      pageName: profile.linkedPage?.pageName || "",
+      pageLink: profile.linkedPage?.id
+        ? `/pages/${profile.linkedPage.id}`
+        : "",
+    })),
+    ...linkedPageImages,
+  ]
+    .filter((entry) => entry.image?.filename);
+  const profileImageGroups = profileImages.reduce((groups, entry) => {
+    const key =
+      String(entry.imageType || entry.image?.type || "other")
+        .trim()
+        .toLowerCase() || "other";
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+    groups[key].push(entry);
+    return groups;
+  }, {});
+  const orderedImageGroups = [
+    "profile",
+    "cover",
+    "post",
+    "reels",
+    "document",
+    "other",
+  ]
+    .filter((key) => profileImageGroups[key]?.length)
+    .map((key) => ({
+      key,
+      label: formatImageTypeLabel(key),
+      items: profileImageGroups[key],
+    }));
+  const primaryProfileImage =
+    (
+      profileImageGroups.profile?.[0] ||
+      profileImageGroups.cover?.[0] ||
+      profileImages[0]
+    )?.image?.filename || "";
   const trackerEntries = sortedTrackerLog();
   const hasTrackedToday = trackedToday();
-  const makerAssignment = (currentUser?.profiles || []).find((entry) => entry.profileId === profile.id);
-  const showMakerSubmit = isMaker && makerAssignment?.assignmentStatus === "pending";
+  const makerAssignment = (currentUser?.profiles || []).find(
+    (entry) => entry.profileId === profile.id,
+  );
+  const showMakerSubmit =
+    isMaker && makerAssignment?.assignmentStatus === "pending";
 
   return (
     <div className="page">
@@ -796,7 +948,10 @@ export function ProfileDetailPage() {
       </button>
 
       {error && (
-        <div className="empty-st" style={{ padding: "16px 0 20px", textAlign: "left" }}>
+        <div
+          className="empty-st"
+          style={{ padding: "16px 0 20px", textAlign: "left" }}
+        >
           <div className="ed">{error}</div>
         </div>
       )}
@@ -804,22 +959,55 @@ export function ProfileDetailPage() {
       <div className="dhero">
         <div
           className="hcover"
-          style={{ background: `linear-gradient(135deg, ${avatarColor}18, ${avatarColor}35)` }}
+          style={
+            primaryProfileImage
+              ? {
+                  backgroundImage: `linear-gradient(135deg, ${avatarColor}22, ${avatarColor}55), url(${primaryProfileImage})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }
+              : {
+                  background: `linear-gradient(135deg, ${avatarColor}18, ${avatarColor}35)`,
+                }
+          }
         >
           <div className="haw">
-            <div className="hav" style={{ background: avatarColor }}>
-              {getInitials(profile.firstName, profile.lastName)}
-            </div>
+            {primaryProfileImage ? (
+              <div
+                className="hav hav-img-wrap"
+                style={{ background: avatarColor }}
+              >
+                <img
+                  src={primaryProfileImage}
+                  alt={`${profile.firstName} ${profile.lastName}`}
+                  className="hav-img"
+                />
+              </div>
+            ) : (
+              <div className="hav" style={{ background: avatarColor }}>
+                {getInitials(profile.firstName, profile.lastName)}
+              </div>
+            )}
           </div>
         </div>
         <div className="hbody">
           <div className="htop">
-            <div>
+            <div className="hero-main-col">
               <div className="hname">
-                {profile.firstName} {profile.lastName}
+                <span>
+                  {profile.firstName} {profile.lastName}
+                </span>
+                {profile.gender ? (
+                  <span
+                    className={`gender-badge ${getGenderBadgeClass(profile.gender)}`}
+                  >
+                    {profile.gender}
+                  </span>
+                ) : null}
               </div>
               <div className="hsub">
-                {profile.work?.[0]?.position || "No role yet"} · {profile.work?.[0]?.company || "No company yet"}
+                {profile.work?.[0]?.position || "No role yet"} ·{" "}
+                {profile.work?.[0]?.company || "No company yet"}
               </div>
               <div className="hbrow">
                 <StatusSelect
@@ -833,30 +1021,97 @@ export function ProfileDetailPage() {
                   </span>
                 ))}
               </div>
+
+              <div className="hbio-wrap hero-bio">
+                <EditableText
+                  value={profile.bio}
+                  onSave={(v) => upTopLevel("bio", v)}
+                  multiline
+                  copyable
+                  placeholder="Click to add a bio..."
+                  editable={writeable}
+                />
+              </div>
             </div>
-            <div className="hmeta">
-              #{String(profile.id).padStart(4, "0")} · {profile.gender}
-              <br />
-              {profile.city} · {profile.dob}
-              <br />
-              Requirements: {s}/4
+            <div className="hero-req-wrap hero-req-side">
+              <div className="hero-req-head">
+                <div className="hero-req-title">Requirements</div>
+                <div className="hero-req-count">{s}/4</div>
+              </div>
+              <div className="hero-req-list">
+                <label
+                  className={`req-item req-compact ${profile.has2FA ? "ryes" : "rno"}`}
+                >
+                  <div className="req-icon">
+                    <input
+                      type="checkbox"
+                      checked={!!profile.has2FA}
+                      onChange={(e) => upTopLevel("has2FA", e.target.checked)}
+                      disabled={!writeable}
+                    />
+                  </div>
+                  <span className="req-name">2FA Enabled</span>
+                </label>
+                <label
+                  className={`req-item req-compact ${hasPageUrl(profile) ? "ryes" : "rno"}`}
+                >
+                  <div className="req-icon">
+                    {hasPageUrl(profile) ? (
+                      <svg viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="req-name">Page Created</span>
+                </label>
+                <div
+                  className={`req-item req-compact ${profile.friends >= 30 ? "ryes" : "rno"}`}
+                >
+                  <div className="req-icon">
+                    {profile.friends >= 30 ? (
+                      <svg viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="req-name">30+ Friends</span>
+                </div>
+                <label
+                  className={`req-item req-compact ${profile.profileSetup ? "ryes" : "rno"}`}
+                >
+                  <div className="req-icon">
+                    <input
+                      type="checkbox"
+                      checked={!!profile.profileSetup}
+                      onChange={(e) =>
+                        upTopLevel("profileSetup", e.target.checked)
+                      }
+                      disabled={!writeable}
+                    />
+                  </div>
+                  <span className="req-name">Profile Set Up</span>
+                </label>
+              </div>
             </div>
-          </div>
-          <div className="hbio-wrap">
-            <EditableText
-              value={profile.bio}
-              onSave={(v) => upTopLevel("bio", v)}
-              multiline
-              copyable
-              placeholder="Click to add a bio..."
-              editable={writeable}
-            />
           </div>
         </div>
       </div>
 
       {!writeable && (
-        <div className="empty-st" style={{ padding: "16px 0 20px", textAlign: "left" }}>
+        <div
+          className="empty-st"
+          style={{ padding: "16px 0 20px", textAlign: "left" }}
+        >
           <div className="ed">{readOnlyMessage}</div>
         </div>
       )}
@@ -888,7 +1143,15 @@ export function ProfileDetailPage() {
             </div>
             <div className="dr">
               <div className="dl">Relationship Status</div>
-              <div className="dv" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <div
+                className="dv"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                }}
+              >
                 <EditableText
                   value={profile.personal?.relationshipStatus}
                   onSave={(v) => upPersonal("relationshipStatus", v)}
@@ -941,7 +1204,16 @@ export function ProfileDetailPage() {
 
           <SectionCard title="Education">
             <div style={{ marginBottom: "12px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text2)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "var(--text2)",
+                  marginBottom: "6px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
                 College
               </div>
               <div className="dr" style={{ paddingTop: 0 }}>
@@ -960,23 +1232,47 @@ export function ProfileDetailPage() {
                 <div className="dl">Years</div>
                 <div className="dv">
                   <span className="ef-inline-row">
-                    <EditableText value={college.from} onSave={(v) => upEduCollege("from", v)} placeholder="From" editable={writeable} />
-                    {college.to && <span style={{ color: "var(--text3)" }}>-</span>}
-                    <EditableText value={college.to} onSave={(v) => upEduCollege("to", v)} placeholder="To (optional)" editable={writeable} />
+                    <EditableText
+                      value={college.from}
+                      onSave={(v) => upEduCollege("from", v)}
+                      placeholder="From"
+                      editable={writeable}
+                    />
+                    {college.to && (
+                      <span style={{ color: "var(--text3)" }}>-</span>
+                    )}
+                    <EditableText
+                      value={college.to}
+                      onSave={(v) => upEduCollege("to", v)}
+                      placeholder="To (optional)"
+                      editable={writeable}
+                    />
                   </span>
                 </div>
               </div>
               <div className="dr">
                 <div className="dl">Degree</div>
                 <div className="dv">
-                  <EditableText value={college.degree} onSave={(v) => upEduCollege("degree", v)} placeholder="Degree & field" editable={writeable} />
+                  <EditableText
+                    value={college.degree}
+                    onSave={(v) => upEduCollege("degree", v)}
+                    placeholder="Degree & field"
+                    editable={writeable}
+                  />
                 </div>
               </div>
               <div className="dr">
                 <div className="dl">Graduated</div>
                 <div className="dv">
                   <label className="current-toggle">
-                    <input type="checkbox" checked={!!college.graduated} onChange={(e) => upEduCollege("graduated", e.target.checked)} disabled={!writeable} />
+                    <input
+                      type="checkbox"
+                      checked={!!college.graduated}
+                      onChange={(e) =>
+                        upEduCollege("graduated", e.target.checked)
+                      }
+                      disabled={!writeable}
+                    />
                     {college.graduated ? "Yes" : "No"}
                   </label>
                 </div>
@@ -984,22 +1280,46 @@ export function ProfileDetailPage() {
             </div>
 
             <div>
-              <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text2)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "var(--text2)",
+                  marginBottom: "6px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
                 High School
               </div>
               <div className="dr" style={{ paddingTop: 0 }}>
                 <div className="dl">School</div>
                 <div className="dv">
-                  <EditableText value={hs.name} onSave={(v) => upEduHS("name", v)} placeholder="School name" editable={writeable} />
+                  <EditableText
+                    value={hs.name}
+                    onSave={(v) => upEduHS("name", v)}
+                    placeholder="School name"
+                    editable={writeable}
+                  />
                 </div>
               </div>
               <div className="dr">
                 <div className="dl">Years</div>
                 <div className="dv">
                   <span className="ef-inline-row">
-                    <EditableText value={hs.from} onSave={(v) => upEduHS("from", v)} placeholder="From" editable={writeable} />
+                    <EditableText
+                      value={hs.from}
+                      onSave={(v) => upEduHS("from", v)}
+                      placeholder="From"
+                      editable={writeable}
+                    />
                     {hs.to && <span style={{ color: "var(--text3)" }}>-</span>}
-                    <EditableText value={hs.to} onSave={(v) => upEduHS("to", v)} placeholder="To (optional)" editable={writeable} />
+                    <EditableText
+                      value={hs.to}
+                      onSave={(v) => upEduHS("to", v)}
+                      placeholder="To (optional)"
+                      editable={writeable}
+                    />
                   </span>
                 </div>
               </div>
@@ -1007,113 +1327,87 @@ export function ProfileDetailPage() {
                 <div className="dl">Graduated</div>
                 <div className="dv">
                   <label className="current-toggle">
-                    <input type="checkbox" checked={!!hs.graduated} onChange={(e) => upEduHS("graduated", e.target.checked)} disabled={!writeable} />
+                    <input
+                      type="checkbox"
+                      checked={!!hs.graduated}
+                      onChange={(e) => upEduHS("graduated", e.target.checked)}
+                      disabled={!writeable}
+                    />
                     {hs.graduated ? "Yes" : "No"}
                   </label>
                 </div>
               </div>
             </div>
           </SectionCard>
-        </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-          <SectionCard title="Credentials">
-            <div className="dr">
-              <div className="dl">Email</div>
-              <div className="dv">
-                <EmailSelectField
-                  profile={profile}
-                  onChange={(value) => upTopLevel("emails", selectEmail(profile, value))}
-                  disabled={!canEditField("emails")}
-                  confidential={canViewEmailCredentials}
-                />
-              </div>
-            </div>
-            <div className="dr"><div className="dl">Email Password</div><div className="dv"><EditableText value={reveal(profile.emailPassword, canViewEmailCredentials)} onSave={(v) => upTopLevel("emailPassword", v)} placeholder="Email password" mono copyable={canViewEmailCredentials} editable={canEditField("emailPassword")} /></div></div>
-            <div className="dr"><div className="dl">Facebook Password</div><div className="dv"><EditableText value={reveal(profile.facebookPassword, canViewEmailCredentials)} onSave={(v) => upTopLevel("facebookPassword", v)} placeholder="Facebook password" mono copyable={canViewEmailCredentials} editable={canEditField("facebookPassword")} /></div></div>
-            {showMakerSubmit && (
-              <div className="dr">
-                <div className="dl">Submit Profile?</div>
-                <div className="dv">
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                    <button
-                      type="button"
-                      className="btn-p"
-                      onClick={handleSubmitProfile}
-                      disabled={submittingProfile}
-                    >
-                      {submittingProfile ? "Submitting..." : "Submit"}
-                    </button>
-                    {submitError ? (
-                      <span style={{ color: "var(--red)", fontSize: "12px" }}>{submitError}</span>
-                    ) : (
-                      <span style={{ color: "var(--text3)", fontSize: "12px" }}>
-                        Requires a selected email before submission.
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="dr"><div className="dl">Proxy</div><div className="dv"><EditableText value={reveal(profile.proxy, canViewProxy)} onSave={(v) => upTopLevel("proxy", v)} placeholder="Proxy" mono copyable={canViewProxy} editable={writeable} /></div></div>
-            <div className="dr"><div className="dl">Proxy Location</div><div className="dv"><EditableText value={reveal(profile.proxyLocation, confidential)} onSave={(v) => upTopLevel("proxyLocation", v)} placeholder="Proxy location" copyable={confidential} editable={writeable} /></div></div>
-            <div className="dr"><div className="dl">Phone</div><div className="dv"><EditableText value={reveal(profile.phone, confidential)} onSave={(v) => upTopLevel("phone", v)} placeholder="Phone" copyable={confidential} editable={writeable} /></div></div>
-            <div className="dr"><div className="dl">Recovery Email</div><div className="dv"><EditableText value={reveal(profile.recoveryEmail, confidential)} onSave={(v) => upTopLevel("recoveryEmail", v)} placeholder="Recovery email" copyable={confidential} editable={writeable} /></div></div>
-          </SectionCard>
-
-          <SectionCard title="Account & Links">
-            <InfoRow label="Profile Created" value={fmtDate(profile.profileCreated)} />
-            <InfoRow label="Account Created" value={fmtDate(profile.accountCreated)} />
-            <div className="dr">
-              <div className="dl">Friends</div>
-              <div className="dv">
-                <EditableText
-                  value={String(profile.friends ?? "")}
-                  onSave={(v) => upTopLevel("friends", Number.parseInt(v || "0", 10) || 0)}
-                  placeholder="Friends count"
-                  copyable
-                  editable={writeable}
-                />
-              </div>
-            </div>
-            <div className="dr">
-              <div className="dl">Profile URL</div>
-              <div className="dv mono">
-                <EditableText
-                  value={profile.profileUrl}
-                  onSave={(v) => upTopLevel("profileUrl", v)}
-                  placeholder="Profile URL"
-                  mono
-                  copyable
-                  editable={canEditField("profileUrl")}
-                />
-              </div>
-            </div>
-            <div className="dr" style={{ borderBottom: "none" }}>
-              <div className="dl">Page URL</div>
-              <div className="dv mono">
-                <EditableText
-                  value={profile.pageUrl}
-                  onSave={(v) => upTopLevel("pageUrl", v)}
-                  placeholder="Page URL"
-                  mono
-                  copyable
-                  editable={canEditField("pageUrl")}
-                />
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Notes">
-            <EditableText
-              value={profile.notes}
-              onSave={(v) => upTopLevel("notes", v)}
-              multiline
-              placeholder="Add internal notes..."
+          <SectionCard title="Hobbies">
+            <EditableTags
+              items={profile.hobbies || []}
+              onSave={(v) =>
+                persistProfile((current) => ({ ...current, hobbies: v }))
+              }
+              placeholder="Hobby..."
+              max={5}
+              copyable
               editable={writeable}
             />
           </SectionCard>
 
+          <SectionCard title="Travel">
+            {profile.travel.map((item, idx) => (
+              <TravelCard
+                key={idx}
+                item={item}
+                onUpdate={(field, value) => upTravel(idx, field, value)}
+                onRemove={() => removeTravel(idx)}
+                editable={writeable}
+              />
+            ))}
+            {writeable && profile.travel.length < 2 && (
+              <button className="add-item-btn" onClick={addTravel}>
+                + Add Travel
+              </button>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Other Names">
+            <EditableTags
+              items={profile.otherNames || []}
+              onSave={(v) =>
+                persistProfile((current) => ({ ...current, otherNames: v }))
+              }
+              placeholder="Alias or nickname..."
+              max={5}
+              editable={writeable}
+            />
+          </SectionCard>
+
+          <SectionCard title="Interests">
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              {[
+                { key: "music", label: "Music" },
+                { key: "tvShows", label: "TV Shows" },
+                { key: "movies", label: "Movies" },
+                { key: "games", label: "Games" },
+                { key: "sportsTeams", label: "Sports Teams" },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <div className="interest-group-label">{label}</div>
+                  <EditableTags
+                    items={profile.interests?.[key] || []}
+                    onSave={(v) => upInterest(key, v)}
+                    placeholder={`Add ${label.toLowerCase()}...`}
+                    max={5}
+                    copyable
+                    editable={writeable}
+                  />
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <SectionCard
             title="Tracker Log"
             badge={
@@ -1156,127 +1450,273 @@ export function ProfileDetailPage() {
             )}
           </SectionCard>
 
-          <SectionCard
-            title="Requirements"
-            badge={<span className={`spill ${s === 4 ? "sp-full" : s >= 2 ? "sp-part" : "sp-low"}`}>{s}/4 {s === 4 ? "Ready" : "Incomplete"}</span>}
-          >
-            <div className="req-grid">
-              <label className={`req-item ${profile.has2FA ? "ryes" : "rno"}`}>
-                <div className="req-icon">
-                  <input
-                    type="checkbox"
-                    checked={!!profile.has2FA}
-                    onChange={(e) => upTopLevel("has2FA", e.target.checked)}
-                    disabled={!writeable}
-                  />
-                </div>
-                <span className="req-name">2FA Enabled</span>
-              </label>
-              <label className={`req-item ${profile.hasPage ? "ryes" : "rno"}`}>
-                <div className="req-icon">
-                  <input
-                    type="checkbox"
-                    checked={!!profile.hasPage}
-                    onChange={(e) => upTopLevel("hasPage", e.target.checked)}
-                    disabled={!writeable}
-                  />
-                </div>
-                <span className="req-name">Page Created</span>
-              </label>
-              <div className={`req-item ${profile.friends >= 30 ? "ryes" : "rno"}`}>
-                <div className="req-icon">
-                  {profile.friends >= 30 ? (
-                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                  )}
-                </div>
-                <span className="req-name">30+ Friends</span>
+          <SectionCard title="Notes">
+            <EditableText
+              value={profile.notes}
+              onSave={(v) => upTopLevel("notes", v)}
+              multiline
+              placeholder="Add internal notes..."
+              editable={writeable}
+            />
+          </SectionCard>
+
+          <SectionCard title="Credentials">
+            <div className="dr">
+              <div className="dl">Email</div>
+              <div className="dv">
+                <EmailSelectField
+                  profile={profile}
+                  onChange={(value) =>
+                    upTopLevel("emails", selectEmail(profile, value))
+                  }
+                  disabled={!canEditField("emails")}
+                  confidential={canViewEmailCredentials}
+                />
               </div>
-              <label className={`req-item ${profile.profileSetup ? "ryes" : "rno"}`}>
-                <div className="req-icon">
-                  <input
-                    type="checkbox"
-                    checked={!!profile.profileSetup}
-                    onChange={(e) => upTopLevel("profileSetup", e.target.checked)}
-                    disabled={!writeable}
-                  />
+            </div>
+            <div className="dr">
+              <div className="dl">Email Password</div>
+              <div className="dv">
+                <EditableText
+                  value={reveal(profile.emailPassword, canViewEmailCredentials)}
+                  onSave={(v) => upTopLevel("emailPassword", v)}
+                  placeholder="Email password"
+                  mono
+                  copyable={canViewEmailCredentials}
+                  editable={canEditField("emailPassword")}
+                />
+              </div>
+            </div>
+            <div className="dr">
+              <div className="dl">Facebook Password</div>
+              <div className="dv">
+                <EditableText
+                  value={reveal(
+                    profile.facebookPassword,
+                    canViewEmailCredentials,
+                  )}
+                  onSave={(v) => upTopLevel("facebookPassword", v)}
+                  placeholder="Facebook password"
+                  mono
+                  copyable={canViewEmailCredentials}
+                  editable={canEditField("facebookPassword")}
+                />
+              </div>
+            </div>
+            {showMakerSubmit && (
+              <div className="dr">
+                <div className="dl">Submit Profile?</div>
+                <div className="dv">
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="btn-p"
+                      onClick={handleSubmitProfile}
+                      disabled={submittingProfile}
+                    >
+                      {submittingProfile ? "Submitting..." : "Submit"}
+                    </button>
+                    {submitError ? (
+                      <span style={{ color: "var(--red)", fontSize: "12px" }}>
+                        {submitError}
+                      </span>
+                    ) : (
+                      <span style={{ color: "var(--text3)", fontSize: "12px" }}>
+                        Requires a selected email before submission.
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <span className="req-name">Profile Set Up</span>
-              </label>
+              </div>
+            )}
+            <div className="dr">
+              <div className="dl">Proxy</div>
+              <div className="dv">
+                <EditableText
+                  value={reveal(profile.proxy, canViewProxy)}
+                  onSave={(v) => upTopLevel("proxy", v)}
+                  placeholder="Proxy"
+                  mono
+                  copyable={canViewProxy}
+                  editable={writeable}
+                />
+              </div>
+            </div>
+            <div className="dr">
+              <div className="dl">Proxy Location</div>
+              <div className="dv">
+                <EditableText
+                  value={reveal(profile.proxyLocation, confidential)}
+                  onSave={(v) => upTopLevel("proxyLocation", v)}
+                  placeholder="Proxy location"
+                  copyable={confidential}
+                  editable={writeable}
+                />
+              </div>
+            </div>
+            <div className="dr">
+              <div className="dl">Phone</div>
+              <div className="dv">
+                <EditableText
+                  value={reveal(profile.phone, confidential)}
+                  onSave={(v) => upTopLevel("phone", v)}
+                  placeholder="Phone"
+                  copyable={confidential}
+                  editable={writeable}
+                />
+              </div>
+            </div>
+            <div className="dr">
+              <div className="dl">Recovery Email</div>
+              <div className="dv">
+                <EditableText
+                  value={reveal(profile.recoveryEmail, confidential)}
+                  onSave={(v) => upTopLevel("recoveryEmail", v)}
+                  placeholder="Recovery email"
+                  copyable={confidential}
+                  editable={writeable}
+                />
+              </div>
             </div>
           </SectionCard>
-        </div>
-      </div>
 
-      <div className="dgrid">
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-          <SectionCard title="Hobbies">
-            <EditableTags
-              items={profile.hobbies || []}
-              onSave={(v) => persistProfile((current) => ({ ...current, hobbies: v }))}
-              placeholder="Hobby..."
-              max={5}
-              copyable
-              editable={writeable}
+          <SectionCard title="Account & Links">
+            <InfoRow
+              label="Profile Created"
+              value={fmtDate(profile.profileCreated)}
             />
-          </SectionCard>
-
-          <SectionCard title="Travel">
-            {profile.travel.map((item, idx) => (
-              <TravelCard
-                key={idx}
-                item={item}
-                onUpdate={(field, value) => upTravel(idx, field, value)}
-                onRemove={() => removeTravel(idx)}
-                editable={writeable}
-              />
-            ))}
-            {writeable && profile.travel.length < 2 && (
-              <button className="add-item-btn" onClick={addTravel}>
-                + Add Travel
-              </button>
-            )}
-          </SectionCard>
-
-          <SectionCard title="Other Names">
-            <EditableTags
-              items={profile.otherNames || []}
-              onSave={(v) => persistProfile((current) => ({ ...current, otherNames: v }))}
-              placeholder="Alias or nickname..."
-              max={5}
-              editable={writeable}
+            <InfoRow
+              label="Account Created"
+              value={fmtDate(profile.accountCreated)}
             />
-          </SectionCard>
-        </div>
-
-        <SectionCard title="Interests">
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            {[
-              { key: "music", label: "Music" },
-              { key: "tvShows", label: "TV Shows" },
-              { key: "movies", label: "Movies" },
-              { key: "games", label: "Games" },
-              { key: "sportsTeams", label: "Sports Teams" },
-            ].map(({ key, label }) => (
-              <div key={key}>
-                <div className="interest-group-label">{label}</div>
-                <EditableTags
-                  items={profile.interests?.[key] || []}
-                  onSave={(v) => upInterest(key, v)}
-                  placeholder={`Add ${label.toLowerCase()}...`}
-                  max={5}
+            <div className="dr">
+              <div className="dl">Friends</div>
+              <div className="dv">
+                <EditableText
+                  value={String(profile.friends ?? "")}
+                  onSave={(v) =>
+                    upTopLevel("friends", Number.parseInt(v || "0", 10) || 0)
+                  }
+                  placeholder="Friends count"
                   copyable
                   editable={writeable}
                 />
               </div>
-            ))}
-          </div>
-        </SectionCard>
+            </div>
+            <div className="dr">
+              <div className="dl">Profile URL</div>
+              <div className="dv mono">
+                <EditableText
+                  value={profile.profileUrl}
+                  onSave={(v) => upTopLevel("profileUrl", v)}
+                  placeholder="Profile URL"
+                  mono
+                  copyable
+                  editable={canEditField("profileUrl")}
+                />
+              </div>
+            </div>
+            <div className="dr" style={{ borderBottom: "none" }}>
+              <div className="dl">Page URL</div>
+              <div className="dv mono">
+                <EditableText
+                  value={profile.pageUrl}
+                  onSave={(v) => upTopLevel("pageUrl", v)}
+                  placeholder="Page URL"
+                  mono
+                  copyable
+                  editable={canEditField("pageUrl")}
+                />
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Images Gallery">
+            {profileImages.length ? (
+              <>
+                <div className="profile-image-gallery-head">
+                  <span className="muted">
+                    {profileImages.length} images assigned
+                  </span>
+                  <a
+                    href={getProfileImagesDownloadUrl(profile.id)}
+                    className="btn-s"
+                  >
+                    Download ZIP
+                  </a>
+                </div>
+                <div className="profile-image-groups">
+                  {orderedImageGroups.map((group) => (
+                    <div key={group.key} className="profile-image-group">
+                      <div className="profile-image-group-head">
+                        <div
+                          className="profile-image-group-title"
+                          style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}
+                        >
+                          <span>{group.label}</span>
+                          {group.key === "post" && profile.linkedPage?.id ? (
+                            <Link
+                              to={`/pages/${profile.linkedPage.id}`}
+                              className="image-asset-user-link"
+                            >
+                              Open page
+                            </Link>
+                          ) : null}
+                        </div>
+                        <div className="profile-image-group-count">
+                          {group.items.length}
+                        </div>
+                      </div>
+                      <div className="profile-image-grid">
+                        {group.items.map((entry, index) => (
+                          <div
+                            key={`${entry.image?._id || index}`}
+                            className="profile-image-tile"
+                          >
+                            <div className="profile-image-frame">
+                              <img
+                                src={entry.image.filename}
+                                alt={`${profile.firstName} ${profile.lastName} ${index + 1}`}
+                                className="profile-image-img"
+                              />
+                            </div>
+                            <div className="profile-image-meta">
+                              <div className="profile-image-name">
+                                {entry.image.annotation ||
+                                  entry.image.filename.split("/").pop()}
+                              </div>
+                              <div className="profile-image-date">
+                                Assigned {fmtDate(entry.assignedAt)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="muted">
+                No images assigned to this profile yet.
+              </div>
+            )}
+          </SectionCard>
+        </div>
       </div>
 
       {isTrackerModalOpen && (
-        <div className="npm-backdrop" onClick={() => setIsTrackerModalOpen(false)}>
+        <div
+          className="npm-backdrop"
+          onClick={() => setIsTrackerModalOpen(false)}
+        >
           <div
             className="npm-modal"
             onClick={(e) => e.stopPropagation()}
@@ -1324,7 +1764,11 @@ export function ProfileDetailPage() {
                   Cancel
                 </button>
                 <div className="npm-footer-actions">
-                  <button type="button" className="btn-p" onClick={saveTrackerEntry}>
+                  <button
+                    type="button"
+                    className="btn-p"
+                    onClick={saveTrackerEntry}
+                  >
                     Save Tracker Entry
                   </button>
                 </div>
@@ -1336,6 +1780,3 @@ export function ProfileDetailPage() {
     </div>
   );
 }
-
-
-

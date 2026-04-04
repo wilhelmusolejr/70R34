@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const { Schema, model } = mongoose;
 
-const PAGE_ASSET_TYPES = ["photo", "video", "link", "story"];
+const PAGE_ASSET_TYPES = ["profile", "cover", "post", "reels"];
 
 const PageAssetSchema = new Schema(
   {
@@ -23,6 +23,22 @@ const PageAssetSchema = new Schema(
   { _id: false },
 );
 
+const PagePostSchema = new Schema(
+  {
+    post: { type: String, default: "" },
+    images: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Image",
+      },
+    ],
+  },
+  {
+    _id: true,
+    timestamps: true,
+  },
+);
+
 const PageSchema = new Schema(
   {
     schemaVersion: { type: String, default: "2.1" },
@@ -39,6 +55,7 @@ const PageSchema = new Schema(
       },
     ],
     assets: { type: [PageAssetSchema], default: [] },
+    posts: { type: [PagePostSchema], default: [] },
   },
   {
     timestamps: true,

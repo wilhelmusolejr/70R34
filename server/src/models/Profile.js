@@ -131,6 +131,11 @@ const ProfileSchema = new Schema(
     tags: { type: [String], default: [] },
     profileUrl: { type: String, default: "" },
     pageUrl: { type: String, default: "" },
+    pageId: {
+      type: Schema.Types.ObjectId,
+      ref: "Page",
+      default: null,
+    },
     profileCreated: { type: String, default: "" },
     accountCreated: { type: String, default: "" },
     friends: { type: Number, default: 0 },

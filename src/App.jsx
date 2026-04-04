@@ -10,6 +10,7 @@ import { loginAccount, registerAccount } from "./api/auth";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ImageAssetDetailPage } from "./pages/ImageAssetDetailPage";
 import { ImagesPage } from "./pages/ImagesPage";
+import { PageDetailPage } from "./pages/PageDetailPage";
 import { ProfilesPage } from "./pages/ProfilesPage";
 import { PagesPage } from "./pages/PagesPage";
 import { ProfileDetailPage } from "./pages/ProfileDetailPage";
@@ -125,11 +126,11 @@ function Layout({ children }) {
             <NavLink to="/" end>
               Profiles
             </NavLink>
+            <NavLink to="/images">Images</NavLink>
+            <NavLink to="/pages">Pages</NavLink>
             <a href="#" onClick={(e) => showWipModal(e, "Proxy")}>
               Proxy
             </a>
-            <NavLink to="/images">Images</NavLink>
-            <NavLink to="/pages">Pages</NavLink>
             <a href="#" onClick={(e) => showWipModal(e, "Anti-Bot ML")}>
               Anti-Bot ML
             </a>
@@ -331,6 +332,7 @@ function App() {
             <Route path="/images" element={<ImagesPage />} />
             <Route path="/images/:id" element={<ImageAssetDetailPage />} />
             <Route path="/pages" element={<PagesPage />} />
+            <Route path="/pages/:id" element={<PageDetailPage />} />
             <Route path="/profile/:id" element={<ProfileDetailPage />} />
           </Routes>
         </Layout>

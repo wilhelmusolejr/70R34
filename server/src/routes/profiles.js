@@ -1,8 +1,17 @@
+import archiver from "archiver";
+import fs from "node:fs";
+import path from "node:path";
 import { Router } from "express";
+import { fileURLToPath } from "node:url";
 import { Profile } from "../models/Profile.js";
 import { User } from "../models/User.js";
+import "../models/Image.js";
+import "../models/Page.js";
 
 const router = Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, "../../..");
 
 function parseId(value) {
   const id = Number.parseInt(value, 10);
@@ -27,10 +36,50 @@ function getSelectedEmail(profile) {
   return normalizeText(selectedEmail?.address);
 }
 
+function formatLinkedPage(page) {
+  if (!page || typeof page !== "object") return null;
+
+  return {
+    id: String(page._id),
+    pageName: page.pageName || "",
+    pageId: page.pageId || "",
+    createdAt: page.createdAt || null,
+    updatedAt: page.updatedAt || null,
+    assets: (page.assets || [])
+      .filter((asset) => asset?.imageId?.filename)
+      .map((asset) => ({
+        imageId: asset.imageId,
+        type: asset.type || "post",
+        postDescription: asset.postDescription || "",
+        engagementScore: asset.engagementScore || 0,
+      })),
+    posts: (page.posts || []).map((post) => ({
+      id: String(post._id),
+      post: post.post || "",
+      images: (post.images || []).filter((image) => image?.filename),
+      createdAt: post.createdAt || null,
+    })),
+  };
+}
+
+function formatProfile(profile) {
+  const linkedPage = formatLinkedPage(profile?.pageId);
+
+  return {
+    ...profile,
+    pageId: linkedPage?.id || (profile?.pageId ? String(profile.pageId) : ""),
+    linkedPage,
+  };
+}
+
 router.get("/", async (_req, res, next) => {
   try {
-    const profiles = await Profile.find().sort({ id: 1 }).lean();
-    res.json(profiles);
+    const profiles = await Profile.find()
+      .populate("images.imageId")
+      .populate("pageId", "pageName pageId")
+      .sort({ id: 1 })
+      .lean();
+    res.json(profiles.map(formatProfile));
   } catch (error) {
     next(error);
   }
@@ -43,12 +92,22 @@ router.get("/:id", async (req, res, next) => {
       return res.status(400).json({ message: "Invalid profile id" });
     }
 
-    const profile = await Profile.findOne({ id }).lean();
+    const profile = await Profile.findOne({ id })
+      .populate("images.imageId")
+      .populate({
+        path: "pageId",
+        select: "pageName pageId assets posts",
+        populate: [
+          { path: "assets.imageId" },
+          { path: "posts.images" },
+        ],
+      })
+      .lean();
     if (!profile) {
       return res.status(404).json({ message: "Profile not found" });
     }
 
-    res.json(profile);
+    res.json(formatProfile(profile));
   } catch (error) {
     next(error);
   }
@@ -223,6 +282,67 @@ router.patch("/:id", async (req, res, next) => {
     }
 
     res.json(profile);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/:id/images/download", async (req, res, next) => {
+  try {
+    const id = parseId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+
+    const profile = await Profile.findOne({ id })
+      .populate("images.imageId")
+      .lean();
+
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    const validImages = (profile.images || [])
+      .map((entry) => entry.imageId)
+      .filter((image) => image?.filename);
+
+    if (!validImages.length) {
+      return res.status(404).json({ message: "No images found for this profile" });
+    }
+
+    const safeName = `${profile.firstName || ""} ${profile.lastName || ""}`
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || `profile-${profile.id}`;
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}-images.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (error) => {
+      throw error;
+    });
+    archive.pipe(res);
+
+    validImages.forEach((image, index) => {
+      const relativeFile = String(image.filename || "").replace(/^\/+/, "");
+      const absolutePath = path.resolve(projectRoot, "public", relativeFile);
+
+      if (!absolutePath.startsWith(path.resolve(projectRoot, "public"))) {
+        return;
+      }
+
+      if (!fs.existsSync(absolutePath)) {
+        return;
+      }
+
+      archive.file(absolutePath, {
+        name: path.basename(relativeFile) || `image-${index + 1}`,
+      });
+    });
+
+    await archive.finalize();
   } catch (error) {
     next(error);
   }
