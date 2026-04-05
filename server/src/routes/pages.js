@@ -205,8 +205,47 @@ function parseGeneratedPosts(payload) {
   return posts;
 }
 
+function splitCombinedBulkPosts(posts, expectedCount) {
+  if (posts.length !== 1 || expectedCount <= 1) {
+    return posts;
+  }
+
+  const lines = String(posts[0] || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n");
+  const splitPosts = [];
+  let currentPost = [];
+
+  lines.forEach((line) => {
+    const trimmedLine = line.trim();
+
+    if (!trimmedLine && !currentPost.length) {
+      return;
+    }
+
+    currentPost.push(line);
+
+    if (trimmedLine.startsWith("#")) {
+      const combined = currentPost.join("\n").trim();
+      if (combined) {
+        splitPosts.push(combined);
+      }
+      currentPost = [];
+    }
+  });
+
+  if (currentPost.length) {
+    const combined = currentPost.join("\n").trim();
+    if (combined) {
+      splitPosts.push(combined);
+    }
+  }
+
+  return splitPosts.length > 1 ? splitPosts : posts;
+}
+
 function normalizeGeneratedPosts(posts, expectedCount) {
-  const cleanedPosts = posts
+  const cleanedPosts = splitCombinedBulkPosts(posts, expectedCount)
     .map((post) => String(post || "").trim())
     .filter(Boolean);
 
