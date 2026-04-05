@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getPageImagesDownloadUrl } from "../api/pageDownloads";
 import { fetchProfiles } from "../api/profiles";
-import { addPageImages, addPagePost, fetchPage, updatePage } from "../api/pages";
+import {
+  addPageImages,
+  addPagePost,
+  fetchPage,
+  generatePagePost,
+  updatePage,
+} from "../api/pages";
 import "../App.css";
 
 function derivePageStatus(page) {
@@ -201,6 +207,7 @@ export function PageDetailPage() {
   const [isAddingImages, setIsAddingImages] = useState(false);
   const [addImagesError, setAddImagesError] = useState("");
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
+  const [isGeneratingPost, setIsGeneratingPost] = useState(false);
   const [postError, setPostError] = useState("");
   const [isAddPostModalOpen, setIsAddPostModalOpen] = useState(false);
   const [isAddImagesModalOpen, setIsAddImagesModalOpen] = useState(false);
@@ -454,6 +461,23 @@ export function PageDetailPage() {
       setPostError(err.message || "Failed to add post.");
     } finally {
       setIsSubmittingPost(false);
+    }
+  }
+
+  async function handleGeneratePost() {
+    try {
+      setIsGeneratingPost(true);
+      setPostError("");
+
+      const data = await generatePagePost(page.id, {
+        instructions: postText,
+      });
+
+      setPostText(String(data?.post || "").trim());
+    } catch (err) {
+      setPostError(err.message || "Failed to generate post.");
+    } finally {
+      setIsGeneratingPost(false);
     }
   }
 
@@ -1020,7 +1044,7 @@ export function PageDetailPage() {
                   className="npm-input npm-textarea"
                   value={postText}
                   onChange={(event) => setPostText(event.target.value)}
-                  placeholder="Write the post text..."
+                  placeholder="Write the post text, or use Generate Post to draft one..."
                 />
               </label>
               <label className="npm-field" style={{ gridColumn: "1 / -1" }}>
@@ -1069,9 +1093,17 @@ export function PageDetailPage() {
                 </button>
                 <div className="npm-footer-actions">
                   <button
+                    type="button"
+                    className="btn-s"
+                    onClick={handleGeneratePost}
+                    disabled={isGeneratingPost || isSubmittingPost}
+                  >
+                    {isGeneratingPost ? "Generating..." : "Generate Post"}
+                  </button>
+                  <button
                     type="submit"
                     className="btn-p"
-                    disabled={isSubmittingPost}
+                    disabled={isSubmittingPost || isGeneratingPost}
                   >
                     {isSubmittingPost ? "Adding Post..." : "Add Post"}
                   </button>

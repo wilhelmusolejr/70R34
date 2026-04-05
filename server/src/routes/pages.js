@@ -57,6 +57,117 @@ function getPageUploadBaseName(type) {
   return `page_${slugify(type || "post", "post")}_${randomUUID()}`;
 }
 
+function extractGeneratedText(payload) {
+  const content = payload?.choices?.[0]?.message?.content;
+
+  if (typeof content === "string") {
+    return content.trim();
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (part?.type === "text" && typeof part.text === "string") {
+          return part.text;
+        }
+        return "";
+      })
+      .join("")
+      .trim();
+  }
+
+  return "";
+}
+
+async function generatePostCopy(page, userInstructions = "") {
+  const token = String(process.env.GITHUB_MODELS_TOKEN || "").trim();
+  const model = String(process.env.GITHUB_MODELS_MODEL || "openai/gpt-4.1").trim();
+  const endpoint = String(
+    process.env.GITHUB_MODELS_BASE_URL ||
+      "https://models.github.ai/inference/chat/completions",
+  ).trim();
+  const apiVersion = String(
+    process.env.GITHUB_MODELS_API_VERSION || "2026-03-10",
+  ).trim();
+
+  if (!token) {
+    throw new Error("Missing GITHUB_MODELS_TOKEN in server environment.");
+  }
+
+  const pageProfile = page.linkedIdentities?.[0] || null;
+  const promptContext = [
+    `Page name: ${page.pageName || "Unknown"}`,
+    `Category: ${page.category || "Unknown"}`,
+    `Bio: ${page.bio || "None"}`,
+    `Saved generation prompt: ${page.generationPrompt || "None"}`,
+    `Followers: ${page.followerCount || 0}`,
+    `Likes: ${page.likeCount || 0}`,
+    `Linked profile: ${
+      pageProfile
+        ? [pageProfile.firstName, pageProfile.lastName].filter(Boolean).join(" ")
+        : "None"
+    }`,
+    `Recent post examples: ${
+      (page.posts || [])
+        .slice(-3)
+        .map((post) => post.post)
+        .filter(Boolean)
+        .join(" | ") || "None"
+    }`,
+    `Extra instruction from user: ${userInstructions || "None"}`,
+  ].join("\n");
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-GitHub-Api-Version": apiVersion,
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.8,
+      max_tokens: 220,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You write short, natural social-media posts for a Facebook page. Return only the final post text. Do not use hashtags unless the context strongly calls for them. Do not add quotes, titles, labels, or explanations.",
+        },
+        {
+          role: "user",
+          content: `Write one engaging post for this page.\n\n${promptContext}`,
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    let errorMessage = "GitHub Models request failed.";
+    try {
+      const body = await response.json();
+      errorMessage = body?.message || body?.error?.message || errorMessage;
+    } catch {
+      // Ignore body parse failures and keep the fallback message.
+    }
+    throw new Error(errorMessage);
+  }
+
+  const payload = await response.json();
+  const post = extractGeneratedText(payload);
+
+  if (!post) {
+    throw new Error("GitHub Models returned an empty response.");
+  }
+
+  return {
+    post,
+    model,
+  };
+}
+
 function formatPage(page) {
   return {
     id: String(page._id),
@@ -427,6 +538,30 @@ router.post("/:id/posts", upload.array("images"), async (req, res, next) => {
       .lean();
 
     res.status(201).json(formatPage(populatedPage));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:id/posts/generate", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!ensureValidPageId(id)) {
+      return res.status(400).json({ message: "Invalid page id" });
+    }
+
+    const page = await Page.findById(id)
+      .populate("linkedIdentities", "firstName lastName")
+      .lean();
+
+    if (!page) {
+      return res.status(404).json({ message: "Page not found" });
+    }
+
+    const userInstructions = String(req.body?.instructions || "").trim();
+    const result = await generatePostCopy(page, userInstructions);
+
+    res.json(result);
   } catch (error) {
     next(error);
   }

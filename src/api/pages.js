@@ -60,6 +60,16 @@ export function addPagePost(pageId, formData) {
   });
 }
 
+export function generatePagePost(pageId, payload) {
+  return apiFetch(`/api/pages/${pageId}/posts/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload || {}),
+  });
+}
+
 export function addPageImages(pageId, formData) {
   return apiFetch(`/api/pages/${pageId}/images`, {
     method: "POST",
