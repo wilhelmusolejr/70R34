@@ -30,6 +30,39 @@ function AuthField({ label, value, onChange, type = "text" }) {
   );
 }
 
+function ThemeIcon({ theme }) {
+  if (theme === "dark") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="M4.93 4.93l1.41 1.41" />
+      <path d="M17.66 17.66l1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="M4.93 19.07l1.41-1.41" />
+      <path d="M17.66 6.34l1.41-1.41" />
+    </svg>
+  );
+}
+
+function AccountIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 20a8 8 0 0116 0" />
+    </svg>
+  );
+}
+
 function Layout({ children }) {
   const { currentUser, login, logout } = useAuth();
   const [theme, setTheme] = useState(
@@ -146,6 +179,9 @@ function Layout({ children }) {
                 setTheme((current) => (current === "dark" ? "light" : "dark"))
               }
             >
+              <span className="theme-switcher-icon">
+                <ThemeIcon theme={theme} />
+              </span>
               {theme === "dark" ? "Black" : "Light"}
             </button>
             <button
@@ -153,6 +189,9 @@ function Layout({ children }) {
               className="theme-switcher"
               onClick={toggleAccountMenu}
             >
+              <span className="theme-switcher-icon">
+                <AccountIcon />
+              </span>
               {currentUser?.username || "Account"}
             </button>
             {currentUser?.role === "guest" && (

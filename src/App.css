@@ -104,6 +104,9 @@ nav {
   white-space: nowrap;
 }
 .theme-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   background: var(--surface2);
   color: var(--text);
   border: 1px solid var(--border);
@@ -119,6 +122,23 @@ nav {
 .theme-switcher:hover {
   background: var(--bg);
   border-color: var(--border2);
+}
+.theme-switcher-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.theme-switcher-icon svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .account-menu {
   position: absolute;
