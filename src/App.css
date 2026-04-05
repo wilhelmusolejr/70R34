@@ -997,9 +997,6 @@ nav {
 .tbl tbody tr:hover {
   background: var(--surface2);
 }
-.tbl tbody tr:hover .vbtn {
-  opacity: 1;
-}
 
 /* PROCESSED ROW */
 .tbl tbody tr.processed-today {
@@ -1268,7 +1265,7 @@ nav {
 
 /* VIEW BUTTON */
 .vbtn {
-  opacity: 0;
+  opacity: 1;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
