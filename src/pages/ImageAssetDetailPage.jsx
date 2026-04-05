@@ -9,6 +9,7 @@ import {
   deleteImagesFromHumanAsset,
 } from "../api/humanAssetUploads";
 import { fetchProfiles } from "../api/profiles";
+import { useAuth } from "../context/AuthContext";
 import "../App.css";
 
 function EmptyState({ title, description }) {
@@ -86,6 +87,8 @@ function getImageTags(image) {
 }
 
 export function ImageAssetDetailPage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
   const navigate = useNavigate();
   const { id } = useParams();
   const [asset, setAsset] = useState(null);
@@ -111,6 +114,7 @@ export function ImageAssetDetailPage() {
   const [selectedImageIdsForDelete, setSelectedImageIdsForDelete] = useState([]);
   const [isDeletingImages, setIsDeletingImages] = useState(false);
   const [deleteImagesError, setDeleteImagesError] = useState("");
+  const [guardMessage, setGuardMessage] = useState("");
   const [showProfileAssignmentList, setShowProfileAssignmentList] =
     useState(false);
   const [addImagesForm, setAddImagesForm] = useState({
@@ -219,6 +223,19 @@ export function ImageAssetDetailPage() {
     setAddImagesError("");
   }
 
+  function ensureAdminAccess() {
+    if (isAdmin) {
+      return true;
+    }
+
+    setGuardMessage(
+      currentUser
+        ? "Only admin accounts can change this human asset."
+        : "You need to log in as an admin to change this human asset.",
+    );
+    return false;
+  }
+
   function toggleDeleteSelection(imageId) {
     setSelectedImageIdsForDelete((current) =>
       current.includes(imageId)
@@ -228,6 +245,10 @@ export function ImageAssetDetailPage() {
   }
 
   async function handleDeleteSelectedImages() {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     if (!selectedImageIdsForDelete.length) {
       setDeleteImagesError("Select at least one image to delete.");
       return;
@@ -275,6 +296,10 @@ export function ImageAssetDetailPage() {
 
   async function handleAddImages(event) {
     event.preventDefault();
+
+    if (!ensureAdminAccess()) {
+      return;
+    }
 
     if (!addImagesForm.files.length) {
       setAddImagesError("Add at least one image file.");
@@ -413,6 +438,10 @@ export function ImageAssetDetailPage() {
   }
 
   async function savePendingAnnotation() {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     const selectedProfile = profiles.find(
       (profile) =>
         [profile.firstName, profile.lastName]
@@ -454,6 +483,10 @@ export function ImageAssetDetailPage() {
   }
 
   async function handleAssignImage() {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     const selectedProfile = profiles.find(
       (profile) =>
         [profile.firstName, profile.lastName]
@@ -489,6 +522,10 @@ export function ImageAssetDetailPage() {
   }
 
   function deleteAnnotation(annotationId) {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     if (!selectedImage) return;
 
     setAnnotationsByImage((current) => ({
@@ -622,6 +659,9 @@ export function ImageAssetDetailPage() {
                   type="button"
                   className={`image-asset-action-btn ${isDeleteMode ? "is-active is-danger" : "is-danger"}`}
                   onClick={() => {
+                    if (!ensureAdminAccess()) {
+                      return;
+                    }
                     setIsDeleteMode((current) => !current);
                     setSelectedImageIdsForDelete([]);
                     setDeleteImagesError("");
@@ -633,6 +673,9 @@ export function ImageAssetDetailPage() {
                   type="button"
                   className="image-asset-action-btn is-primary"
                   onClick={() => {
+                    if (!ensureAdminAccess()) {
+                      return;
+                    }
                     resetAddImagesForm();
                     setIsAddImagesOpen(true);
                   }}
@@ -856,6 +899,9 @@ export function ImageAssetDetailPage() {
                       type="button"
                       className={annotationMode ? "btn-s" : "btn-p"}
                       onClick={() => {
+                        if (!ensureAdminAccess()) {
+                          return;
+                        }
                         setAnnotationMode((current) => !current);
                         setDraftBox(null);
                       }}
@@ -866,6 +912,9 @@ export function ImageAssetDetailPage() {
                       type="button"
                       className="btn-p"
                       onClick={() => {
+                        if (!ensureAdminAccess()) {
+                          return;
+                        }
                         setShowAssignImageForm((current) => !current);
                         setAssignError("");
                       }}
@@ -1050,6 +1099,45 @@ export function ImageAssetDetailPage() {
                       )}
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {guardMessage ? (
+        <div className="npm-backdrop" onClick={() => setGuardMessage("")}>
+          <div
+            className="npm-modal auth-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="npm-header">
+              <div>
+                <div className="npm-kicker">Access Restricted</div>
+                <h2 className="npm-title">Admin Required</h2>
+              </div>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={() => setGuardMessage("")}
+              >
+                x
+              </button>
+            </div>
+            <div className="npm-body">
+              <div style={{ color: "var(--text2)", fontSize: "13px" }}>
+                {guardMessage}
+              </div>
+              <div className="npm-footer">
+                <div className="npm-footer-actions">
+                  <button
+                    type="button"
+                    className="btn-p"
+                    onClick={() => setGuardMessage("")}
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             </div>

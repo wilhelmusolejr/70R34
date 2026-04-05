@@ -3,6 +3,7 @@ import { fetchProfiles } from "../api/profiles";
 import { useNavigate } from "react-router-dom";
 import { fetchHumanAssets } from "../api/humanAssets";
 import { createHumanAssetWithImages } from "../api/humanAssetUploads";
+import { useAuth } from "../context/AuthContext";
 import "../App.css";
 
 function EmptyState({ title, description }) {
@@ -28,6 +29,8 @@ function getHumanAssetPreview(asset) {
 }
 
 export function ImagesPage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [assets, setAssets] = useState([]);
@@ -37,6 +40,7 @@ export function ImagesPage() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [guardMessage, setGuardMessage] = useState("");
   const [showProfileAssignmentList, setShowProfileAssignmentList] = useState(false);
   const [uploadForm, setUploadForm] = useState({
     name: "",
@@ -64,6 +68,19 @@ export function ImagesPage() {
     });
     setShowProfileAssignmentList(false);
     setSubmitError("");
+  }
+
+  function ensureAdminAccess() {
+    if (isAdmin) {
+      return true;
+    }
+
+    setGuardMessage(
+      currentUser
+        ? "Only admin accounts can upload or change human assets."
+        : "You need to log in as an admin to upload or change human assets.",
+    );
+    return false;
   }
 
   const availableProfiles = useMemo(
@@ -158,6 +175,10 @@ export function ImagesPage() {
   async function handleCreateHumanAsset(event) {
     event.preventDefault();
 
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     if (!uploadForm.name.trim()) {
       setSubmitError("Human asset name is required.");
       return;
@@ -245,6 +266,9 @@ export function ImagesPage() {
           type="button"
           className="btn-p"
           onClick={() => {
+            if (!ensureAdminAccess()) {
+              return;
+            }
             resetUploadForm();
             setIsUploadOpen(true);
           }}
@@ -385,6 +409,45 @@ export function ImagesPage() {
           </table>
         </div>
       )}
+
+      {guardMessage ? (
+        <div className="npm-backdrop" onClick={() => setGuardMessage("")}>
+          <div
+            className="npm-modal auth-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="npm-header">
+              <div>
+                <div className="npm-kicker">Access Restricted</div>
+                <h2 className="npm-title">Admin Required</h2>
+              </div>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={() => setGuardMessage("")}
+              >
+                x
+              </button>
+            </div>
+            <div className="npm-body">
+              <div style={{ color: "var(--text2)", fontSize: "13px" }}>
+                {guardMessage}
+              </div>
+              <div className="npm-footer">
+                <div className="npm-footer-actions">
+                  <button
+                    type="button"
+                    className="btn-p"
+                    onClick={() => setGuardMessage("")}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isUploadOpen ? (
         <div className="npm-backdrop" onClick={() => setIsUploadOpen(false)}>

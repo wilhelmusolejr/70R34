@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getPageImagesDownloadUrl } from "../api/pageDownloads";
 import { fetchProfiles } from "../api/profiles";
+import { useAuth } from "../context/AuthContext";
 import {
   addPageImages,
   addPagePost,
@@ -101,6 +102,8 @@ function EditableField({
   multiline = false,
   numeric = false,
   mono = false,
+  editable = true,
+  onBlockedEdit,
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value ?? ""));
@@ -161,10 +164,14 @@ function EditableField({
           <div
             className={`ef-display${mono ? " mono" : ""}`}
             onDoubleClick={() => {
+              if (!editable) {
+                onBlockedEdit?.();
+                return;
+              }
               setDraft(String(value ?? ""));
               setEditing(true);
             }}
-            title="Double-click to edit"
+            title={editable ? "Double-click to edit" : "Admin access required"}
           >
             {String(value ?? "").trim() ? (
               <span className={mono ? "dv mono" : undefined}>
@@ -193,6 +200,8 @@ function SectionCard({ title, children, badge = null }) {
 }
 
 export function PageDetailPage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
   const { id } = useParams();
   const navigate = useNavigate();
   const [page, setPage] = useState(null);
@@ -223,6 +232,7 @@ export function PageDetailPage() {
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [bioDraft, setBioDraft] = useState("");
   const [bioCopied, setBioCopied] = useState(false);
+  const [guardMessage, setGuardMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -354,7 +364,24 @@ export function PageDetailPage() {
     .filter((profile) => profile.label);
   const pageAccent = getPageColor(page?.pageName);
 
+  function ensureAdminAccess() {
+    if (isAdmin) {
+      return true;
+    }
+
+    setGuardMessage(
+      currentUser
+        ? "Only admin accounts can change page details, add posts, or upload images."
+        : "You need to log in as an admin to change page details, add posts, or upload images.",
+    );
+    return false;
+  }
+
   async function savePageChanges(patch) {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     try {
       setIsSavingPage(true);
       setError("");
@@ -371,7 +398,9 @@ export function PageDetailPage() {
 
   async function handleSaveBio() {
     await savePageChanges({ bio: bioDraft });
-    setIsEditingBio(false);
+    if (isAdmin) {
+      setIsEditingBio(false);
+    }
   }
 
   async function handleCopyBio() {
@@ -387,6 +416,10 @@ export function PageDetailPage() {
   }
 
   async function handleAssignProfile() {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     const normalizedName = assignProfileName.trim().toLowerCase();
     const match = assignableProfileOptions.find(
       (profile) => profile.label.toLowerCase() === normalizedName,
@@ -443,6 +476,10 @@ export function PageDetailPage() {
   async function handleAddPost(event) {
     event.preventDefault();
 
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     if (!postText.trim() && !postFiles.length) {
       setPostError("Add post text or upload at least one image.");
       return;
@@ -471,6 +508,10 @@ export function PageDetailPage() {
   }
 
   async function handleGeneratePost() {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     try {
       setIsGeneratingPost(true);
       setPostError("");
@@ -488,6 +529,10 @@ export function PageDetailPage() {
   }
 
   function openAddPostModal() {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     setPostError("");
     setPostText("");
     setSelectedPostFiles([]);
@@ -502,6 +547,10 @@ export function PageDetailPage() {
   }
 
   function openAddBulkPostModal() {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     setBulkPostError("");
     setBulkPostCount("5");
     setBulkPostInstructions("");
@@ -517,6 +566,10 @@ export function PageDetailPage() {
 
   async function handleAddBulkPosts(event) {
     event.preventDefault();
+
+    if (!ensureAdminAccess()) {
+      return;
+    }
 
     const count = Number.parseInt(bulkPostCount || "0", 10);
     if (!Number.isInteger(count) || count < 1 || count > 20) {
@@ -545,6 +598,10 @@ export function PageDetailPage() {
   }
 
   function openAddImagesModal() {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
     setAddImagesError("");
     setPageImageDescription(page?.bio || "");
     setPageImageEngagementScore("0");
@@ -564,6 +621,10 @@ export function PageDetailPage() {
 
   async function handleAddImages(event) {
     event.preventDefault();
+
+    if (!ensureAdminAccess()) {
+      return;
+    }
 
     if (!pageImageFiles.length) {
       setAddImagesError("Upload at least one image.");
@@ -722,10 +783,13 @@ export function PageDetailPage() {
                 <div
                   className="ef-display"
                   onDoubleClick={() => {
+                    if (!ensureAdminAccess()) {
+                      return;
+                    }
                     setBioDraft(String(page.bio || ""));
                     setIsEditingBio(true);
                   }}
-                  title="Double-click to edit"
+                  title={isAdmin ? "Double-click to edit" : "Admin access required"}
                   style={{ cursor: "text", flex: 1 }}
                 >
                   {String(page.bio || "").trim() ? (
@@ -772,17 +836,23 @@ export function PageDetailPage() {
             <EditableField
               label="Page Name"
               value={page.pageName}
+              editable={isAdmin}
+              onBlockedEdit={ensureAdminAccess}
               onSave={(value) => savePageChanges({ pageName: value })}
             />
             <EditableField
               label="Page ID"
               value={page.pageId}
               mono
+              editable={isAdmin}
+              onBlockedEdit={ensureAdminAccess}
               onSave={(value) => savePageChanges({ pageId: value })}
             />
             <EditableField
               label="Category"
               value={page.category}
+              editable={isAdmin}
+              onBlockedEdit={ensureAdminAccess}
               onSave={(value) => savePageChanges({ category: value })}
             />
             <CopyRow label="Status" value={status} />
@@ -792,12 +862,16 @@ export function PageDetailPage() {
               label="Followers"
               value={page.followerCount}
               numeric
+              editable={isAdmin}
+              onBlockedEdit={ensureAdminAccess}
               onSave={(value) => savePageChanges({ followerCount: value })}
             />
             <EditableField
               label="Likes"
               value={page.likeCount}
               numeric
+              editable={isAdmin}
+              onBlockedEdit={ensureAdminAccess}
               onSave={(value) => savePageChanges({ likeCount: value })}
             />
           </SectionCard>
@@ -811,6 +885,9 @@ export function PageDetailPage() {
                 type="button"
                 className="btn-s"
                 onClick={() => {
+                  if (!ensureAdminAccess()) {
+                    return;
+                  }
                   setError("");
                   setAssignProfileName(linkedProfileName);
                   setShowAssignProfileInput((current) => !current);
@@ -926,6 +1003,8 @@ export function PageDetailPage() {
               label="Prompt"
               value={page.generationPrompt}
               multiline
+              editable={isAdmin}
+              onBlockedEdit={ensureAdminAccess}
               onSave={(value) => savePageChanges({ generationPrompt: value })}
             />
           </SectionCard>
@@ -1076,6 +1155,45 @@ export function PageDetailPage() {
           <div className="muted">No images uploaded to this page yet.</div>
         )}
       </SectionCard>
+
+      {guardMessage ? (
+        <div className="npm-backdrop" onClick={() => setGuardMessage("")}>
+          <div
+            className="npm-modal auth-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="npm-header">
+              <div>
+                <div className="npm-kicker">Access Restricted</div>
+                <h2 className="npm-title">Admin Required</h2>
+              </div>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={() => setGuardMessage("")}
+              >
+                x
+              </button>
+            </div>
+            <div className="npm-body">
+              <div style={{ color: "var(--text2)", fontSize: "13px" }}>
+                {guardMessage}
+              </div>
+              <div className="npm-footer">
+                <div className="npm-footer-actions">
+                  <button
+                    type="button"
+                    className="btn-p"
+                    onClick={() => setGuardMessage("")}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isAddPostModalOpen ? (
         <div className="npm-backdrop" onClick={closeAddPostModal}>

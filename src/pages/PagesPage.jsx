@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchProfiles } from "../api/profiles";
 import { createPage, fetchPages } from "../api/pages";
+import { useAuth } from "../context/AuthContext";
 import { generatePageInformation } from "../generator/pages";
 import "../App.css";
 
@@ -158,6 +159,8 @@ function PagesTable({ title, rows }) {
 }
 
 export function PagesPage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
   const [pages, setPages] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -166,6 +169,7 @@ export function PagesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [guardMessage, setGuardMessage] = useState("");
   const [showAssignedProfileList, setShowAssignedProfileList] = useState(false);
   const [pageForm, setPageForm] = useState({
     pageName: "",
@@ -279,8 +283,25 @@ export function PagesPage() {
     setSubmitError("");
   }
 
+  function ensureAdminAccess() {
+    if (isAdmin) {
+      return true;
+    }
+
+    setGuardMessage(
+      currentUser
+        ? "Only admin accounts can create or edit pages."
+        : "You need to log in as an admin to create or edit pages.",
+    );
+    return false;
+  }
+
   async function handleCreatePage(event) {
     event.preventDefault();
+
+    if (!ensureAdminAccess()) {
+      return;
+    }
 
     if (!pageForm.pageName.trim()) {
       setSubmitError("Page name is required.");
@@ -354,6 +375,9 @@ export function PagesPage() {
           type="button"
           className="btn-p"
           onClick={() => {
+            if (!ensureAdminAccess()) {
+              return;
+            }
             resetPageForm();
             setIsModalOpen(true);
           }}
@@ -694,6 +718,45 @@ export function PagesPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {guardMessage ? (
+        <div className="npm-backdrop" onClick={() => setGuardMessage("")}>
+          <div
+            className="npm-modal auth-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="npm-header">
+              <div>
+                <div className="npm-kicker">Access Restricted</div>
+                <h2 className="npm-title">Admin Required</h2>
+              </div>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={() => setGuardMessage("")}
+              >
+                x
+              </button>
+            </div>
+            <div className="npm-body">
+              <div style={{ color: "var(--text2)", fontSize: "13px" }}>
+                {guardMessage}
+              </div>
+              <div className="npm-footer">
+                <div className="npm-footer-actions">
+                  <button
+                    type="button"
+                    className="btn-p"
+                    onClick={() => setGuardMessage("")}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
