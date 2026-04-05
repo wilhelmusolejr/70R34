@@ -208,14 +208,9 @@ function parseGeneratedPosts(payload) {
 function normalizeGeneratedPosts(posts, expectedCount) {
   const cleanedPosts = posts
     .map((post) => String(post || "").trim())
-    .filter(Boolean)
-    .slice(0, expectedCount);
+    .filter(Boolean);
 
-  if (cleanedPosts.length < expectedCount) {
-    throw new Error("GitHub Models did not return enough posts.");
-  }
-
-  return cleanedPosts;
+  return cleanedPosts.slice(0, expectedCount);
 }
 
 function getStructuredPostFormatInstructions() {
@@ -353,32 +348,6 @@ Return only valid JSON in this exact shape:
 No markdown, no backticks, no explanation.
 Each string inside "posts" is one complete ready-to-publish Facebook post following the required title, hook, paragraph, optional question, and hashtag structure.`;
 
-  const requestOptions = {
-    maxTokens: Math.max(420, count * 260),
-    temperature: 0.95,
-    responseFormat: {
-      type: "json_schema",
-      json_schema: {
-        name: "bulk_page_posts",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["posts"],
-          properties: {
-            posts: {
-              type: "array",
-              minItems: count,
-              maxItems: count,
-              items: {
-                type: "string",
-              },
-            },
-          },
-        },
-      },
-    },
-  };
-
   const { model, payload } = await requestGitHubModels(
     [
       {
@@ -390,12 +359,44 @@ Each string inside "posts" is one complete ready-to-publish Facebook post follow
         content: baseUserMessage,
       },
     ],
-    requestOptions,
+    {
+      maxTokens: Math.max(520, count * 320),
+      temperature: 0.95,
+      responseFormat: {
+        type: "json_schema",
+        json_schema: {
+          name: "bulk_page_posts",
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["posts"],
+            properties: {
+              posts: {
+                type: "array",
+                minItems: 1,
+                maxItems: count,
+                items: {
+                  type: "string",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   );
 
+  const collectedPosts = normalizeGeneratedPosts(parseGeneratedPosts(payload), count);
+
+  if (!collectedPosts.length) {
+    throw new Error("GitHub Models did not return any usable posts.");
+  }
+
   return {
-    posts: normalizeGeneratedPosts(parseGeneratedPosts(payload), count),
+    posts: collectedPosts,
     model,
+    requestedCount: count,
+    actualCount: collectedPosts.length,
   };
 }
 
