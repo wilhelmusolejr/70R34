@@ -2331,6 +2331,10 @@ select.npm-input {
   word-break: break-all;
   line-height: 1.5;
 }
+.dv.preserve-whitespace {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .dv.mono {
   font-family: var(--mono);
   font-size: 11.5px;

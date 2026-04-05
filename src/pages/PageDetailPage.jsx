@@ -6,6 +6,7 @@ import {
   addPageImages,
   addPagePost,
   fetchPage,
+  generateBulkPagePosts,
   generatePagePost,
   updatePage,
 } from "../api/pages";
@@ -57,7 +58,7 @@ function getPageInitial(value) {
   );
 }
 
-function CopyRow({ label, value, mono = false }) {
+function CopyRow({ label, value, mono = false, preserveWhitespace = false }) {
   const [copied, setCopied] = useState(false);
   const displayValue = String(value || "").trim();
 
@@ -76,7 +77,7 @@ function CopyRow({ label, value, mono = false }) {
     <div className="dr">
       <div className="dl">{label}</div>
       <div
-        className={`dv${mono ? " mono" : ""}${displayValue ? "" : " muted"}`}
+        className={`dv${mono ? " mono" : ""}${preserveWhitespace ? " preserve-whitespace" : ""}${displayValue ? "" : " muted"}`}
       >
         {displayValue || "-"}
       </div>
@@ -208,8 +209,13 @@ export function PageDetailPage() {
   const [addImagesError, setAddImagesError] = useState("");
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
   const [isGeneratingPost, setIsGeneratingPost] = useState(false);
+  const [isBulkGeneratingPosts, setIsBulkGeneratingPosts] = useState(false);
   const [postError, setPostError] = useState("");
+  const [bulkPostCount, setBulkPostCount] = useState("5");
+  const [bulkPostInstructions, setBulkPostInstructions] = useState("");
+  const [bulkPostError, setBulkPostError] = useState("");
   const [isAddPostModalOpen, setIsAddPostModalOpen] = useState(false);
+  const [isAddBulkPostModalOpen, setIsAddBulkPostModalOpen] = useState(false);
   const [isAddImagesModalOpen, setIsAddImagesModalOpen] = useState(false);
   const [showAssignProfileInput, setShowAssignProfileInput] = useState(false);
   const [assignProfileName, setAssignProfileName] = useState("");
@@ -493,6 +499,49 @@ export function PageDetailPage() {
     setPostError("");
     setPostText("");
     setSelectedPostFiles([]);
+  }
+
+  function openAddBulkPostModal() {
+    setBulkPostError("");
+    setBulkPostCount("5");
+    setBulkPostInstructions("");
+    setIsAddBulkPostModalOpen(true);
+  }
+
+  function closeAddBulkPostModal() {
+    setIsAddBulkPostModalOpen(false);
+    setBulkPostError("");
+    setBulkPostCount("5");
+    setBulkPostInstructions("");
+  }
+
+  async function handleAddBulkPosts(event) {
+    event.preventDefault();
+
+    const count = Number.parseInt(bulkPostCount || "0", 10);
+    if (!Number.isInteger(count) || count < 1 || count > 20) {
+      setBulkPostError("Enter a number between 1 and 20.");
+      return;
+    }
+
+    try {
+      setIsBulkGeneratingPosts(true);
+      setBulkPostError("");
+
+      const data = await generateBulkPagePosts(page.id, {
+        count,
+        instructions: bulkPostInstructions,
+      });
+
+      if (data?.page) {
+        setPage(data.page);
+      }
+      closeAddBulkPostModal();
+    } catch (err) {
+      setBulkPostError(err.message || "Failed to add bulk posts.");
+    } finally {
+      setIsBulkGeneratingPosts(false);
+    }
   }
 
   function openAddImagesModal() {
@@ -892,6 +941,13 @@ export function PageDetailPage() {
                 >
                   Add Post
                 </button>
+                <button
+                  type="button"
+                  className="btn-s"
+                  onClick={openAddBulkPostModal}
+                >
+                  Add Bulk Post
+                </button>
                 <span className="page-detail-chip">{posts.length}</span>
               </div>
             }
@@ -931,7 +987,11 @@ export function PageDetailPage() {
                       </div>
                     </summary>
                     <div className="page-post-content">
-                      <CopyRow label="Description" value={post.post} />
+                      <CopyRow
+                        label="Description"
+                        value={post.post}
+                        preserveWhitespace
+                      />
                       {post.images?.length ? (
                         <div className="page-post-image-grid">
                           {post.images.map((image, index) => (
@@ -1106,6 +1166,76 @@ export function PageDetailPage() {
                     disabled={isSubmittingPost || isGeneratingPost}
                   >
                     {isSubmittingPost ? "Adding Post..." : "Add Post"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isAddBulkPostModalOpen ? (
+        <div className="npm-backdrop" onClick={closeAddBulkPostModal}>
+          <div
+            className="npm-modal"
+            onClick={(event) => event.stopPropagation()}
+            style={{ width: "min(760px, 100%)" }}
+          >
+            <div className="npm-header">
+              <div>
+                <div className="npm-kicker">Page Post</div>
+                <h2 className="npm-title">Add Bulk Post</h2>
+              </div>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={closeAddBulkPostModal}
+              >
+                x
+              </button>
+            </div>
+            <form className="npm-body page-post-form" onSubmit={handleAddBulkPosts}>
+              <label className="npm-field">
+                <span className="npm-label">Number of Posts</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  className="npm-input"
+                  value={bulkPostCount}
+                  onChange={(event) => setBulkPostCount(event.target.value)}
+                />
+              </label>
+              <label className="npm-field" style={{ gridColumn: "1 / -1" }}>
+                <span className="npm-label">Instructions</span>
+                <textarea
+                  className="npm-input npm-textarea"
+                  value={bulkPostInstructions}
+                  onChange={(event) => setBulkPostInstructions(event.target.value)}
+                  placeholder="Optional guidance for the whole batch, like promo tone, product focus, or campaign idea..."
+                />
+              </label>
+              <div className="muted" style={{ gridColumn: "1 / -1" }}>
+                This makes one AI request and asks it to return the full batch as unique posts.
+              </div>
+              {bulkPostError ? (
+                <div className="npm-submit-error">{bulkPostError}</div>
+              ) : null}
+              <div className="npm-footer">
+                <button
+                  type="button"
+                  className="btn-s"
+                  onClick={closeAddBulkPostModal}
+                >
+                  Cancel
+                </button>
+                <div className="npm-footer-actions">
+                  <button
+                    type="submit"
+                    className="btn-p"
+                    disabled={isBulkGeneratingPosts}
+                  >
+                    {isBulkGeneratingPosts ? "Creating Posts..." : "Create Posts"}
                   </button>
                 </div>
               </div>

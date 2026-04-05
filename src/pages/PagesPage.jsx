@@ -20,6 +20,29 @@ function derivePageStatus(page) {
   return "Claimed";
 }
 
+function getPagePreviewImage(page) {
+  const assets = page?.assets || [];
+  const preferred =
+    assets.find(
+      (asset) =>
+        String(asset?.type || "")
+          .trim()
+          .toLowerCase() === "profile" && asset?.imageId?.filename,
+    ) ||
+    assets.find((asset) => asset?.imageId?.filename);
+
+  return preferred?.imageId?.filename || "";
+}
+
+function getPageInitial(value) {
+  return (
+    String(value || "P")
+      .trim()
+      .charAt(0)
+      .toUpperCase() || "P"
+  );
+}
+
 function PageStatusBadge({ status }) {
   const className =
     status === "Available"
@@ -67,16 +90,35 @@ function PagesTable({ title, rows }) {
               <th>Category</th>
               <th>Assigned Profile</th>
               <th>Assets</th>
-              <th>Page ID</th>
+              <th>Posts</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((page) => (
+            {rows.map((page) => {
+              const previewImage = getPagePreviewImage(page);
+
+              return (
               <tr key={`${title}-${page.id}`}>
                 <td>
-                  <div className="page-name-cell">
-                    <div className="pname">{page.pageName}</div>
+                  <div className="pcell">
+                    <div className="av">
+                      {previewImage ? (
+                        <img
+                          src={previewImage}
+                          alt={page.pageName}
+                          className="av-img"
+                        />
+                      ) : (
+                        getPageInitial(page.pageName)
+                      )}
+                    </div>
+                    <div>
+                      <div className="pname">{page.pageName}</div>
+                      <div className="pcity">
+                        {page.assets.length} asset{page.assets.length === 1 ? "" : "s"}
+                      </div>
+                    </div>
                   </div>
                 </td>
                 <td>
@@ -94,14 +136,20 @@ function PagesTable({ title, rows }) {
                     <div className="da">Uploaded assets</div>
                   </div>
                 </td>
-                <td>{page.pageId || <span className="nol">No page ID</span>}</td>
+                <td>
+                  <div className="dcell">
+                    <div className="dv">{page.posts?.length || 0}</div>
+                    <div className="da">Created posts</div>
+                  </div>
+                </td>
                 <td>
                   <Link to={`/pages/${page.id}`} className="btn-s">
                     Visit
                   </Link>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

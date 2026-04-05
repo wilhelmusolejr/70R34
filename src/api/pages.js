@@ -70,6 +70,16 @@ export function generatePagePost(pageId, payload) {
   });
 }
 
+export function generateBulkPagePosts(pageId, payload) {
+  return apiFetch(`/api/pages/${pageId}/posts/bulk-generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload || {}),
+  });
+}
+
 export function addPageImages(pageId, formData) {
   return apiFetch(`/api/pages/${pageId}/images`, {
     method: "POST",

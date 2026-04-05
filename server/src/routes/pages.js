@@ -80,7 +80,30 @@ function extractGeneratedText(payload) {
   return "";
 }
 
-async function generatePostCopy(page, userInstructions = "") {
+function extractJsonText(payload) {
+  const content = payload?.choices?.[0]?.message?.content;
+
+  if (typeof content === "string") {
+    return content.trim();
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (part?.type === "text" && typeof part.text === "string") {
+          return part.text;
+        }
+        return "";
+      })
+      .join("")
+      .trim();
+  }
+
+  return "";
+}
+
+async function requestGitHubModels(messages, options = {}) {
   const token = String(process.env.GITHUB_MODELS_TOKEN || "").trim();
   const model = String(process.env.GITHUB_MODELS_MODEL || "openai/gpt-4.1").trim();
   const endpoint = String(
@@ -95,29 +118,6 @@ async function generatePostCopy(page, userInstructions = "") {
     throw new Error("Missing GITHUB_MODELS_TOKEN in server environment.");
   }
 
-  const pageProfile = page.linkedIdentities?.[0] || null;
-  const promptContext = [
-    `Page name: ${page.pageName || "Unknown"}`,
-    `Category: ${page.category || "Unknown"}`,
-    `Bio: ${page.bio || "None"}`,
-    `Saved generation prompt: ${page.generationPrompt || "None"}`,
-    `Followers: ${page.followerCount || 0}`,
-    `Likes: ${page.likeCount || 0}`,
-    `Linked profile: ${
-      pageProfile
-        ? [pageProfile.firstName, pageProfile.lastName].filter(Boolean).join(" ")
-        : "None"
-    }`,
-    `Recent post examples: ${
-      (page.posts || [])
-        .slice(-3)
-        .map((post) => post.post)
-        .filter(Boolean)
-        .join(" | ") || "None"
-    }`,
-    `Extra instruction from user: ${userInstructions || "None"}`,
-  ].join("\n");
-
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -128,19 +128,10 @@ async function generatePostCopy(page, userInstructions = "") {
     },
     body: JSON.stringify({
       model,
-      temperature: 0.8,
-      max_tokens: 220,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You write short, natural social-media posts for a Facebook page. Return only the final post text. Do not use hashtags unless the context strongly calls for them. Do not add quotes, titles, labels, or explanations.",
-        },
-        {
-          role: "user",
-          content: `Write one engaging post for this page.\n\n${promptContext}`,
-        },
-      ],
+      temperature: options.temperature ?? 0.8,
+      max_tokens: options.maxTokens ?? 220,
+      response_format: options.responseFormat,
+      messages,
     }),
   });
 
@@ -155,7 +146,129 @@ async function generatePostCopy(page, userInstructions = "") {
     throw new Error(errorMessage);
   }
 
-  const payload = await response.json();
+  return {
+    model,
+    payload: await response.json(),
+  };
+}
+
+function buildPostPromptContext(page, userInstructions = "") {
+  const pageProfile = page.linkedIdentities?.[0] || null;
+
+  return [
+    `Page name: ${page.pageName || "Unknown"}`,
+    `Category: ${page.category || "Unknown"}`,
+    `Bio: ${page.bio || "None"}`,
+    `Saved generation prompt: ${page.generationPrompt || "None"}`,
+    `Followers: ${page.followerCount || 0}`,
+    `Likes: ${page.likeCount || 0}`,
+    `Linked profile: ${
+      pageProfile
+        ? [pageProfile.firstName, pageProfile.lastName].filter(Boolean).join(" ")
+        : "None"
+    }`,
+    `Recent post examples: ${
+      (page.posts || [])
+        .slice(-5)
+        .map((post) => post.post)
+        .filter(Boolean)
+        .join(" | ") || "None"
+    }`,
+    `Extra instruction from user: ${userInstructions || "None"}`,
+  ].join("\n");
+}
+
+function parseGeneratedPosts(payload) {
+  const rawText = extractJsonText(payload);
+
+  if (!rawText) {
+    throw new Error("GitHub Models returned an empty response.");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch {
+    throw new Error("GitHub Models returned invalid JSON.");
+  }
+
+  const posts = Array.isArray(parsed?.posts)
+    ? parsed.posts.map((entry) => String(entry || "").trim()).filter(Boolean)
+    : Array.isArray(parsed)
+      ? parsed.map((entry) => String(entry || "").trim()).filter(Boolean)
+      : [];
+
+  if (!posts.length) {
+    throw new Error("GitHub Models did not return any posts.");
+  }
+
+  return posts;
+}
+
+function normalizeGeneratedPosts(posts, expectedCount) {
+  const cleanedPosts = posts
+    .map((post) => String(post || "").trim())
+    .filter(Boolean)
+    .slice(0, expectedCount);
+
+  if (cleanedPosts.length < expectedCount) {
+    throw new Error("GitHub Models did not return enough posts.");
+  }
+
+  return cleanedPosts;
+}
+
+function getStructuredPostFormatInstructions() {
+  return `Use this post structure:
+Line 1: A short title
+Line 2: A hook
+Line 3: Blank line
+Line 4+: One main paragraph
+Next line: Blank line
+Next line: Optionally add one customer-facing question if it fits naturally
+Next line: Blank line
+Final line: Add 1 to 3 relevant hashtags
+
+Formatting rules:
+- The title and hook must be separate lines
+- Keep one blank line before the paragraph
+- Keep one blank line before the optional question when a question is present
+- Keep one blank line before the hashtag line
+- Keep the title short and natural, not clickbait spam
+- The hook should make someone want to keep reading
+- The paragraph should sound human and specific to the business
+- The optional question should invite engagement from possible customers
+- Hashtags should be simple and relevant, not stuffed
+- Include appropriate emojis naturally in the title, hook, or paragraph when they fit the brand voice
+- Do not add labels like Title:, Hook:, Paragraph:, Question:, or Hashtags:
+- Return the completed post exactly as normal publish-ready text`;
+}
+
+async function generatePostCopy(page, userInstructions = "") {
+  const promptContext = buildPostPromptContext(page, userInstructions);
+  const { model, payload } = await requestGitHubModels(
+    [
+      {
+        role: "system",
+        content: `You write Facebook posts for business pages.
+They must feel human, engaging, and ready to publish.
+- Use enough appropriate emojis when they fit naturally and help the post feel native to social media
+
+${getStructuredPostFormatInstructions()}`,
+      },
+      {
+        role: "user",
+        content: `Write one engaging Facebook post for this page.
+
+${promptContext}`,
+      },
+    ],
+    {
+      maxTokens: 320,
+      temperature: 0.8,
+    },
+  );
+
   const post = extractGeneratedText(payload);
 
   if (!post) {
@@ -166,6 +279,149 @@ async function generatePostCopy(page, userInstructions = "") {
     post,
     model,
   };
+}
+
+async function generateBulkPostCopies(page, count, userInstructions = "") {
+  const pageProfile = page.linkedIdentities?.[0] || null;
+  const recentPosts =
+    (page.posts || [])
+      .slice(-5)
+      .map((post, index) => `${index + 1}. ${post.post}`)
+      .filter((post) => !post.endsWith(". "))
+      .join("\n") || "None";
+  const pageName = page.pageName || "Unknown";
+  const category = page.category || "Unknown";
+  const bio = page.bio || "None";
+  const generationPrompt = page.generationPrompt || "None";
+  const followers = page.followerCount || 0;
+  const pageLikes = page.likeCount || 0;
+  const extraInstructions = [
+    userInstructions || "None",
+    pageProfile
+      ? `Linked profile context: ${[pageProfile.firstName, pageProfile.lastName].filter(Boolean).join(" ")}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const systemMessage = `You are an expert social media copywriter for local businesses and brand pages.
+Your job is to write Facebook posts that feel human, scroll-stopping, and authentic.
+
+Rules:
+- Each post should explore a different page-relevant topic, offer, tip, question, service, seasonal angle, customer concern, or community moment when possible
+- Vary the format: some short punchy, some storytelling, some question-based, some visual-led
+- Write in the brand's voice and tone, not generic AI copy
+- Every post should include a short title, a hook, one main paragraph, an optional customer-facing question, and 1 to 3 relevant hashtags
+- The question line is optional, but include it when it feels natural
+- Hashtags should be relevant and not spammy
+- No numbering, labels, or explanations
+- Use enough appropriate emojis when they fit naturally and help the post feel native to Facebook
+- Avoid making the batch feel repetitive, but do not fail to answer if some ideas naturally overlap
+- Posts should feel like they were written by the page owner, not a robot
+- Follow this exact internal post layout for every string:
+  first line = title
+  second line = hook
+  blank line
+  then the main paragraph
+  blank line
+  then optional question line
+  blank line
+  final line = hashtags
+- Return ONLY valid JSON in this shape: {"posts":["post one","post two"]}
+
+${getStructuredPostFormatInstructions()}`;
+
+  const baseUserMessage = `Generate ${count} unique Facebook posts for this business page.
+
+--- PAGE INFO ---
+Page name: ${pageName}
+Business category: ${category}
+Bio: ${bio}
+Brand voice & tone: ${generationPrompt}
+Followers: ${followers}
+Page likes: ${pageLikes}
+
+--- RECENT POSTS (avoid repeating these angles) ---
+${recentPosts}
+
+--- EXTRA INSTRUCTIONS ---
+${extraInstructions}
+
+--- OUTPUT FORMAT ---
+Return only valid JSON in this exact shape:
+{"posts":["First post here","Second post here"]}
+No markdown, no backticks, no explanation.
+Each string inside "posts" is one complete ready-to-publish Facebook post following the required title, hook, paragraph, optional question, and hashtag structure.`;
+
+  const requestOptions = {
+    maxTokens: Math.max(420, count * 260),
+    temperature: 0.95,
+    responseFormat: {
+      type: "json_schema",
+      json_schema: {
+        name: "bulk_page_posts",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["posts"],
+          properties: {
+            posts: {
+              type: "array",
+              minItems: count,
+              maxItems: count,
+              items: {
+                type: "string",
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  const { model, payload } = await requestGitHubModels(
+    [
+      {
+        role: "system",
+        content: systemMessage,
+      },
+      {
+        role: "user",
+        content: baseUserMessage,
+      },
+    ],
+    requestOptions,
+  );
+
+  return {
+    posts: normalizeGeneratedPosts(parseGeneratedPosts(payload), count),
+    model,
+  };
+}
+
+async function appendGeneratedPostsToPage(pageId, generatedPosts) {
+  await Page.findByIdAndUpdate(
+    pageId,
+    {
+      $push: {
+        posts: {
+          $each: generatedPosts.map((post) => ({
+            post,
+            images: [],
+          })),
+        },
+      },
+    },
+    { new: true, runValidators: true },
+  );
+
+  const populatedPage = await Page.findById(pageId)
+    .populate("linkedIdentities", "id firstName lastName pageUrl")
+    .populate("assets.imageId")
+    .populate("posts.images")
+    .lean();
+
+  return populatedPage;
 }
 
 function formatPage(page) {
@@ -562,6 +818,41 @@ router.post("/:id/posts/generate", async (req, res, next) => {
     const result = await generatePostCopy(page, userInstructions);
 
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:id/posts/bulk-generate", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!ensureValidPageId(id)) {
+      return res.status(400).json({ message: "Invalid page id" });
+    }
+
+    const page = await Page.findById(id)
+      .populate("linkedIdentities", "firstName lastName")
+      .lean();
+
+    if (!page) {
+      return res.status(404).json({ message: "Page not found" });
+    }
+
+    const count = Number.parseInt(req.body?.count || "0", 10);
+    if (!Number.isInteger(count) || count < 1 || count > 20) {
+      return res.status(400).json({ message: "Count must be between 1 and 20." });
+    }
+
+    const userInstructions = String(req.body?.instructions || "").trim();
+    const result = await generateBulkPostCopies(page, count, userInstructions);
+    const updatedPage = await appendGeneratedPostsToPage(id, result.posts);
+
+    res.status(201).json({
+      posts: result.posts,
+      count: result.posts.length,
+      model: result.model,
+      page: formatPage(updatedPage),
+    });
   } catch (error) {
     next(error);
   }

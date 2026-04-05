@@ -14,6 +14,19 @@ function EmptyState({ title, description }) {
   );
 }
 
+function getHumanAssetPreview(asset) {
+  const images = asset?.images || [];
+  const preferred =
+    images.find(
+      (image) =>
+        String(image?.type || "")
+          .trim()
+          .toLowerCase() === "profile",
+    ) || images[0];
+
+  return preferred?.filename || "";
+}
+
 export function ImagesPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -312,11 +325,30 @@ export function ImagesPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredAssets.map((asset) => (
+              {filteredAssets.map((asset) => {
+                const previewImage = getHumanAssetPreview(asset);
+
+                return (
                 <tr key={asset.id}>
                   <td>
-                    <div className="page-name-cell">
-                      <div className="pname">{asset.name}</div>
+                    <div className="pcell">
+                      <div className="av">
+                        {previewImage ? (
+                          <img
+                            src={previewImage}
+                            alt={asset.name}
+                            className="av-img"
+                          />
+                        ) : (
+                          String(asset.name || "I").trim().charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div>
+                        <div className="pname">{asset.name}</div>
+                        <div className="pcity">
+                          {asset.images.length} image{asset.images.length === 1 ? "" : "s"}
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td>
@@ -347,7 +379,8 @@ export function ImagesPage() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
