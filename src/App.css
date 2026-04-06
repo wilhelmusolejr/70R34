@@ -196,7 +196,12 @@ nav {
   transform: translateY(-1px);
 }
 .auth-modal {
+  width: min(820px, 100%);
   max-height: unset;
+  overflow: hidden;
+}
+.auth-modal .npm-body {
+  padding-top: 22px;
 }
 .wip-modal {
   width: min(360px, 100%);
@@ -204,28 +209,134 @@ nav {
 }
 .auth-grid {
   grid-template-columns: 1fr;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  gap: 12px;
+}
+.auth-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.95fr) minmax(300px, 1.05fr);
+  gap: 18px;
+  align-items: stretch;
+}
+.auth-panel {
+  border-radius: 20px;
+}
+.auth-panel-feature {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  background:
+    linear-gradient(160deg, rgba(14, 165, 233, 0.2), rgba(15, 23, 42, 0.06)),
+    var(--surface2);
+  border: 1px solid var(--border);
+}
+.auth-feature-kicker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.auth-feature-title {
+  font-size: 28px;
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  color: var(--text);
+}
+.auth-feature-copy {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text2);
+}
+.auth-feature-points {
+  display: grid;
+  gap: 10px;
+}
+.auth-feature-point {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.auth-feature-point::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 5px rgba(14, 165, 233, 0.14);
+  flex: 0 0 auto;
+}
+.auth-panel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 0;
+}
+.auth-form-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.auth-form-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+.auth-form-copy {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text2);
 }
 .auth-switch-row {
   display: flex;
   gap: 6px;
-  margin-bottom: 16px;
+  padding: 6px;
+  border-radius: 999px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  align-self: flex-start;
 }
 .auth-switch-btn {
-  background: var(--surface2);
+  background: transparent;
   color: var(--text2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 16px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   font-family: var(--font);
-  transition: all var(--t);
+  transition:
+    background var(--t),
+    color var(--t),
+    box-shadow var(--t),
+    transform var(--t);
+}
+.auth-switch-btn:hover {
+  color: var(--text);
 }
 .auth-switch-btn.active {
-  background: var(--accent);
+  background: var(--surface);
   color: white;
-  border-color: var(--accent);
+  color: var(--text);
+  box-shadow: var(--sh-sm);
+}
+.auth-footer {
+  margin-top: auto;
 }
 
 /* ── PAGE ── */
@@ -477,7 +588,10 @@ nav {
   padding: 8px;
   border-radius: 18px;
   border: 1px solid transparent;
-  transition: border-color var(--t), background var(--t), box-shadow var(--t);
+  transition:
+    border-color var(--t),
+    background var(--t),
+    box-shadow var(--t);
 }
 .image-asset-tile.delete-mode:hover {
   border-color: var(--border);
@@ -509,7 +623,9 @@ nav {
   width: 100%;
   padding: 0;
   cursor: pointer;
-  transition: transform var(--t), box-shadow var(--t);
+  transition:
+    transform var(--t),
+    box-shadow var(--t);
 }
 .image-asset-preview-btn:hover {
   transform: translateY(-2px);
@@ -1872,7 +1988,11 @@ select.npm-input {
   border: 1px solid var(--border);
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(127, 140, 161, 0.05), rgba(127, 140, 161, 0.02)),
+    linear-gradient(
+      180deg,
+      rgba(127, 140, 161, 0.05),
+      rgba(127, 140, 161, 0.02)
+    ),
     var(--surface);
 }
 
@@ -2144,7 +2264,11 @@ select.npm-input {
   border-radius: 20px;
   border: 1px solid var(--line);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.02),
+      rgba(255, 255, 255, 0.01)
+    ),
     var(--card);
   overflow: hidden;
   box-shadow: var(--sh-sm);
@@ -2222,7 +2346,10 @@ select.npm-input {
   background: var(--surface);
   color: var(--text2);
   flex-shrink: 0;
-  transition: transform 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease;
 }
 
 .page-post-chevron svg {
@@ -2245,8 +2372,11 @@ select.npm-input {
   gap: 14px;
   padding: 0 18px 18px;
   border-top: 1px solid var(--line);
-  background:
-    linear-gradient(180deg, rgba(127, 140, 161, 0.04), rgba(127, 140, 161, 0.01));
+  background: linear-gradient(
+    180deg,
+    rgba(127, 140, 161, 0.04),
+    rgba(127, 140, 161, 0.01)
+  );
 }
 
 .page-post-image-grid {
@@ -2877,14 +3007,14 @@ select.npm-input {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .image-asset-gallery {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .image-asset-detail-layout {
-      grid-template-columns: 1fr;
-    }
-    .image-asset-gallery-compact {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .image-asset-detail-layout {
+    grid-template-columns: 1fr;
+  }
+  .image-asset-gallery-compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
   .image-upload-profile-list {
     grid-template-columns: 1fr;
   }
@@ -2907,6 +3037,9 @@ select.npm-input {
   .npm-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .auth-shell {
+    grid-template-columns: 1fr;
+  }
   .npm-grid {
     grid-template-columns: 1fr;
   }
@@ -2926,11 +3059,11 @@ select.npm-input {
   }
   .image-asset-basics,
   .image-asset-gallery {
-      grid-template-columns: 1fr;
-    }
-    .image-asset-gallery-compact {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+    grid-template-columns: 1fr;
+  }
+  .image-asset-gallery-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .image-upload-file-list {
     grid-template-columns: 1fr;
   }
@@ -2960,5 +3093,11 @@ select.npm-input {
   }
   .npm-autofill-options {
     gap: 12px;
+  }
+  .auth-panel-feature {
+    padding: 18px;
+  }
+  .auth-feature-title {
+    font-size: 24px;
   }
 }

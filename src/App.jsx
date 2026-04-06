@@ -274,72 +274,106 @@ function Layout({ children }) {
               </button>
             </div>
 
-            <div className="npm-body">
-              <div className="auth-switch-row">
-                <button
-                  type="button"
-                  className={`auth-switch-btn ${authMode === "login" ? "active" : ""}`}
-                  onClick={() => {
-                    setAuthMode("login");
-                    setAuthError("");
-                  }}
-                >
-                  Login
-                </button>
-                <button
-                  type="button"
-                  className={`auth-switch-btn ${authMode === "register" ? "active" : ""}`}
-                  onClick={() => {
-                    setAuthMode("register");
-                    setAuthError("");
-                  }}
-                >
-                  Register
-                </button>
-              </div>
-
-              <div className="npm-grid auth-grid">
-                <AuthField
-                  label="Username"
-                  value={username}
-                  onChange={setUsername}
-                />
-                <AuthField
-                  label="Password"
-                  type="password"
-                  value={password}
-                  onChange={setPassword}
-                />
-              </div>
-
-              {authError ? (
-                <div className="npm-submit-error">{authError}</div>
-              ) : null}
-
-              <div className="npm-footer">
-                <button type="button" className="btn-s" onClick={closeAuth}>
-                  Cancel
-                </button>
-                <div className="npm-footer-actions">
-                  {currentUser ? (
-                    <button
-                      type="button"
-                      className="btn-s"
-                      onClick={handleLogout}
-                    >
-                      Logout
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="btn-p"
-                    onClick={handleAuthSubmit}
-                  >
-                    {authMode === "login" ? "Login" : "Register"}
-                  </button>
+            <form
+              className="npm-body auth-shell"
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleAuthSubmit();
+              }}
+            >
+              <div className="auth-panel auth-panel-feature">
+                <div className="auth-feature-kicker">70R34 Access</div>
+                <div className="auth-feature-title">
+                  {authMode === "login"
+                    ? "Welcome back to the workspace."
+                    : "Create an account to continue."}
+                </div>
+                <div className="auth-feature-copy">
+                  {authMode === "login"
+                    ? "Sign in to manage profiles, pages, assets, and all protected actions from one place."
+                    : "Register a new account to access the dashboard and start working inside the dataset."}
+                </div>
+                <div className="auth-feature-points">
+                  <div className="auth-feature-point">Clean account switching</div>
+                  <div className="auth-feature-point">Role-based access control</div>
+                  <div className="auth-feature-point">Protected editing and uploads</div>
                 </div>
               </div>
-            </div>
+
+              <div className="auth-panel auth-panel-form">
+                <div className="auth-switch-row">
+                  <button
+                    type="button"
+                    className={`auth-switch-btn ${authMode === "login" ? "active" : ""}`}
+                    onClick={() => {
+                      setAuthMode("login");
+                      setAuthError("");
+                    }}
+                  >
+                    Login
+                  </button>
+                  <button
+                    type="button"
+                    className={`auth-switch-btn ${authMode === "register" ? "active" : ""}`}
+                    onClick={() => {
+                      setAuthMode("register");
+                      setAuthError("");
+                    }}
+                  >
+                    Register
+                  </button>
+                </div>
+
+                <div className="auth-form-head">
+                  <div className="auth-form-title">
+                    {authMode === "login" ? "Sign in" : "Create account"}
+                  </div>
+                  <div className="auth-form-copy">
+                    {authMode === "login"
+                      ? "Use your username and password to enter the dashboard."
+                      : "Choose a username and password to register a new account."}
+                  </div>
+                </div>
+
+                <div className="npm-grid auth-grid">
+                  <AuthField
+                    label="Username"
+                    value={username}
+                    onChange={setUsername}
+                  />
+                  <AuthField
+                    label="Password"
+                    type="password"
+                    value={password}
+                    onChange={setPassword}
+                  />
+                </div>
+
+                {authError ? (
+                  <div className="npm-submit-error">{authError}</div>
+                ) : null}
+
+                <div className="npm-footer auth-footer">
+                  <button type="button" className="btn-s" onClick={closeAuth}>
+                    Cancel
+                  </button>
+                  <div className="npm-footer-actions">
+                    {currentUser ? (
+                      <button
+                        type="button"
+                        className="btn-s"
+                        onClick={handleLogout}
+                      >
+                        Logout
+                      </button>
+                    ) : null}
+                    <button type="submit" className="btn-p">
+                      {authMode === "login" ? "Login" : "Register"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -363,7 +397,6 @@ function Layout({ children }) {
                 x
               </button>
             </div>
-            asda
             <div className="npm-body">
               <div className="npm-grid auth-grid">
                 <div style={{ color: "var(--text2)", fontSize: "13px" }}>
