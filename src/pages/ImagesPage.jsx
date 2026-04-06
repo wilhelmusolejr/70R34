@@ -400,7 +400,7 @@ export function ImagesPage() {
                       className="vbtn"
                       onClick={() => navigate(`/images/${asset.id}`)}
                     >
-                      Visit
+                      View
                     </button>
                   </td>
                 </tr>

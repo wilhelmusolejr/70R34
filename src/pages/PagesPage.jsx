@@ -144,8 +144,8 @@ function PagesTable({ title, rows }) {
                   </div>
                 </td>
                 <td>
-                  <Link to={`/pages/${page.id}`} className="btn-s">
-                    Visit
+                  <Link to={`/pages/${page.id}`} className="vbtn">
+                    View
                   </Link>
                 </td>
               </tr>
