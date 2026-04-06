@@ -33,6 +33,24 @@ function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeProfilePayload(payload = {}) {
+  const nextPayload = { ...payload };
+
+  if (Object.prototype.hasOwnProperty.call(nextPayload, "pageId")) {
+    const rawPageId = nextPayload.pageId;
+
+    if (
+      rawPageId === null ||
+      rawPageId === undefined ||
+      String(rawPageId).trim() === ""
+    ) {
+      nextPayload.pageId = null;
+    }
+  }
+
+  return nextPayload;
+}
+
 function getSelectedEmail(profile) {
   const selectedEmail = (profile?.emails || []).find((email) => email?.selected);
   return normalizeText(selectedEmail?.address);
@@ -295,12 +313,12 @@ router.post("/", async (req, res, next) => {
       }
     }
 
-    const payload = {
+    const payload = normalizeProfilePayload({
       ...req.body,
       status: ownerUser?.role === "maker"
         ? "Pending Profile"
         : req.body?.status,
-    };
+    });
     delete payload.userId;
 
     const profile = await Profile.create(payload);
@@ -336,7 +354,7 @@ router.put("/:id", async (req, res, next) => {
 
     const profile = await Profile.findOneAndUpdate(
       { id },
-      { ...req.body, id },
+      { ...normalizeProfilePayload(req.body), id },
       { new: true, overwrite: true, runValidators: true },
     );
 
@@ -359,7 +377,7 @@ router.patch("/:id", async (req, res, next) => {
 
     const profile = await Profile.findOneAndUpdate(
       { id },
-      req.body,
+      normalizeProfilePayload(req.body),
       { new: true, runValidators: true },
     );
 
