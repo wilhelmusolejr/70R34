@@ -64,6 +64,25 @@ function AccountIcon() {
   );
 }
 
+function MenuIcon({ open = false }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {open ? (
+        <>
+          <path d="M6 6l12 12" />
+          <path d="M18 6L6 18" />
+        </>
+      ) : (
+        <>
+          <path d="M4 7h16" />
+          <path d="M4 12h16" />
+          <path d="M4 17h16" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 function getDocumentTitle(pathname) {
   if (pathname === "/") {
     return "PROFILES | 70R34";
@@ -95,6 +114,7 @@ function Layout({ children }) {
   );
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -108,6 +128,11 @@ function Layout({ children }) {
 
   useEffect(() => {
     document.title = getDocumentTitle(location.pathname);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+    setIsAccountMenuOpen(false);
   }, [location.pathname]);
 
   function openAuth(mode) {
@@ -200,6 +225,15 @@ function Layout({ children }) {
               Analytics
             </a>
           </div>
+          <button
+            type="button"
+            className={`nav-mobile-toggle${isMobileNavOpen ? " open" : ""}`}
+            onClick={() => setIsMobileNavOpen((current) => !current)}
+            aria-label={isMobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={isMobileNavOpen}
+          >
+            <MenuIcon open={isMobileNavOpen} />
+          </button>
           <div className="nav-meta">
             <button
               type="button"
@@ -251,6 +285,51 @@ function Layout({ children }) {
             </div>
           </div>
         </div>
+        {isMobileNavOpen ? (
+          <div className="nav-mobile-menu">
+            <div className="nav-mobile-links">
+              <NavLink to="/" end onClick={() => setIsMobileNavOpen(false)}>
+                Profiles
+              </NavLink>
+              <NavLink to="/images" onClick={() => setIsMobileNavOpen(false)}>
+                Images
+              </NavLink>
+              <NavLink to="/pages" onClick={() => setIsMobileNavOpen(false)}>
+                Pages
+              </NavLink>
+              <button
+                type="button"
+                className="nav-mobile-link-btn"
+                onClick={(e) => {
+                  showWipModal(e, "Proxy");
+                  setIsMobileNavOpen(false);
+                }}
+              >
+                Proxy
+              </button>
+              <button
+                type="button"
+                className="nav-mobile-link-btn"
+                onClick={(e) => {
+                  showWipModal(e, "Anti-Bot ML");
+                  setIsMobileNavOpen(false);
+                }}
+              >
+                Anti-Bot ML
+              </button>
+              <button
+                type="button"
+                className="nav-mobile-link-btn"
+                onClick={(e) => {
+                  showWipModal(e, "Analytics");
+                  setIsMobileNavOpen(false);
+                }}
+              >
+                Analytics
+              </button>
+            </div>
+          </div>
+        ) : null}
       </nav>
 
       {/* Page Content */}

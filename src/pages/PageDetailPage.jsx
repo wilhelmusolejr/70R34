@@ -111,15 +111,29 @@ function EditableField({
   multiline = false,
   numeric = false,
   mono = false,
+  copyable = false,
   editable = true,
   onBlockedEdit,
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value ?? ""));
+  const [copied, setCopied] = useState(false);
+  const displayValue = String(value ?? "").trim();
 
   async function save() {
     await onSave(draft);
     setEditing(false);
+  }
+
+  async function copy() {
+    if (!displayValue) return;
+    try {
+      await navigator.clipboard.writeText(displayValue);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Ignore clipboard failures.
+    }
   }
 
   if (editing) {
@@ -171,7 +185,7 @@ function EditableField({
       <div className="dv">
         <div className={`ef-read${multiline ? " multi" : ""}`}>
           <div
-            className={`ef-display${mono ? " mono" : ""}`}
+            className={`ef-display${mono ? " mono" : ""}${multiline ? " preserve-whitespace" : ""}`}
             onDoubleClick={() => {
               if (!editable) {
                 onBlockedEdit?.();
@@ -182,14 +196,25 @@ function EditableField({
             }}
             title={editable ? "Double-click to edit" : "Admin access required"}
           >
-            {String(value ?? "").trim() ? (
-              <span className={mono ? "dv mono" : undefined}>
-                {String(value ?? "").trim()}
+            {displayValue ? (
+              <span
+                className={`${mono ? "dv mono" : "dv"}${multiline ? " preserve-whitespace" : ""}`}
+              >
+                {displayValue}
               </span>
             ) : (
               <em className="ef-empty">Double-click to add...</em>
             )}
           </div>
+          {copyable && displayValue ? (
+            <button
+              type="button"
+              className={`cpbtn${copied ? " ok" : ""}`}
+              onClick={copy}
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -1022,6 +1047,7 @@ export function PageDetailPage() {
               label="Prompt"
               value={page.generationPrompt}
               multiline
+              copyable
               editable={isAdmin}
               onBlockedEdit={ensureAdminAccess}
               onSave={(value) => savePageChanges({ generationPrompt: value })}

@@ -548,8 +548,8 @@ export function ProfilesPage() {
             <div className="ed">{error}</div>
           </div>
         ) : (
-          <div className="twrap">
-            <table className="tbl">
+          <div className="twrap profiles-table-wrap">
+            <table className="tbl profiles-table">
               <thead>
                 <tr>
                   <th>Profile</th>
@@ -573,7 +573,7 @@ export function ProfilesPage() {
                       key={profile.id}
                       className={done ? "processed-today" : ""}
                     >
-                      <td>
+                      <td data-label="Profile">
                         <div className="pcell">
                           <div
                             className="av"
@@ -602,7 +602,7 @@ export function ProfilesPage() {
                           </div>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Status">
                         <span
                           className={`sbadge ${STATUS_CLASS[profile.status] || "sp"}`}
                         >
@@ -610,7 +610,7 @@ export function ProfilesPage() {
                           {profile.status}
                         </span>
                       </td>
-                      <td>
+                      <td data-label="Profile Created">
                         <div className="dcell">
                           <div className="dv">
                             {fmtDate(profile.profileCreated)}
@@ -620,13 +620,13 @@ export function ProfilesPage() {
                           </div>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Inactive">
                         <div className="dcell">
                           <div className="dv">{getInactiveDays(profile)}</div>
                           <div className="da">Since last tracked</div>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Links">
                         <div className="lcell">
                           {profile.profileUrl ? (
                             <a
@@ -664,7 +664,7 @@ export function ProfilesPage() {
                           )}
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Requirements">
                         <div className="cklist">
                           {[
                             { label: "2FA", value: profile.has2FA },
@@ -694,7 +694,7 @@ export function ProfilesPage() {
                           ))}
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Daily Tracker">
                         <div className="tracker-cell">
                           <span
                             className={`track-badge ${done ? "track-done" : "track-pending"}`}
@@ -714,7 +714,7 @@ export function ProfilesPage() {
                           )}
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Action">
                         <button
                           className="vbtn"
                           onClick={() => navigate(`/profile/${profile.id}`)}

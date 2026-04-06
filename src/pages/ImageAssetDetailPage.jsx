@@ -668,7 +668,7 @@ export function ImageAssetDetailPage() {
           </div>
 
           <div>
-            <div className="page-section-head">
+            <div className="page-section-head image-asset-gallery-head">
               <h2>Gallery</h2>
               <div className="image-asset-gallery-actions image-asset-action-bar">
                 <button
@@ -1185,7 +1185,11 @@ export function ImageAssetDetailPage() {
                 x
               </button>
             </div>
-            <form className="npm-body npm-form" onSubmit={handleAddImages} aria-busy={isAddAssetImagesBusy}>
+            <form
+              className="npm-body npm-form image-asset-add-modal-body"
+              onSubmit={handleAddImages}
+              aria-busy={isAddAssetImagesBusy}
+            >
               <fieldset className="npm-form-fieldset" disabled={isAddAssetImagesBusy}>
               <div className="npm-grid">
                 <label className="npm-field">

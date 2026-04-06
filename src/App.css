@@ -62,6 +62,68 @@ nav {
   align-items: center;
   gap: 2px;
 }
+.nav-mobile-toggle {
+  display: none;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  transition: all var(--t);
+  flex-shrink: 0;
+}
+.nav-mobile-toggle:hover {
+  background: var(--bg);
+  border-color: var(--border2);
+}
+.nav-mobile-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nav-mobile-menu {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px 14px;
+}
+.nav-mobile-links {
+  display: none;
+}
+.nav-mobile-links a,
+.nav-mobile-link-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font);
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--t);
+}
+.nav-mobile-links a.active,
+.nav-mobile-links a:hover,
+.nav-mobile-link-btn:hover {
+  background: var(--bg);
+  border-color: var(--border2);
+}
+.nav-mobile-link-btn {
+  appearance: none;
+}
 .nav-links a {
   color: var(--text2);
   text-decoration: none;
@@ -197,8 +259,8 @@ nav {
 }
 .auth-modal {
   width: min(820px, 100%);
-  max-height: unset;
-  overflow: hidden;
+  max-height: min(90vh, 920px);
+  overflow: auto;
 }
 .auth-modal .npm-body {
   padding-top: 22px;
@@ -436,6 +498,9 @@ nav {
   gap: 10px;
   flex-wrap: wrap;
 }
+.image-asset-gallery-head {
+  margin-bottom: 14px;
+}
 .image-asset-action-bar {
   gap: 12px;
   justify-content: flex-end;
@@ -671,6 +736,9 @@ nav {
   max-height: min(88vh, 920px);
 }
 .image-asset-modal-body {
+  padding-top: 20px;
+}
+.image-asset-add-modal-body {
   padding-top: 20px;
 }
 .image-asset-modal-layout {
@@ -2994,11 +3062,106 @@ select.npm-input {
   .nav-links {
     display: none;
   }
+  .nav-inner {
+    gap: 10px;
+  }
+  .nav-mobile-toggle {
+    display: inline-flex;
+  }
+  .nav-mobile-menu {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .nav-mobile-links {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--sh-sm);
+  }
+  .nav-today {
+    display: none;
+  }
   .page {
     padding: 20px 16px 60px;
   }
+  .page-header {
+    align-items: stretch;
+  }
+  .page-header > div:last-child {
+    width: 100%;
+  }
+  .hdr-acts {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
   .dgrid {
     grid-template-columns: 1fr;
+  }
+  .dhero {
+    border-radius: 20px;
+  }
+  .hcover {
+    height: 96px;
+  }
+  .haw {
+    left: 20px;
+    bottom: -34px;
+  }
+  .hav {
+    width: 72px;
+    height: 72px;
+    font-size: 24px;
+  }
+  .hbody {
+    padding: 46px 20px 20px;
+  }
+  .htop {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .hero-main-col {
+    flex-basis: auto;
+  }
+  .hname {
+    font-size: 22px;
+  }
+  .hmeta,
+  .hmeta-left {
+    text-align: left;
+    min-width: 0;
+    line-height: 1.7;
+  }
+  .dr {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .dl {
+    min-width: 0;
+    padding-top: 0;
+  }
+  .cpbtn {
+    align-self: flex-start;
+  }
+  .profile-page-dataset-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .profile-page-dataset-input {
+    min-width: 0;
+  }
+  .profile-page-ownership-actions {
+    width: 100%;
+  }
+  .profile-page-ownership-actions > * {
+    flex: 0 0 auto;
+  }
+  .profile-image-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .interests-grid {
     grid-template-columns: 1fr;
@@ -3039,6 +3202,29 @@ select.npm-input {
   }
   .auth-shell {
     grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .auth-panel-form {
+    order: 1;
+  }
+  .auth-panel-feature {
+    order: 2;
+  }
+  .auth-switch-row {
+    width: 100%;
+    align-self: stretch;
+  }
+  .auth-switch-btn {
+    flex: 1 1 0;
+    justify-content: center;
+    text-align: center;
+  }
+  .auth-footer .npm-footer-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .auth-footer .npm-footer-actions > * {
+    flex: 1 1 0;
   }
   .npm-grid {
     grid-template-columns: 1fr;
@@ -3046,6 +3232,72 @@ select.npm-input {
   .npm-footer {
     flex-direction: column-reverse;
     align-items: stretch;
+  }
+  .profiles-table {
+    min-width: 0;
+  }
+  .profiles-table thead {
+    display: none;
+  }
+  .profiles-table,
+  .profiles-table tbody,
+  .profiles-table tr,
+  .profiles-table td {
+    display: block;
+    width: 100%;
+  }
+  .profiles-table tbody {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+  }
+  .profiles-table tbody tr {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--sh-sm);
+    overflow: hidden;
+  }
+  .profiles-table tbody tr:hover {
+    background: var(--surface);
+  }
+  .profiles-table tbody tr.processed-today {
+    background: color-mix(in srgb, var(--green-bg) 72%, var(--surface));
+  }
+  .profiles-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .profiles-table td:first-child,
+  .profiles-table td:last-child {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .profiles-table td:last-child {
+    border-bottom: none;
+  }
+  .profiles-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  .profiles-table td[data-label="Profile"]::before {
+    margin-bottom: 10px;
+  }
+  .profiles-table td[data-label="Action"]::before {
+    margin-bottom: 10px;
+  }
+  .profiles-table td[data-label="Action"] .vbtn {
+    width: 100%;
+    justify-content: center;
+  }
+  .profiles-table .tracker-cell {
+    align-items: flex-start;
   }
   .toast-notice {
     right: 16px;
@@ -3056,6 +3308,51 @@ select.npm-input {
 @media (max-width: 640px) {
   .stats-row {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .page-header h1 {
+    font-size: 24px;
+  }
+  .hcover {
+    height: 84px;
+  }
+  .haw {
+    left: 16px;
+    bottom: -30px;
+  }
+  .hav {
+    width: 64px;
+    height: 64px;
+    font-size: 20px;
+    border-width: 3px;
+  }
+  .hbody {
+    padding: 40px 16px 16px;
+  }
+  .hname {
+    font-size: 20px;
+  }
+  .hsub {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .hero-bio,
+  .page-detail-copy-block {
+    font-size: 12px;
+  }
+  .pcell {
+    align-items: flex-start;
+  }
+  .pname {
+    white-space: normal;
+  }
+  .lcell {
+    align-items: flex-start;
+  }
+  .cklist {
+    gap: 8px;
+  }
+  .profile-image-grid {
+    grid-template-columns: 1fr;
   }
   .image-asset-basics,
   .image-asset-gallery {
@@ -3076,6 +3373,10 @@ select.npm-input {
   .npm-modal {
     border-radius: 18px;
   }
+  .auth-modal {
+    width: min(100%, 520px);
+    max-height: min(92vh, 920px);
+  }
   .npm-header,
   .npm-body {
     padding-left: 16px;
@@ -3095,9 +3396,45 @@ select.npm-input {
     gap: 12px;
   }
   .auth-panel-feature {
-    padding: 18px;
+    padding: 16px;
+    gap: 14px;
   }
   .auth-feature-title {
-    font-size: 24px;
+    font-size: 22px;
+  }
+  .auth-feature-copy {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .auth-feature-points {
+    gap: 8px;
+  }
+  .auth-feature-point {
+    padding: 10px 12px;
+    font-size: 11px;
+  }
+  .auth-form-title {
+    font-size: 20px;
+  }
+  .auth-form-copy {
+    font-size: 12px;
+  }
+  .auth-switch-btn {
+    padding: 9px 12px;
+    font-size: 11px;
+  }
+  .auth-modal .npm-body {
+    padding-top: 18px;
+  }
+  .profiles-table tbody {
+    padding: 10px;
+  }
+  .profiles-table td {
+    padding: 11px 14px;
+  }
+  .profiles-table td:first-child,
+  .profiles-table td:last-child {
+    padding-left: 14px;
+    padding-right: 14px;
   }
 }
