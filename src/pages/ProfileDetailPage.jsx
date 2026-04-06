@@ -29,6 +29,15 @@ function getInitials(f, l) {
   return (f[0] + l[0]).toUpperCase();
 }
 
+function toCapitalizedWords(value) {
+  return String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function getGenderBadgeClass(gender) {
   const normalized = String(gender || "")
     .trim()
@@ -625,6 +634,10 @@ export function ProfileDetailPage() {
   const readOnlyMessage = makerOwnsProfile
     ? "Limited access — makers can edit email, passwords, and profile/page URLs only."
     : "Read-only — contact an admin to make changes.";
+  const displayFullName = [profile?.firstName, profile?.lastName]
+    .map((part) => toCapitalizedWords(part))
+    .filter(Boolean)
+    .join(" ");
 
   useEffect(() => {
     let cancelled = false;
@@ -671,6 +684,15 @@ export function ProfileDetailPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const fullName = [profile?.firstName, profile?.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    document.title = fullName ? `${fullName} | 70R34` : "PROFILE | 70R34";
+  }, [profile?.firstName, profile?.lastName]);
 
   async function persistProfile(updater) {
     if (!profile || !canPersist) return;
@@ -1093,7 +1115,7 @@ export function ProfileDetailPage() {
             <div className="hero-main-col">
               <div className="hname">
                 <span>
-                  {profile.firstName} {profile.lastName}
+                  {displayFullName || `${profile.firstName} ${profile.lastName}`}
                 </span>
                 {profile.gender ? (
                   <span

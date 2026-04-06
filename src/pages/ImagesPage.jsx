@@ -243,6 +243,7 @@ export function ImagesPage() {
     0,
   );
   const totalUses = filteredAssets.reduce((sum, asset) => sum + asset.usedBy, 0);
+  const isUploadBusy = isSubmitting;
 
   if (loading) {
     return (
@@ -450,7 +451,10 @@ export function ImagesPage() {
       ) : null}
 
       {isUploadOpen ? (
-        <div className="npm-backdrop" onClick={() => setIsUploadOpen(false)}>
+        <div
+          className="npm-backdrop"
+          onClick={isUploadBusy ? undefined : () => setIsUploadOpen(false)}
+        >
           <div
             className="npm-modal"
             onClick={(e) => e.stopPropagation()}
@@ -465,11 +469,13 @@ export function ImagesPage() {
                 className="npm-close"
                 type="button"
                 onClick={() => setIsUploadOpen(false)}
+                disabled={isUploadBusy}
               >
                 x
               </button>
             </div>
-            <form className="npm-body" onSubmit={handleCreateHumanAsset}>
+            <form className="npm-body npm-form" onSubmit={handleCreateHumanAsset} aria-busy={isUploadBusy}>
+              <fieldset className="npm-form-fieldset" disabled={isUploadBusy}>
               <div className="npm-grid">
                 <label className="npm-field">
                   <span className="npm-label">Human Asset Name</span>
@@ -682,6 +688,16 @@ export function ImagesPage() {
                   </button>
                 </div>
               </div>
+              </fieldset>
+              {isUploadBusy ? (
+                <div className="npm-loading-overlay">
+                  <div className="npm-spinner" />
+                  <div className="npm-loading-title">Uploading human asset</div>
+                  <div className="npm-loading-copy">
+                    Your files and selections are being processed now. Please wait until the upload completes.
+                  </div>
+                </div>
+              ) : null}
             </form>
           </div>
         </div>

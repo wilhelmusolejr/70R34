@@ -59,6 +59,15 @@ function getPageInitial(value) {
   );
 }
 
+function toCapitalizedWords(value) {
+  return String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function CopyRow({ label, value, mono = false, preserveWhitespace = false }) {
   const [copied, setCopied] = useState(false);
   const displayValue = String(value || "").trim();
@@ -312,6 +321,11 @@ export function PageDetailPage() {
     }
   }, [isEditingBio, page?.bio]);
 
+  useEffect(() => {
+    const pageName = String(page?.pageName || "").trim();
+    document.title = pageName ? `${pageName} | 70R34` : "PAGE | 70R34";
+  }, [page?.pageName]);
+
   const status = useMemo(() => derivePageStatus(page), [page]);
   const posts = page?.posts || [];
   const gallery = useMemo(
@@ -363,6 +377,7 @@ export function PageDetailPage() {
     })
     .filter((profile) => profile.label);
   const pageAccent = getPageColor(page?.pageName);
+  const displayPageName = toCapitalizedWords(page?.pageName);
 
   function ensureAdminAccess() {
     if (isAdmin) {
@@ -656,6 +671,10 @@ export function PageDetailPage() {
     }
   }
 
+  const isAddPostBusy = isSubmittingPost || isGeneratingPost;
+  const isAddBulkPostBusy = isBulkGeneratingPosts;
+  const isAddImagesBusy = isAddingImages;
+
   if (loading) {
     return (
       <div className="page">
@@ -729,7 +748,7 @@ export function PageDetailPage() {
         <div className="hbody">
           <div className="htop">
             <div>
-              <div className="hname">{page.pageName}</div>
+              <div className="hname">{displayPageName || page.pageName}</div>
               <div className="hsub">
                 {page.category || "No category"} · {page.pageId || "No page ID"}
               </div>
@@ -1196,7 +1215,10 @@ export function PageDetailPage() {
       ) : null}
 
       {isAddPostModalOpen ? (
-        <div className="npm-backdrop" onClick={closeAddPostModal}>
+        <div
+          className="npm-backdrop"
+          onClick={isAddPostBusy ? undefined : closeAddPostModal}
+        >
           <div
             className="npm-modal"
             onClick={(event) => event.stopPropagation()}
@@ -1211,11 +1233,17 @@ export function PageDetailPage() {
                 className="npm-close"
                 type="button"
                 onClick={closeAddPostModal}
+                disabled={isAddPostBusy}
               >
                 x
               </button>
             </div>
-            <form className="npm-body page-post-form" onSubmit={handleAddPost}>
+            <form
+              className="npm-body page-post-form npm-form"
+              onSubmit={handleAddPost}
+              aria-busy={isAddPostBusy}
+            >
+              <fieldset className="npm-form-fieldset" disabled={isAddPostBusy}>
               <label className="npm-field" style={{ gridColumn: "1 / -1" }}>
                 <span className="npm-label">Post Description</span>
                 <textarea
@@ -1287,13 +1315,28 @@ export function PageDetailPage() {
                   </button>
                 </div>
               </div>
+              </fieldset>
+              {isAddPostBusy ? (
+                <div className="npm-loading-overlay">
+                  <div className="npm-spinner" />
+                  <div className="npm-loading-title">
+                    {isGeneratingPost ? "Generating post" : "Adding post"}
+                  </div>
+                  <div className="npm-loading-copy">
+                    Please wait while we finish this request. The modal will unlock automatically when it completes.
+                  </div>
+                </div>
+              ) : null}
             </form>
           </div>
         </div>
       ) : null}
 
       {isAddBulkPostModalOpen ? (
-        <div className="npm-backdrop" onClick={closeAddBulkPostModal}>
+        <div
+          className="npm-backdrop"
+          onClick={isAddBulkPostBusy ? undefined : closeAddBulkPostModal}
+        >
           <div
             className="npm-modal"
             onClick={(event) => event.stopPropagation()}
@@ -1308,11 +1351,17 @@ export function PageDetailPage() {
                 className="npm-close"
                 type="button"
                 onClick={closeAddBulkPostModal}
+                disabled={isAddBulkPostBusy}
               >
                 x
               </button>
             </div>
-            <form className="npm-body page-post-form" onSubmit={handleAddBulkPosts}>
+            <form
+              className="npm-body page-post-form npm-form"
+              onSubmit={handleAddBulkPosts}
+              aria-busy={isAddBulkPostBusy}
+            >
+              <fieldset className="npm-form-fieldset" disabled={isAddBulkPostBusy}>
               <label className="npm-field">
                 <span className="npm-label">Number of Posts</span>
                 <input
@@ -1357,13 +1406,26 @@ export function PageDetailPage() {
                   </button>
                 </div>
               </div>
+              </fieldset>
+              {isAddBulkPostBusy ? (
+                <div className="npm-loading-overlay">
+                  <div className="npm-spinner" />
+                  <div className="npm-loading-title">Generating bulk posts</div>
+                  <div className="npm-loading-copy">
+                    We&apos;re creating the batch now. Inputs and close actions stay locked until the request finishes.
+                  </div>
+                </div>
+              ) : null}
             </form>
           </div>
         </div>
       ) : null}
 
       {isAddImagesModalOpen ? (
-        <div className="npm-backdrop" onClick={closeAddImagesModal}>
+        <div
+          className="npm-backdrop"
+          onClick={isAddImagesBusy ? undefined : closeAddImagesModal}
+        >
           <div
             className="npm-modal"
             onClick={(event) => event.stopPropagation()}
@@ -1374,11 +1436,17 @@ export function PageDetailPage() {
                 <div className="npm-kicker">Page Assets</div>
                 <h2 className="npm-title">Add Images</h2>
               </div>
-              <button className="npm-close" type="button" onClick={closeAddImagesModal}>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={closeAddImagesModal}
+                disabled={isAddImagesBusy}
+              >
                 x
               </button>
             </div>
-            <form className="npm-body" onSubmit={handleAddImages}>
+            <form className="npm-body npm-form" onSubmit={handleAddImages} aria-busy={isAddImagesBusy}>
+              <fieldset className="npm-form-fieldset" disabled={isAddImagesBusy}>
               <div className="npm-grid">
                 <label className="npm-field" style={{ gridColumn: "1 / -1" }}>
                   <span className="npm-label">Description</span>
@@ -1495,6 +1563,16 @@ export function PageDetailPage() {
                   </button>
                 </div>
               </div>
+              </fieldset>
+              {isAddImagesBusy ? (
+                <div className="npm-loading-overlay">
+                  <div className="npm-spinner" />
+                  <div className="npm-loading-title">Uploading images</div>
+                  <div className="npm-loading-copy">
+                    Your files are being uploaded and assigned now. Please keep this modal open until it finishes.
+                  </div>
+                </div>
+              ) : null}
             </form>
           </div>
         </div>

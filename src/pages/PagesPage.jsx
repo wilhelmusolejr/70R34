@@ -363,6 +363,7 @@ export function PagesPage() {
   const availablePages = pageRows.filter((page) => page.status === "Available");
   const pendingPages = pageRows.filter((page) => page.status === "Pending");
   const claimedPages = pageRows.filter((page) => page.status === "Claimed");
+  const isAddPageBusy = isSubmitting;
 
   return (
     <div className="page">
@@ -454,7 +455,10 @@ export function PagesPage() {
       )}
 
       {isModalOpen ? (
-        <div className="npm-backdrop" onClick={() => setIsModalOpen(false)}>
+        <div
+          className="npm-backdrop"
+          onClick={isAddPageBusy ? undefined : () => setIsModalOpen(false)}
+        >
           <div
             className="npm-modal"
             onClick={(e) => e.stopPropagation()}
@@ -465,18 +469,25 @@ export function PagesPage() {
                 <div className="npm-kicker">Page</div>
                 <h2 className="npm-title">Add Page</h2>
               </div>
-              <button className="npm-close" type="button" onClick={() => setIsModalOpen(false)}>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                disabled={isAddPageBusy}
+              >
                 x
               </button>
             </div>
-            <form className="npm-body" onSubmit={handleCreatePage}>
+            <form className="npm-body npm-form" onSubmit={handleCreatePage} aria-busy={isAddPageBusy}>
+              <fieldset className="npm-form-fieldset" disabled={isAddPageBusy}>
               <div className="npm-grid">
                 <div className="npm-field" style={{ gridColumn: "1 / -1" }}>
                   <span className="npm-label">Quick Generator</span>
                   <div style={{ display: "flex", gap: "0.65rem", alignItems: "center", flexWrap: "wrap" }}>
-                    <button type="button" className="btn-s" onClick={handleGeneratePageInformation}>
-                      Generate Page Info
-                    </button>
+                  <button type="button" className="btn-s" onClick={handleGeneratePageInformation}>
+                    
+                    Generate Page Info
+                  </button>
                     <span className="image-asset-helper">
                       Fills page name, category, ID, bio, prompt, and starter metrics.
                     </span>
@@ -717,6 +728,16 @@ export function PagesPage() {
                   </button>
                 </div>
               </div>
+              </fieldset>
+              {isAddPageBusy ? (
+                <div className="npm-loading-overlay">
+                  <div className="npm-spinner" />
+                  <div className="npm-loading-title">Creating page</div>
+                  <div className="npm-loading-copy">
+                    We&apos;re saving the page and uploading any selected files. This modal will unlock once everything is done.
+                  </div>
+                </div>
+              ) : null}
             </form>
           </div>
         </div>

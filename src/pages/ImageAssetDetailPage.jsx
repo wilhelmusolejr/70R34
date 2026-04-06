@@ -86,6 +86,15 @@ function getImageTags(image) {
   return tags;
 }
 
+function toCapitalizedWords(value) {
+  return String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
 export function ImageAssetDetailPage() {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === "admin";
@@ -186,6 +195,11 @@ export function ImageAssetDetailPage() {
   useEffect(() => {
     setAnnotationsByImage(asset?.annotationsByImage || {});
   }, [asset]);
+
+  useEffect(() => {
+    const assetName = String(asset?.name || "").trim();
+    document.title = assetName ? `${assetName} | 70R34` : "IMAGE ASSET | 70R34";
+  }, [asset?.name]);
 
   useEffect(() => {
     setAnnotationMode(false);
@@ -567,6 +581,8 @@ export function ImageAssetDetailPage() {
           }
         : null
     : null;
+  const isAddAssetImagesBusy = isAddingImages;
+  const displayAssetName = toCapitalizedWords(asset?.name);
 
   return (
     <div className="page">
@@ -579,7 +595,7 @@ export function ImageAssetDetailPage() {
 
       <div className="page-header">
         <div>
-          <h1>{asset.name}</h1>
+          <h1>{displayAssetName || asset.name}</h1>
           <p>Human asset image gallery backed by live database records.</p>
         </div>
       </div>
@@ -588,7 +604,7 @@ export function ImageAssetDetailPage() {
         <div className="image-asset-basics">
           <div className="sc">
             <div className="slabel">Asset Name</div>
-            <div className="image-asset-value">{asset.name}</div>
+            <div className="image-asset-value">{displayAssetName || asset.name}</div>
           </div>
           <div className="sc">
             <div className="slabel">Images Inside</div>
@@ -1146,7 +1162,10 @@ export function ImageAssetDetailPage() {
       ) : null}
 
       {isAddImagesOpen ? (
-        <div className="npm-backdrop" onClick={() => setIsAddImagesOpen(false)}>
+        <div
+          className="npm-backdrop"
+          onClick={isAddAssetImagesBusy ? undefined : () => setIsAddImagesOpen(false)}
+        >
           <div
             className="npm-modal"
             onClick={(e) => e.stopPropagation()}
@@ -1161,11 +1180,13 @@ export function ImageAssetDetailPage() {
                 className="npm-close"
                 type="button"
                 onClick={() => setIsAddImagesOpen(false)}
+                disabled={isAddAssetImagesBusy}
               >
                 x
               </button>
             </div>
-            <form className="npm-body" onSubmit={handleAddImages}>
+            <form className="npm-body npm-form" onSubmit={handleAddImages} aria-busy={isAddAssetImagesBusy}>
+              <fieldset className="npm-form-fieldset" disabled={isAddAssetImagesBusy}>
               <div className="npm-grid">
                 <label className="npm-field">
                   <span className="npm-label">Image Annotation</span>
@@ -1412,6 +1433,16 @@ export function ImageAssetDetailPage() {
                   </button>
                 </div>
               </div>
+              </fieldset>
+              {isAddAssetImagesBusy ? (
+                <div className="npm-loading-overlay">
+                  <div className="npm-spinner" />
+                  <div className="npm-loading-title">Adding images</div>
+                  <div className="npm-loading-copy">
+                    We&apos;re uploading the files and updating this human asset now. The modal will unlock when it finishes.
+                  </div>
+                </div>
+              ) : null}
             </form>
           </div>
         </div>

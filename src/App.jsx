@@ -5,6 +5,7 @@ import {
   NavLink,
   Routes,
   Route,
+  useLocation,
 } from "react-router-dom";
 import { loginAccount, registerAccount } from "./api/auth";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -63,8 +64,32 @@ function AccountIcon() {
   );
 }
 
+function getDocumentTitle(pathname) {
+  if (pathname === "/") {
+    return "PROFILES | 70R34";
+  }
+  if (pathname.startsWith("/profile/")) {
+    return "PROFILE | 70R34";
+  }
+  if (pathname === "/images") {
+    return "IMAGES | 70R34";
+  }
+  if (pathname.startsWith("/images/")) {
+    return "IMAGE ASSET | 70R34";
+  }
+  if (pathname === "/pages") {
+    return "PAGES | 70R34";
+  }
+  if (pathname.startsWith("/pages/")) {
+    return "PAGE | 70R34";
+  }
+
+  return "70R34";
+}
+
 function Layout({ children }) {
   const { currentUser, login, logout } = useAuth();
+  const location = useLocation();
   const [theme, setTheme] = useState(
     () => localStorage.getItem("pv_theme") || "light",
   );
@@ -80,6 +105,10 @@ function Layout({ children }) {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("pv_theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.title = getDocumentTitle(location.pathname);
+  }, [location.pathname]);
 
   function openAuth(mode) {
     setAuthMode(mode);
