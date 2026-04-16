@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getPageImagesDownloadUrl } from "../api/pageDownloads";
 import { fetchProfiles } from "../api/profiles";
+import { SafeImage } from "../components/SafeImage";
 import { useAuth } from "../context/AuthContext";
 import {
   addPageImages,
@@ -48,15 +49,6 @@ function getPageColor(seed) {
   const text = String(seed || "page");
   const hash = [...text].reduce((total, char) => total + char.charCodeAt(0), 0);
   return palette[hash % palette.length];
-}
-
-function getPageInitial(value) {
-  return (
-    String(value || "P")
-      .trim()
-      .charAt(0)
-      .toUpperCase() || "P"
-  );
 }
 
 function toCapitalizedWords(value) {
@@ -756,18 +748,16 @@ export function PageDetailPage() {
           }
         >
           <div className="haw">
-            {heroImage ? (
-              <div
-                className="hav hav-img-wrap"
-                style={{ background: pageAccent }}
-              >
-                <img src={heroImage} alt={page.pageName} className="hav-img" />
-              </div>
-            ) : (
-              <div className="hav" style={{ background: pageAccent }}>
-                {getPageInitial(page.pageName)}
-              </div>
-            )}
+            <div
+              className="hav hav-img-wrap"
+              style={{ background: pageAccent }}
+            >
+              <SafeImage
+                src={heroImage}
+                alt={page.pageName}
+                className="hav-img"
+              />
+            </div>
           </div>
         </div>
         <div className="hbody">
@@ -1124,7 +1114,7 @@ export function PageDetailPage() {
                               className="profile-image-tile"
                             >
                               <div className="profile-image-frame">
-                                <img
+                                <SafeImage
                                   src={image.filename}
                                   alt={`${page.pageName} post ${index + 1}`}
                                   className="profile-image-img"
@@ -1182,7 +1172,7 @@ export function PageDetailPage() {
                   className="profile-image-tile"
                 >
                   <div className="profile-image-frame">
-                    <img
+                    <SafeImage
                       src={asset.image.filename}
                       alt={`${page.pageName} ${index + 1}`}
                       className="profile-image-img"
@@ -1299,7 +1289,7 @@ export function PageDetailPage() {
                       className="page-post-upload-item"
                     >
                       <div className="image-upload-preview-frame">
-                        <img
+                        <SafeImage
                           src={entry.previewUrl}
                           alt={entry.file.name}
                           className="image-upload-preview-img"
@@ -1532,7 +1522,7 @@ export function PageDetailPage() {
                       {pageImageFiles.map((entry, index) => (
                         <div key={`${entry.file.name}-${index}`} className="image-upload-file-item">
                           <div className="image-upload-preview-frame">
-                            <img
+                            <SafeImage
                               src={entry.previewUrl}
                               alt={entry.file.name}
                               className="image-upload-preview-img"

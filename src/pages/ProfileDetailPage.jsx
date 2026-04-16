@@ -8,6 +8,7 @@ import {
   unassignProfileImage,
   updateProfile,
 } from "../api/profiles";
+import { SafeImage } from "../components/SafeImage";
 import { AVC, STATUS_CLASS, STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
 import { canViewConfidential, mask, reveal } from "../utils/access";
@@ -23,10 +24,6 @@ const MAKER_EDITABLE_FIELDS = new Set([
 
 function getAvatarColor(id) {
   return AVC[(id - 1) % AVC.length];
-}
-
-function getInitials(f, l) {
-  return (f[0] + l[0]).toUpperCase();
 }
 
 function toCapitalizedWords(value) {
@@ -1092,22 +1089,16 @@ export function ProfileDetailPage() {
           }
         >
           <div className="haw">
-            {primaryProfileImage ? (
-              <div
-                className="hav hav-img-wrap"
-                style={{ background: avatarColor }}
-              >
-                <img
-                  src={primaryProfileImage}
-                  alt={`${profile.firstName} ${profile.lastName}`}
-                  className="hav-img"
-                />
-              </div>
-            ) : (
-              <div className="hav" style={{ background: avatarColor }}>
-                {getInitials(profile.firstName, profile.lastName)}
-              </div>
-            )}
+            <div
+              className="hav hav-img-wrap"
+              style={{ background: avatarColor }}
+            >
+              <SafeImage
+                src={primaryProfileImage}
+                alt={`${profile.firstName} ${profile.lastName}`}
+                className="hav-img"
+              />
+            </div>
           </div>
         </div>
         <div className="hbody">
@@ -1905,7 +1896,7 @@ export function ProfileDetailPage() {
                                   className="profile-image-tile"
                                 >
                                   <div className="profile-image-frame">
-                                    <img
+                                    <SafeImage
                                       src={entry.image.filename}
                                       alt={`${profile.firstName} ${profile.lastName} ${index + 1}`}
                                       className="profile-image-img"

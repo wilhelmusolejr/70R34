@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchProfiles } from "../api/profiles";
 import { createPage, fetchPages } from "../api/pages";
+import { SafeImage } from "../components/SafeImage";
 import { useAuth } from "../context/AuthContext";
 import { generatePageInformation } from "../generator/pages";
 import "../App.css";
@@ -33,15 +34,6 @@ function getPagePreviewImage(page) {
     assets.find((asset) => asset?.imageId?.filename);
 
   return preferred?.imageId?.filename || "";
-}
-
-function getPageInitial(value) {
-  return (
-    String(value || "P")
-      .trim()
-      .charAt(0)
-      .toUpperCase() || "P"
-  );
 }
 
 function PageStatusBadge({ status }) {
@@ -104,15 +96,11 @@ function PagesTable({ title, rows }) {
                 <td>
                   <div className="pcell">
                     <div className="av">
-                      {previewImage ? (
-                        <img
-                          src={previewImage}
-                          alt={page.pageName}
-                          className="av-img"
-                        />
-                      ) : (
-                        getPageInitial(page.pageName)
-                      )}
+                      <SafeImage
+                        src={previewImage}
+                        alt={page.pageName}
+                        className="av-img"
+                      />
                     </div>
                     <div>
                       <div className="pname">{page.pageName}</div>
@@ -671,7 +659,7 @@ export function PagesPage() {
                       {pageForm.files.map((entry, index) => (
                         <div key={`${entry.file.name}-${index}`} className="image-upload-file-item">
                           <div className="image-upload-preview-frame">
-                            <img
+                            <SafeImage
                               src={entry.previewUrl}
                               alt={entry.file.name}
                               className="image-upload-preview-img"

@@ -9,6 +9,7 @@ import {
   deleteImagesFromHumanAsset,
 } from "../api/humanAssetUploads";
 import { fetchProfiles } from "../api/profiles";
+import { SafeImage } from "../components/SafeImage";
 import { useAuth } from "../context/AuthContext";
 import "../App.css";
 
@@ -765,7 +766,7 @@ export function ImageAssetDetailPage() {
                       setSelectedImage(image);
                     }}
                   >
-                    <img
+                    <SafeImage
                       src={image.filename}
                       alt={`${asset.name} ${index + 1}`}
                       className="image-asset-img"
@@ -846,7 +847,7 @@ export function ImageAssetDetailPage() {
                     }
                   }}
                 >
-                  <img
+                  <SafeImage
                     src={selectedImageFilename}
                     alt={asset.name}
                     className="image-asset-modal-img"
@@ -1299,7 +1300,7 @@ export function ImageAssetDetailPage() {
                           className="image-upload-file-item"
                         >
                           <div className="image-upload-preview-frame">
-                            <img
+                            <SafeImage
                               src={entry.previewUrl}
                               alt={entry.file.name}
                               className="image-upload-preview-img"

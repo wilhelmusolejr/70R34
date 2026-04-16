@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { fetchProfiles } from "../api/profiles";
 import { GenerateProfilesModal } from "../components/GenerateProfilesModal";
 import { NewProfileModal } from "../components/NewProfileModal";
+import { SafeImage } from "../components/SafeImage";
 import { AVC, STATUS_CLASS, STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
 import { canViewConfidential, canWrite, mask } from "../utils/access";
@@ -67,10 +68,6 @@ function getAvatarColor(id) {
   return AVC[(id - 1) % AVC.length];
 }
 
-function getInitials(firstName, lastName) {
-  return (firstName[0] + lastName[0]).toUpperCase();
-}
-
 function getUserAvatarFilename(profile) {
   const userImages = (profile?.images || [])
     .map((entry) => entry?.imageId || entry?.image)
@@ -126,7 +123,7 @@ export function ProfilesPage() {
         setError("");
         const data = await fetchProfiles();
         if (!cancelled) {
-          setProfiles(data.filter((profile) => profile.status !== "Available"));
+          setProfiles(data);
         }
       } catch (err) {
         if (!cancelled) {
@@ -579,15 +576,11 @@ export function ProfilesPage() {
                             className="av"
                             style={{ background: getAvatarColor(profile.id) }}
                           >
-                            {userAvatar ? (
-                              <img
-                                src={userAvatar}
-                                alt={`${profile.firstName} ${profile.lastName}`}
-                                className="av-img"
-                              />
-                            ) : (
-                              getInitials(profile.firstName, profile.lastName)
-                            )}
+                            <SafeImage
+                              src={userAvatar}
+                              alt={`${profile.firstName} ${profile.lastName}`}
+                              className="av-img"
+                            />
                           </div>
                           <div>
                             <div className="pname">

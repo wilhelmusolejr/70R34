@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { fetchProfiles } from "../api/profiles";
 import { useNavigate } from "react-router-dom";
 import { fetchHumanAssets } from "../api/humanAssets";
+import { SafeImage } from "../components/SafeImage";
 import { createHumanAssetWithImages } from "../api/humanAssetUploads";
 import { useAuth } from "../context/AuthContext";
 import "../App.css";
@@ -358,15 +359,11 @@ export function ImagesPage() {
                   <td>
                     <div className="pcell">
                       <div className="av">
-                        {previewImage ? (
-                          <img
-                            src={previewImage}
-                            alt={asset.name}
-                            className="av-img"
-                          />
-                        ) : (
-                          String(asset.name || "I").trim().charAt(0).toUpperCase()
-                        )}
+                        <SafeImage
+                          src={previewImage}
+                          alt={asset.name}
+                          className="av-img"
+                        />
                       </div>
                       <div>
                         <div className="pname">{asset.name}</div>
@@ -573,7 +570,7 @@ export function ImagesPage() {
                       {uploadForm.files.map((entry, index) => (
                         <div key={`${entry.file.name}-${index}`} className="image-upload-file-item">
                           <div className="image-upload-preview-frame">
-                            <img
+                            <SafeImage
                               src={entry.previewUrl}
                               alt={entry.file.name}
                               className="image-upload-preview-img"
