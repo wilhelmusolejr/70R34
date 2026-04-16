@@ -45,7 +45,9 @@ async function apiFetch(path, options = {}) {
 }
 
 export function fetchProfiles() {
-  return apiFetch("/api/profiles");
+  return apiFetch("/api/profiles").then((data) =>
+    Array.isArray(data) ? data : [],
+  );
 }
 
 export function fetchProfile(id) {

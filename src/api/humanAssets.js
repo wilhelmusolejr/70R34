@@ -36,7 +36,9 @@ async function apiFetch(path, options = {}) {
 }
 
 export function fetchHumanAssets() {
-  return apiFetch("/api/human-assets");
+  return apiFetch("/api/human-assets").then((data) =>
+    Array.isArray(data) ? data : [],
+  );
 }
 
 export function fetchHumanAsset(id) {

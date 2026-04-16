@@ -39,7 +39,9 @@ async function apiFetch(path, options = {}) {
 }
 
 export function fetchPages() {
-  return apiFetch("/api/pages");
+  return apiFetch("/api/pages").then((data) =>
+    Array.isArray(data) ? data : [],
+  );
 }
 
 export function fetchPage(pageId) {
