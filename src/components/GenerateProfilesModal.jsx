@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { bulkCreateProfiles } from "../api/profiles";
 import { useAuth } from "../context/AuthContext";
 import { generateBatch } from "../generator/generate";
+import { buildIdentityPrompt } from "../utils/identityPrompt";
 
 const STATUS_OPTIONS = [
   "Available",
@@ -85,7 +86,7 @@ export function GenerateProfilesModal({
         maxAge,
         emailDomain: form.emailDomain.trim() || null,
         status: form.status,
-      });
+      }).map((profile) => ({ ...profile, identityPrompt: buildIdentityPrompt(profile) }));
       const result = await bulkCreateProfiles(profiles, currentUser?.id);
       if (result.user) {
         login(result.user);

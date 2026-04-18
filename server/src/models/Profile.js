@@ -167,6 +167,7 @@ const ProfileSchema = new Schema(
     },
     travel: { type: [TravelSchema], default: [] },
     otherNames: { type: [String], default: [] },
+    identityPrompt: { type: String, default: "" },
   },
   {
     timestamps: true,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { createProfile } from "../api/profiles";
+import { createProfile, updateProfile } from "../api/profiles";
 import { useAuth } from "../context/AuthContext";
+import { buildIdentityPrompt } from "../utils/identityPrompt";
 import { STATUS_OPTIONS } from "../constants/profileUi";
 import { generateProfile } from "../generator/generate";
 
@@ -416,6 +417,16 @@ export function NewProfileModal({
       if (result.user) {
         login(result.user);
       }
+
+      const identityPrompt = buildIdentityPrompt(result.profile);
+      if (identityPrompt) {
+        try {
+          await updateProfile(result.profile.id, { identityPrompt });
+        } catch {
+          // non-critical, prompt can be regenerated from detail page
+        }
+      }
+
       onCreated(result.profile);
       onToast?.(`Profile #${result.profile.id} created successfully.`);
       onClose();

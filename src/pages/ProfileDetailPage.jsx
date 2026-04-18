@@ -13,6 +13,7 @@ import { SafeImage } from "../components/SafeImage";
 import { AVC, STATUS_CLASS, STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
 import { canViewConfidential, mask, reveal } from "../utils/access";
+import { buildIdentityPrompt } from "../utils/identityPrompt";
 import "../App.css";
 
 const MAKER_EDITABLE_FIELDS = new Set([
@@ -113,6 +114,7 @@ function getDefaultProfile() {
     phone: "",
     recoveryEmail: "",
     notes: "",
+    identityPrompt: "",
     websites: [],
     socialLinks: [],
     images: [],
@@ -180,6 +182,7 @@ function normalizeProfile(raw) {
       ...base.interests,
       ...(raw?.interests || {}),
     },
+    identityPrompt: raw?.identityPrompt || "",
     images: raw?.images || [],
     travel: raw?.travel || [],
     otherNames: raw?.otherNames || [],
@@ -593,6 +596,80 @@ function StatusSelect({ value, onChange, disabled = false }) {
         ))}
       </select>
     </span>
+  );
+}
+
+function IdentityPromptCard({ profile, writeable, onSave, onRegenerate }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(profile.identityPrompt || "");
+  const [copied, setCopied] = useState(false);
+  const value = profile.identityPrompt || "";
+
+  async function copy() {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  function startEdit() {
+    setDraft(value);
+    setEditing(true);
+  }
+
+  async function save() {
+    await onSave(draft);
+    setEditing(false);
+  }
+
+  return (
+    <div className="dc">
+      <div className="dct" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span>User Identity</span>
+        {writeable && (
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button type="button" className="btn-s" style={{ padding: "4px 10px", fontSize: "11px" }} onClick={onRegenerate}>
+              Regenerate
+            </button>
+            {!editing && (
+              <button type="button" className="btn-s" style={{ padding: "4px 10px", fontSize: "11px" }} onClick={startEdit}>
+                Edit
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {editing ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 16px 16px" }}>
+          <textarea
+            className="ef-input ef-textarea"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            autoFocus
+            rows={8}
+          />
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button type="button" className="ef-save" onClick={save}>Save</button>
+            <button type="button" className="ef-cancel" onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="dr" style={{ borderBottom: "none" }}>
+          <div className="dv" style={{ whiteSpace: "pre-wrap", lineHeight: "1.6", flex: 1 }}>
+            {value ? value : <em className="ef-empty">No identity prompt yet. Click Regenerate to build one from profile data.</em>}
+          </div>
+          {value && (
+            <button type="button" className={`cpbtn${copied ? " ok" : ""}`} onClick={copy}>
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1805,6 +1882,13 @@ export function ProfileDetailPage() {
               </div>
             </div>
           </SectionCard>
+
+          <IdentityPromptCard
+            profile={profile}
+            writeable={writeable}
+            onSave={(value) => upTopLevel("identityPrompt", value)}
+            onRegenerate={() => upTopLevel("identityPrompt", buildIdentityPrompt(profile))}
+          />
 
           <SectionCard title="Images Gallery">
             <>
