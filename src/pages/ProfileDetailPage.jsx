@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { updateAssignmentStatus } from "../api/auth";
+import { fetchHumanAssets } from "../api/humanAssets";
 import { fetchPages, updatePage } from "../api/pages";
 import { getProfileImagesDownloadUrl } from "../api/profileDownloads";
 import {
@@ -595,6 +596,46 @@ function StatusSelect({ value, onChange, disabled = false }) {
   );
 }
 
+function JsonBlock({ profile }) {
+  const [copied, setCopied] = useState(false);
+  const json = JSON.stringify(profile, null, 2);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(json);
+    } catch {
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <div className="dc" style={{ marginTop: "14px" }}>
+      <div className="dct" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span>Raw JSON</span>
+        <button className={`cpbtn${copied ? " ok" : ""}`} onClick={copy}>
+          {copied ? "Copied!" : "Copy"}
+        </button>
+      </div>
+      <pre style={{
+        margin: 0,
+        padding: "16px",
+        fontSize: "11px",
+        lineHeight: "1.6",
+        color: "var(--text2)",
+        background: "var(--surface2, var(--bg2))",
+        borderRadius: "6px",
+        overflowX: "auto",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-all",
+      }}>
+        {json}
+      </pre>
+    </div>
+  );
+}
+
 export function ProfileDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -610,6 +651,7 @@ export function ProfileDetailPage() {
   const [submittingProfile, setSubmittingProfile] = useState(false);
   const [removingImageId, setRemovingImageId] = useState("");
   const [pages, setPages] = useState([]);
+  const [imageIdToAssetId, setImageIdToAssetId] = useState({});
   const [pageDatasetInput, setPageDatasetInput] = useState("");
   const [isSavingPageOwnership, setIsSavingPageOwnership] = useState(false);
   const role = currentUser?.role || "";
@@ -680,6 +722,29 @@ export function ProfileDetailPage() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadImageAssetMap() {
+      try {
+        const assets = await fetchHumanAssets();
+        if (cancelled) return;
+        const map = {};
+        for (const asset of assets) {
+          for (const img of asset.images || []) {
+            if (img._id) map[String(img._id)] = String(asset._id || asset.id || "");
+          }
+        }
+        setImageIdToAssetId(map);
+      } catch {
+        // non-critical, link just won't show
+      }
+    }
+
+    loadImageAssetMap();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -1917,15 +1982,17 @@ export function ProfileDetailPage() {
                                         ).replace(" Images", "")}
                                       </span>
                                     </div>
-                                    <div className="profile-image-name">
-                                      {section.key === "page-model"
-                                        ? entry.image.filename.split("/").pop()
-                                        : entry.image.annotation ||
-                                          entry.image.filename.split("/").pop()}
-                                    </div>
                                     <div className="profile-image-date">
                                       Assigned {fmtDate(entry.assignedAt)}
                                     </div>
+                                    {section.key === "human-asset" && imageIdToAssetId[String(entry.image?._id || "")] ? (
+                                      <Link
+                                        to={`/images/${imageIdToAssetId[String(entry.image?._id || "")]}`}
+                                        className="image-asset-user-link"
+                                      >
+                                        View asset
+                                      </Link>
+                                    ) : null}
                                     {section.key === "human-asset" &&
                                     canPersist ? (
                                       <button
@@ -1968,6 +2035,8 @@ export function ProfileDetailPage() {
           </SectionCard>
         </div>
       </div>
+
+      <JsonBlock profile={profile} />
 
       {isTrackerModalOpen && (
         <div
