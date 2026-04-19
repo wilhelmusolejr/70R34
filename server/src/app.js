@@ -20,6 +20,10 @@ export function createApp() {
   app.use("/api/pages", pagesRouter);
   app.use("/api/profiles", profilesRouter);
 
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ message: "API route not found" });
+  });
+
   app.use(function errorHandler(err, _req, res, next) {
     void next;
     console.error("Unhandled error:", err.message);
