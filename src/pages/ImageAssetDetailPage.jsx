@@ -645,14 +645,14 @@ export function ImageAssetDetailPage() {
 
                   return (
                     <div
-                      key={`asset-profile-${profile._id || profile.id}`}
+                      key={`asset-profile-${profile._id}`}
                       className="image-asset-user-item"
                     >
                       <div className="image-asset-user-name">
-                        {fullName || `Profile #${profile.id}`}
+                        {fullName || `Profile #${profile._id}`}
                       </div>
                       <Link
-                        to={`/profile/${profile.id}`}
+                        to={`/profile/${profile._id}`}
                         className="image-asset-user-link"
                       >
                         Open Profile
@@ -1403,7 +1403,7 @@ export function ImageAssetDetailPage() {
                                           ),
                                     }))}
                                 />
-                                <span>{fullName || `Profile #${profile.id}`}</span>
+                                <span>{fullName || `Profile #${profile._id}`}</span>
                               </label>
                             );
                           })}

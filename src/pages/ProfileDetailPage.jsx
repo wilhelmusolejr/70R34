@@ -25,7 +25,10 @@ const MAKER_EDITABLE_FIELDS = new Set([
 ]);
 
 function getAvatarColor(id) {
-  return AVC[(id - 1) % AVC.length];
+  const str = String(id || "");
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  return AVC[hash % AVC.length];
 }
 
 function toCapitalizedWords(value) {
@@ -141,6 +144,7 @@ function getDefaultProfile() {
     },
     travel: [],
     otherNames: [],
+    browsers: [],
   };
 }
 
@@ -186,6 +190,7 @@ function normalizeProfile(raw) {
     images: raw?.images || [],
     travel: raw?.travel || [],
     otherNames: raw?.otherNames || [],
+    browsers: raw?.browsers || [],
   };
 }
 
@@ -556,6 +561,38 @@ function TravelCard({ item, onUpdate, onRemove, editable = true }) {
   );
 }
 
+function BrowserCard({ item, onUpdate, onRemove, editable = true }) {
+  return (
+    <div className="work-card">
+      <div className="work-header">
+        <div className="work-title">
+          <EditableText
+            value={item.browserId}
+            onSave={(v) => onUpdate("browserId", v)}
+            placeholder="Browser ID (UUID)"
+            copyable
+            editable={editable}
+          />
+        </div>
+        {editable && (
+          <button className="rm-btn" onClick={onRemove} title="Remove">
+            x
+          </button>
+        )}
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Provider:</span>
+        <EditableText
+          value={item.provider}
+          onSave={(v) => onUpdate("provider", v)}
+          placeholder="e.g. hidemium"
+          editable={editable}
+        />
+      </div>
+    </div>
+  );
+}
+
 function SectionCard({ title, badge, children }) {
   return (
     <div className="dc">
@@ -717,7 +754,6 @@ export function ProfileDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { currentUser, login } = useAuth();
-  const numId = Number.parseInt(id, 10);
 
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -762,7 +798,7 @@ export function ProfileDetailPage() {
       try {
         setLoading(true);
         setError("");
-        const data = await fetchProfile(numId);
+        const data = await fetchProfile(id);
         if (!cancelled) setProfile(normalizeProfile(data));
       } catch (err) {
         if (!cancelled) setError(err.message || "Failed to load profile.");
@@ -776,7 +812,7 @@ export function ProfileDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [numId]);
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -844,7 +880,7 @@ export function ProfileDetailPage() {
     setProfile(nextProfile);
 
     try {
-      const saved = await updateProfile(numId, serializeProfile(nextProfile));
+      const saved = await updateProfile(id, serializeProfile(nextProfile));
       setProfile(normalizeProfile(saved));
       setError("");
     } catch (err) {
@@ -858,7 +894,7 @@ export function ProfileDetailPage() {
 
     try {
       setRemovingImageId(imageId);
-      const updated = await unassignProfileImage(numId, imageId);
+      const updated = await unassignProfileImage(id, imageId);
       setProfile(normalizeProfile(updated));
       setError("");
     } catch (err) {
@@ -870,7 +906,7 @@ export function ProfileDetailPage() {
 
   async function refreshProfileAndPages() {
     const [nextProfile, nextPages] = await Promise.all([
-      fetchProfile(numId),
+      fetchProfile(id),
       fetchPages(),
     ]);
     setProfile(normalizeProfile(nextProfile));
@@ -1016,6 +1052,29 @@ export function ProfileDetailPage() {
     }));
   }
 
+  function addBrowser() {
+    persistProfile((current) => ({
+      ...current,
+      browsers: [...(current.browsers || []), { browserId: "", provider: "" }],
+    }));
+  }
+
+  function upBrowser(idx, field, value) {
+    persistProfile((current) => ({
+      ...current,
+      browsers: (current.browsers || []).map((b, i) =>
+        i === idx ? { ...b, [field]: value } : b,
+      ),
+    }));
+  }
+
+  function removeBrowser(idx) {
+    persistProfile((current) => ({
+      ...current,
+      browsers: (current.browsers || []).filter((_, i) => i !== idx),
+    }));
+  }
+
   function trackedToday() {
     return (profile?.trackerLog || []).some((entry) => entry.date === TODAY);
   }
@@ -1065,7 +1124,7 @@ export function ProfileDetailPage() {
     const previousProfile = profile;
 
     try {
-      const savedProfile = await updateProfile(numId, {
+      const savedProfile = await updateProfile(id, {
         ...profile,
         status: "Need Setup",
       });
@@ -1073,7 +1132,7 @@ export function ProfileDetailPage() {
 
       const result = await updateAssignmentStatus(
         currentUser.id,
-        profile.id,
+        profile._id,
         "completed",
       );
       if (result.user) {
@@ -1117,7 +1176,7 @@ export function ProfileDetailPage() {
     );
   }
 
-  const avatarColor = getAvatarColor(profile.id);
+  const avatarColor = getAvatarColor(profile._id);
   const s = score(profile);
   const college = profile.education?.college || {};
   const hs = profile.education?.highSchool || {};
@@ -1192,7 +1251,7 @@ export function ProfileDetailPage() {
   const trackerEntries = sortedTrackerLog();
   const hasTrackedToday = trackedToday();
   const makerAssignment = (currentUser?.profiles || []).find(
-    (entry) => entry.profileId === profile.id,
+    (entry) => entry.profileId === profile._id,
   );
   const showMakerSubmit =
     isMaker && makerAssignment?.assignmentStatus === "pending";
@@ -1623,6 +1682,23 @@ export function ProfileDetailPage() {
             )}
           </SectionCard>
 
+          <SectionCard title="Browsers">
+            {(profile.browsers || []).map((item, idx) => (
+              <BrowserCard
+                key={idx}
+                item={item}
+                onUpdate={(field, value) => upBrowser(idx, field, value)}
+                onRemove={() => removeBrowser(idx)}
+                editable={writeable}
+              />
+            ))}
+            {writeable && (
+              <button className="add-item-btn" onClick={addBrowser}>
+                + Add Browser
+              </button>
+            )}
+          </SectionCard>
+
           <SectionCard title="Other Names">
             <EditableTags
               items={profile.otherNames || []}
@@ -1906,7 +1982,7 @@ export function ProfileDetailPage() {
                   </div>
                   {profileImages.length ? (
                     <a
-                      href={getProfileImagesDownloadUrl(profile.id)}
+                      href={getProfileImagesDownloadUrl(profile._id)}
                       className="btn-s"
                     >
                       Download ZIP

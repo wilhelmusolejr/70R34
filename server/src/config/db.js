@@ -7,4 +7,10 @@ export async function connectToDatabase(uri) {
 
   mongoose.set("strictQuery", true);
   await mongoose.connect(uri);
+
+  try {
+    await mongoose.connection.collection("profiles").dropIndex("id_1");
+  } catch {
+    // index already dropped or never existed
+  }
 }

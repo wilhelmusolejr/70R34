@@ -378,7 +378,7 @@ export function PageDetailPage() {
     : "";
   const assignableProfiles = profiles.filter((profile) => {
     const hasPage = String(profile.pageUrl || "").trim().length > 0;
-    const isCurrent = page?.linkedIdentity?.id === profile.id;
+    const isCurrent = page?.linkedIdentity?._id === profile._id;
     return !hasPage || isCurrent;
   });
   const assignableProfileOptions = assignableProfiles
@@ -389,7 +389,7 @@ export function PageDetailPage() {
         .trim();
       return {
         id: profile._id,
-        label: fullName || `Profile #${profile.id}`,
+        label: fullName || `Profile #${profile._id}`,
       };
     })
     .filter((profile) => profile.label);
@@ -999,7 +999,7 @@ export function PageDetailPage() {
                     />
                     <datalist id="page-assignable-profile-options">
                       {assignableProfileOptions.map((profile) => (
-                        <option key={profile.id} value={profile.label} />
+                        <option key={profile.id || profile._id} value={profile.label} />
                       ))}
                     </datalist>
                     <div

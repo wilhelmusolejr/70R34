@@ -24,8 +24,10 @@ Fictional person identities used for Facebook accounts. Each profile has:
 - Personal info: name, gender, DOB, city, hometown, bio
 - Contact: emails (multiple, one selected), passwords (email + Facebook), phone, recovery email
 - Life details: work history, education, relationship status, languages, interests, travel
+- Browser assignments: `browsers` array — `{ browserId, provider }` (e.g. hidemium)
 - Account state: status, tags, tracker log, `has2FA`, `hasPage`, `profileSetup`
 - API: `/api/profiles` — CRUD + bulk create + image unassign
+- **IDs:** profiles use MongoDB `_id` (ObjectId string) — not a numeric `id` field. All routes and frontend refs use `_id`.
 
 ### 2. Images (`/images`)
 Real-person photo asset sets used as visual identity for profiles. Internally called **human assets** in the API and code. Each asset has:
@@ -74,10 +76,12 @@ src/
 ## Environment
 
 ```
-VITE_API_URL=http://localhost:4000   # backend base URL
+VITE_API_URL=http://localhost:4000   # backend base URL (dev only)
 IMAGE_API_KEY=                        # key for image generation (AI images)
 IMAGE_MODEL=black-forest-labs/FLUX.1-schnell
 ```
+
+In production, the server (`server/`) serves the built `dist/` and the API on the same port. Leave `VITE_API_URL` empty so API calls use relative paths. The `server/.env` only needs `MONGODB_URI` and `PORT`.
 
 ## CSS Conventions
 

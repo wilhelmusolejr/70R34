@@ -65,7 +65,10 @@ function getFriendsDisplay(profile) {
 }
 
 function getAvatarColor(id) {
-  return AVC[(id - 1) % AVC.length];
+  const str = String(id || "");
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  return AVC[hash % AVC.length];
 }
 
 function getUserAvatarFilename(profile) {
@@ -174,7 +177,7 @@ export function ProfilesPage() {
 
     setProfiles((current) =>
       current.map((profile) =>
-        profile.id === trackerTarget.id
+        profile._id === trackerTarget._id
           ? {
               ...profile,
               trackerLog: [...(profile.trackerLog || []), nextEntry],
@@ -209,7 +212,7 @@ export function ProfilesPage() {
   const visibleProfiles = isMaker
     ? profiles.filter((profile) =>
         (currentUser?.profiles || []).some(
-          (entry) => entry.profileId === profile.id,
+          (entry) => entry.profileId === profile._id,
         ),
       )
     : profiles;
@@ -267,16 +270,14 @@ export function ProfilesPage() {
     if (sortOrder === "ready") {
       return Number(b.profileSetup) - Number(a.profileSetup);
     }
-    return a.id - b.id;
+    return String(a._id || "").localeCompare(String(b._id || ""));
   });
-
-  const nextId =
-    visibleProfiles.reduce((maxId, profile) => Math.max(maxId, profile.id), 0) +
-    1;
 
   function handleProfileCreated(createdProfile) {
     setProfiles((current) =>
-      [...current, createdProfile].sort((a, b) => a.id - b.id),
+      [...current, createdProfile].sort((a, b) =>
+        String(a._id || "").localeCompare(String(b._id || "")),
+      ),
     );
   }
 
@@ -300,14 +301,15 @@ export function ProfilesPage() {
         onClose={() => setIsGenerateOpen(false)}
         onGenerated={(newProfiles) =>
           setProfiles((cur) =>
-            [...cur, ...newProfiles].sort((a, b) => a.id - b.id),
+            [...cur, ...newProfiles].sort((a, b) =>
+              String(a._id || "").localeCompare(String(b._id || "")),
+            ),
           )
         }
         onToast={setToast}
       />
       <NewProfileModal
         isOpen={isModalOpen}
-        nextId={nextId}
         onClose={() => setIsModalOpen(false)}
         onCreated={handleProfileCreated}
         onToast={setToast}
@@ -567,14 +569,14 @@ export function ProfilesPage() {
 
                   return (
                     <tr
-                      key={profile.id}
+                      key={profile._id}
                       className={done ? "processed-today" : ""}
                     >
                       <td data-label="Profile">
                         <div className="pcell">
                           <div
                             className="av"
-                            style={{ background: getAvatarColor(profile.id) }}
+                            style={{ background: getAvatarColor(profile._id) }}
                           >
                             <SafeImage
                               src={userAvatar}
@@ -710,7 +712,7 @@ export function ProfilesPage() {
                       <td data-label="Action">
                         <button
                           className="vbtn"
-                          onClick={() => navigate(`/profile/${profile.id}`)}
+                          onClick={() => navigate(`/profile/${profile._id}`)}
                         >
                           View
                         </button>

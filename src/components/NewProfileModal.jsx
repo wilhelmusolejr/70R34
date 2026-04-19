@@ -49,11 +49,10 @@ function createEmptyTravel() {
   };
 }
 
-function createEmptyProfile(nextId) {
+function createEmptyProfile() {
   const today = new Date().toLocaleDateString("en-CA");
 
   return {
-    id: nextId,
     firstName: "",
     lastName: "",
     dob: "",
@@ -174,14 +173,13 @@ function normalizeRelationshipStatus(status) {
 
 export function NewProfileModal({
   isOpen,
-  nextId,
   onClose,
   onCreated,
   onToast,
 }) {
   const { currentUser, login } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
-  const [form, setForm] = useState(() => createEmptyProfile(nextId));
+  const [form, setForm] = useState(() => createEmptyProfile());
   const [autoFillMode, setAutoFillMode] = useState(AUTO_FILL_OPTIONS.none);
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
@@ -189,13 +187,13 @@ export function NewProfileModal({
 
   useEffect(() => {
     if (isOpen) {
-      setForm(createEmptyProfile(nextId));
+      setForm(createEmptyProfile());
       setErrors({});
       setSubmitError("");
       setActiveTab(0);
       setAutoFillMode(AUTO_FILL_OPTIONS.none);
     }
-  }, [isOpen, nextId]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -286,11 +284,11 @@ export function NewProfileModal({
       hometown: generated.hometown || current.hometown,
       education: {
         college: {
-          ...createEmptyProfile(nextId).education.college,
+          ...createEmptyProfile().education.college,
           ...(generated.education?.college || {}),
         },
         highSchool: {
-          ...createEmptyProfile(nextId).education.highSchool,
+          ...createEmptyProfile().education.highSchool,
           ...(generated.education?.highSchool || {}),
         },
       },
@@ -421,14 +419,14 @@ export function NewProfileModal({
       const identityPrompt = buildIdentityPrompt(result.profile);
       if (identityPrompt) {
         try {
-          await updateProfile(result.profile.id, { identityPrompt });
+          await updateProfile(result.profile._id, { identityPrompt });
         } catch {
           // non-critical, prompt can be regenerated from detail page
         }
       }
 
       onCreated(result.profile);
-      onToast?.(`Profile #${result.profile.id} created successfully.`);
+      onToast?.(`Profile created successfully.`);
       onClose();
     } catch (err) {
       setSubmitError(err.message || "Failed to create profile.");
@@ -446,7 +444,7 @@ export function NewProfileModal({
         <div className="npm-header">
           <div>
             <div className="npm-kicker">Manual Profile Entry</div>
-            <h2 className="npm-title">Create Profile #{nextId}</h2>
+            <h2 className="npm-title">Create Profile</h2>
           </div>
           <button className="npm-close" type="button" onClick={onClose}>
             x

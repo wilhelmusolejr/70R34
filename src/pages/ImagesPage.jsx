@@ -662,7 +662,7 @@ export function ImagesPage() {
                                         : current.numberProfileUsing.filter((id) => id !== profile._id),
                                     }))}
                                 />
-                                <span>{fullName || `Profile #${profile.id}`}</span>
+                                <span>{fullName || `Profile #${profile._id}`}</span>
                               </label>
                             );
                           })}

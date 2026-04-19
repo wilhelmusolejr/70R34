@@ -1,6 +1,7 @@
 import archiver from "archiver";
 import fs from "node:fs";
 import path from "node:path";
+import mongoose from "mongoose";
 import { Router } from "express";
 import { fileURLToPath } from "node:url";
 import { HumanAsset } from "../models/HumanAsset.js";
@@ -15,9 +16,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "../../..");
 
-function parseId(value) {
-  const id = Number.parseInt(value, 10);
-  return Number.isNaN(id) ? null : id;
+function isValidId(value) {
+  return mongoose.Types.ObjectId.isValid(value);
 }
 
 function sanitizeUser(user) {
@@ -100,7 +100,7 @@ function formatProfile(profile) {
 }
 
 function getPopulatedProfileQuery(id) {
-  return Profile.findOne({ id })
+  return Profile.findById(id)
     .populate("images.imageId")
     .populate({
       path: "pageId",
@@ -117,7 +117,7 @@ router.get("/", async (_req, res, next) => {
     const profiles = await Profile.find()
       .populate("images.imageId")
       .populate("pageId", "pageName pageId")
-      .sort({ id: 1 })
+      .sort({ _id: 1 })
       .lean();
     res.json(profiles.map(formatProfile));
   } catch (error) {
@@ -127,8 +127,8 @@ router.get("/", async (_req, res, next) => {
 
 router.get("/:id", async (req, res, next) => {
   try {
-    const id = parseId(req.params.id);
-    if (id === null) {
+    const { id } = req.params;
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid profile id" });
     }
 
@@ -145,10 +145,10 @@ router.get("/:id", async (req, res, next) => {
 
 router.delete("/:id/images/:imageId", async (req, res, next) => {
   try {
-    const id = parseId(req.params.id);
+    const { id } = req.params;
     const imageId = String(req.params.imageId || "").trim();
 
-    if (id === null) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid profile id" });
     }
 
@@ -156,7 +156,7 @@ router.delete("/:id/images/:imageId", async (req, res, next) => {
       return res.status(400).json({ message: "Invalid image id" });
     }
 
-    const profile = await Profile.findOne({ id });
+    const profile = await Profile.findById(id);
     if (!profile) {
       return res.status(404).json({ message: "Profile not found" });
     }
@@ -225,9 +225,6 @@ router.post("/bulk", async (req, res, next) => {
       return res.status(400).json({ message: "profiles array required" });
     }
 
-    const lastProfile = await Profile.findOne().sort({ id: -1 }).lean();
-    let nextId = (lastProfile?.id ?? 0) + 1;
-
     let ownerUser = null;
     if (userId) {
       ownerUser = await User.findById(userId);
@@ -237,14 +234,12 @@ router.post("/bulk", async (req, res, next) => {
     const documents = incoming.map((profile) => ({
       ...profile,
       status: createdByMaker ? "Pending Profile" : profile.status,
-      id: nextId++,
     }));
 
     let inserted = [];
     try {
       inserted = await Profile.insertMany(documents, { ordered: false });
     } catch (bulkErr) {
-      // ordered:false throws BulkWriteError but still inserts valid docs
       if (bulkErr?.insertedDocs?.length) {
         inserted = bulkErr.insertedDocs;
       } else {
@@ -256,23 +251,26 @@ router.post("/bulk", async (req, res, next) => {
     let updatedUser = null;
 
     if (ownerUser && inserted.length) {
-      if (ownerUser) {
-        const existingIds = new Set((ownerUser.profiles || []).map((entry) => entry.profileId));
-        const assignedAt = new Date().toISOString().slice(0, 10);
+      const existingIds = new Set((ownerUser.profiles || []).map((entry) => String(entry.profileId)));
+      const assignedAt = new Date().toISOString().slice(0, 10);
 
-        inserted.forEach((profile) => {
-          if (!existingIds.has(profile.id)) {
-            ownerUser.profiles.push({
-              profileId: profile.id,
-              assignedAt,
-              assignmentStatus: "pending",
-            });
-          }
-        });
+      const newAssignments = inserted
+        .filter((profile) => !existingIds.has(String(profile._id)))
+        .map((profile) => ({
+          profileId: profile._id,
+          assignedAt,
+          assignmentStatus: "pending",
+        }));
 
-        await ownerUser.save();
-        updatedUser = sanitizeUser(ownerUser);
+      if (newAssignments.length) {
+        await User.updateOne(
+          { _id: ownerUser._id },
+          { $push: { profiles: { $each: newAssignments } } },
+        );
       }
+
+      const refreshed = await User.findById(ownerUser._id).lean();
+      updatedUser = sanitizeUser(refreshed);
     }
 
     return res.status(201).json({
@@ -299,7 +297,7 @@ router.post("/", async (req, res, next) => {
     if (incomingSelectedEmail) {
       const existingProfiles = await Profile.find(
         { "emails.selected": true },
-        { id: 1, firstName: 1, lastName: 1, emails: 1 },
+        { firstName: 1, lastName: 1, emails: 1 },
       ).lean();
 
       const duplicateProfile = existingProfiles.find(
@@ -326,17 +324,24 @@ router.post("/", async (req, res, next) => {
 
     if (ownerUser) {
       const alreadyAssigned = (ownerUser.profiles || []).some(
-        (entry) => entry.profileId === profile.id,
+        (entry) => String(entry.profileId) === String(profile._id),
       );
       if (!alreadyAssigned) {
-        ownerUser.profiles.push({
-          profileId: profile.id,
-          assignedAt: new Date().toISOString().slice(0, 10),
-          assignmentStatus: "pending",
-        });
-        await ownerUser.save();
+        await User.updateOne(
+          { _id: ownerUser._id },
+          {
+            $push: {
+              profiles: {
+                profileId: profile._id,
+                assignedAt: new Date().toISOString().slice(0, 10),
+                assignmentStatus: "pending",
+              },
+            },
+          },
+        );
       }
-      updatedUser = sanitizeUser(ownerUser);
+      const refreshed = await User.findById(ownerUser._id).lean();
+      updatedUser = sanitizeUser(refreshed);
     }
 
     res.status(201).json({ profile, user: updatedUser });
@@ -347,14 +352,14 @@ router.post("/", async (req, res, next) => {
 
 router.put("/:id", async (req, res, next) => {
   try {
-    const id = parseId(req.params.id);
-    if (id === null) {
+    const { id } = req.params;
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid profile id" });
     }
 
-    const profile = await Profile.findOneAndUpdate(
-      { id },
-      { ...normalizeProfilePayload(req.body), id },
+    const profile = await Profile.findByIdAndUpdate(
+      id,
+      normalizeProfilePayload(req.body),
       { new: true, overwrite: true, runValidators: true },
     );
 
@@ -370,13 +375,13 @@ router.put("/:id", async (req, res, next) => {
 
 router.patch("/:id", async (req, res, next) => {
   try {
-    const id = parseId(req.params.id);
-    if (id === null) {
+    const { id } = req.params;
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid profile id" });
     }
 
-    const profile = await Profile.findOneAndUpdate(
-      { id },
+    const profile = await Profile.findByIdAndUpdate(
+      id,
       normalizeProfilePayload(req.body),
       { new: true, runValidators: true },
     );
@@ -394,8 +399,8 @@ router.patch("/:id", async (req, res, next) => {
 
 router.get("/:id/images/download", async (req, res, next) => {
   try {
-    const id = parseId(req.params.id);
-    if (id === null) {
+    const { id } = req.params;
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid profile id" });
     }
 
@@ -420,7 +425,7 @@ router.get("/:id/images/download", async (req, res, next) => {
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || `profile-${profile.id}`;
+      .replace(/^-+|-+$/g, "") || `profile-${profile._id}`;
 
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="${safeName}-images.zip"`);
@@ -456,12 +461,12 @@ router.get("/:id/images/download", async (req, res, next) => {
 
 router.delete("/:id", async (req, res, next) => {
   try {
-    const id = parseId(req.params.id);
-    if (id === null) {
+    const { id } = req.params;
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid profile id" });
     }
 
-    const profile = await Profile.findOneAndDelete({ id });
+    const profile = await Profile.findByIdAndDelete(id);
     if (!profile) {
       return res.status(404).json({ message: "Profile not found" });
     }

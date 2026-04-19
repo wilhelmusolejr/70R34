@@ -604,7 +604,7 @@ export function PagesPage() {
                                     linkedIdentityId: profile._id,
                                   }))}
                               />
-                              <span>{fullName || `Profile #${profile.id}`}</span>
+                              <span>{fullName || `Profile #${profile._id}`}</span>
                             </label>
                           );
                         })

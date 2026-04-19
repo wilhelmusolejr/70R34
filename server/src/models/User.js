@@ -4,7 +4,7 @@ const { Schema, model } = mongoose;
 
 const UserProfileSchema = new Schema(
   {
-    profileId: { type: Number, required: true },
+    profileId: { type: Schema.Types.ObjectId, required: true },
     assignedAt: { type: String, default: "" },
     assignmentStatus: {
       type: String,

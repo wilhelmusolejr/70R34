@@ -75,6 +75,14 @@ const EmailSchema = new Schema(
   { _id: false },
 );
 
+const BrowserSchema = new Schema(
+  {
+    browserId: { type: String, default: "" },
+    provider: { type: String, default: "" },
+  },
+  { _id: false },
+);
+
 const TrackerLogSchema = new Schema(
   {
     date: { type: String, default: "" },
@@ -110,7 +118,6 @@ const PersonalSchema = new Schema(
 
 const ProfileSchema = new Schema(
   {
-    id: { type: Number, required: true, unique: true, index: true },
     firstName: { type: String, required: true, trim: true },
     lastName: { type: String, required: true, trim: true },
     dob: { type: String, default: "" },
@@ -167,6 +174,7 @@ const ProfileSchema = new Schema(
     },
     travel: { type: [TravelSchema], default: [] },
     otherNames: { type: [String], default: [] },
+    browsers: { type: [BrowserSchema], default: [] },
     identityPrompt: { type: String, default: "" },
   },
   {

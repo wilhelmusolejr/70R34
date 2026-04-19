@@ -80,10 +80,10 @@ router.post("/login", async (req, res, next) => {
 router.patch("/users/:userId/profiles/:profileId", async (req, res, next) => {
   try {
     const userId = String(req.params.userId || "").trim();
-    const profileId = Number.parseInt(req.params.profileId, 10);
+    const profileId = String(req.params.profileId || "").trim();
     const assignmentStatus = String(req.body?.assignmentStatus || "").trim();
 
-    if (!userId || Number.isNaN(profileId)) {
+    if (!userId || !profileId) {
       return res.status(400).json({ message: "Invalid user or profile id." });
     }
 
@@ -96,7 +96,7 @@ router.patch("/users/:userId/profiles/:profileId", async (req, res, next) => {
       return res.status(404).json({ message: "User not found." });
     }
 
-    const entry = (user.profiles || []).find((item) => item.profileId === profileId);
+    const entry = (user.profiles || []).find((item) => String(item.profileId) === profileId);
     if (!entry) {
       return res.status(404).json({ message: "Profile assignment not found." });
     }
