@@ -1,10 +1,11 @@
 ﻿import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { updateAssignmentStatus } from "../api/auth";
 import { fetchHumanAssets } from "../api/humanAssets";
 import { fetchPages, updatePage } from "../api/pages";
 import { getProfileImagesDownloadUrl } from "../api/profileDownloads";
 import {
+  addProxyLogEntry,
   fetchProfile,
   unassignProfileImage,
   updateProfile,
@@ -97,8 +98,8 @@ function getDefaultProfile() {
     emails: [],
     emailPassword: "",
     facebookPassword: "",
-    proxy: "",
-    proxyLocation: "",
+    proxies: [],
+    proxyLog: [],
     city: "",
     hometown: "",
     bio: "",
@@ -191,6 +192,8 @@ function normalizeProfile(raw) {
     travel: raw?.travel || [],
     otherNames: raw?.otherNames || [],
     browsers: raw?.browsers || [],
+    proxies: raw?.proxies || [],
+    proxyLog: raw?.proxyLog || [],
   };
 }
 
@@ -593,6 +596,48 @@ function BrowserCard({ item, onUpdate, onRemove, editable = true }) {
   );
 }
 
+function ProxyCard({ item, onUpdate, onRemove, editable = true, canCopy = true }) {
+  return (
+    <div className="work-card">
+      <div className="work-header">
+        <div className="work-title">
+          <EditableText
+            value={item.proxy}
+            onSave={(v) => onUpdate("proxy", v)}
+            placeholder="host:port:user:pass"
+            mono
+            copyable={canCopy}
+            editable={editable}
+          />
+        </div>
+        {editable && (
+          <button className="rm-btn" onClick={onRemove} title="Remove">
+            x
+          </button>
+        )}
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Source:</span>
+        <EditableText
+          value={item.source}
+          onSave={(v) => onUpdate("source", v)}
+          placeholder="e.g. brightdata, soax"
+          editable={editable}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Type:</span>
+        <EditableText
+          value={item.type}
+          onSave={(v) => onUpdate("type", v)}
+          placeholder="isp / residential / datacenter"
+          editable={editable}
+        />
+      </div>
+    </div>
+  );
+}
+
 function SectionCard({ title, badge, children }) {
   return (
     <div className="dc">
@@ -767,13 +812,15 @@ export function ProfileDetailPage() {
   const [imageIdToAssetId, setImageIdToAssetId] = useState({});
   const [pageDatasetInput, setPageDatasetInput] = useState("");
   const [isSavingPageOwnership, setIsSavingPageOwnership] = useState(false);
+  const [isCheckingProxyIp, setIsCheckingProxyIp] = useState(false);
+  const [proxyLogError, setProxyLogError] = useState("");
   const role = currentUser?.role || "";
   const isAdmin = role === "admin";
   const isMaker = role === "maker";
   const makerOwnsProfile =
     isMaker &&
     (currentUser?.profiles || []).some(
-      (entry) => entry.profileId === profile?.id,
+      (entry) => entry.profileId === profile?._id,
     );
   const generalConfidential = canViewConfidential(currentUser);
   const writeable = isAdmin;
@@ -1073,6 +1120,47 @@ export function ProfileDetailPage() {
       ...current,
       browsers: (current.browsers || []).filter((_, i) => i !== idx),
     }));
+  }
+
+  function addProxy() {
+    persistProfile((current) => ({
+      ...current,
+      proxies: [
+        ...(current.proxies || []),
+        { proxy: "", source: "", type: "" },
+      ],
+    }));
+  }
+
+  function upProxy(idx, field, value) {
+    persistProfile((current) => ({
+      ...current,
+      proxies: (current.proxies || []).map((p, i) =>
+        i === idx ? { ...p, [field]: value } : p,
+      ),
+    }));
+  }
+
+  function removeProxy(idx) {
+    persistProfile((current) => ({
+      ...current,
+      proxies: (current.proxies || []).filter((_, i) => i !== idx),
+    }));
+  }
+
+  async function recordProxyIpInfo() {
+    if (!profile?._id || isCheckingProxyIp) return;
+
+    setIsCheckingProxyIp(true);
+    setProxyLogError("");
+    try {
+      const updated = await addProxyLogEntry(profile._id, {});
+      setProfile(normalizeProfile(updated));
+    } catch (err) {
+      setProxyLogError(err.message || "Failed to record proxy IP info.");
+    } finally {
+      setIsCheckingProxyIp(false);
+    }
   }
 
   function trackedToday() {
@@ -1699,6 +1787,91 @@ export function ProfileDetailPage() {
             )}
           </SectionCard>
 
+          <SectionCard title="Proxies">
+            {(profile.proxies || []).map((item, idx) => (
+              <ProxyCard
+                key={idx}
+                item={item}
+                onUpdate={(field, value) => upProxy(idx, field, value)}
+                onRemove={() => removeProxy(idx)}
+                editable={writeable}
+                canCopy={canViewProxy}
+              />
+            ))}
+            {writeable && (
+              <button className="add-item-btn" onClick={addProxy}>
+                + Add Proxy
+              </button>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title="Proxy Log"
+            badge={
+              writeable ? (
+                <button
+                  type="button"
+                  className="btn-s"
+                  onClick={recordProxyIpInfo}
+                  disabled={isCheckingProxyIp}
+                  style={{ padding: "6px 10px", fontSize: "11px" }}
+                >
+                  {isCheckingProxyIp ? "Checking..." : "Check IP info"}
+                </button>
+              ) : null
+            }
+          >
+            {proxyLogError ? (
+              <div
+                className="dr"
+                style={{ color: "var(--red)", fontSize: "12px" }}
+              >
+                {proxyLogError}
+              </div>
+            ) : null}
+            {(profile.proxyLog || []).length ? (
+              [...(profile.proxyLog || [])]
+                .slice()
+                .reverse()
+                .map((entry, index) => (
+                  <div key={`${entry.checkedAt}-${index}`} className="dr">
+                    <div className="dl">
+                      <div>{entry.ip || "-"}</div>
+                      <div style={{ color: "var(--text3)", fontSize: "11px" }}>
+                        {entry.checkedAt ? fmtDate(entry.checkedAt) : ""}
+                      </div>
+                    </div>
+                    <div className="dv" style={{ fontSize: "12px" }}>
+                      <div>
+                        {[entry.city, entry.region, entry.country]
+                          .filter(Boolean)
+                          .join(", ") || "-"}
+                      </div>
+                      {entry.org ? (
+                        <div style={{ color: "var(--text3)" }}>{entry.org}</div>
+                      ) : null}
+                      {entry.loc || entry.postal || entry.timezone ? (
+                        <div
+                          style={{
+                            color: "var(--text3)",
+                            fontSize: "11px",
+                          }}
+                        >
+                          {[entry.loc, entry.postal, entry.timezone]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))
+            ) : (
+              <div className="dr" style={{ color: "var(--text3)", fontSize: "12px" }}>
+                No IP checks recorded yet.
+              </div>
+            )}
+          </SectionCard>
+
           <SectionCard title="Other Names">
             <EditableTags
               items={profile.otherNames || []}
@@ -1868,31 +2041,6 @@ export function ProfileDetailPage() {
               </div>
             )}
             <div className="dr">
-              <div className="dl">Proxy</div>
-              <div className="dv">
-                <EditableText
-                  value={reveal(profile.proxy, canViewProxy)}
-                  onSave={(v) => upTopLevel("proxy", v)}
-                  placeholder="Proxy"
-                  mono
-                  copyable={canViewProxy}
-                  editable={writeable}
-                />
-              </div>
-            </div>
-            <div className="dr">
-              <div className="dl">Proxy Location</div>
-              <div className="dv">
-                <EditableText
-                  value={reveal(profile.proxyLocation, confidential)}
-                  onSave={(v) => upTopLevel("proxyLocation", v)}
-                  placeholder="Proxy location"
-                  copyable={confidential}
-                  editable={writeable}
-                />
-              </div>
-            </div>
-            <div className="dr">
               <div className="dl">Phone</div>
               <div className="dv">
                 <EditableText
@@ -1984,6 +2132,8 @@ export function ProfileDetailPage() {
                     <a
                       href={getProfileImagesDownloadUrl(profile._id)}
                       className="btn-s"
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
                       Download ZIP
                     </a>
@@ -2014,12 +2164,14 @@ export function ProfileDetailPage() {
                         </div>
                       </div>
                       <div className="profile-page-ownership-actions">
-                        <Link
-                          to={`/pages/${profile.linkedPage.id}`}
+                        <a
+                          href={`/pages/${profile.linkedPage.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="image-asset-user-link"
                         >
                           Open page
-                        </Link>
+                        </a>
                         {canPersist ? (
                           <button
                             type="button"
@@ -2089,12 +2241,14 @@ export function ProfileDetailPage() {
                                 {section.key === "page-model" &&
                                 profile.linkedPage?.id ? (
                                   <div className="profile-image-group-subactions">
-                                    <Link
-                                      to={`/pages/${profile.linkedPage.id}`}
+                                    <a
+                                      href={`/pages/${profile.linkedPage.id}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
                                       className="image-asset-user-link"
                                     >
                                       Open page
-                                    </Link>
+                                    </a>
                                     {canPersist ? (
                                       <button
                                         type="button"
@@ -2146,12 +2300,14 @@ export function ProfileDetailPage() {
                                       Assigned {fmtDate(entry.assignedAt)}
                                     </div>
                                     {section.key === "human-asset" && imageIdToAssetId[String(entry.image?._id || "")] ? (
-                                      <Link
-                                        to={`/images/${imageIdToAssetId[String(entry.image?._id || "")]}`}
+                                      <a
+                                        href={`/images/${imageIdToAssetId[String(entry.image?._id || "")]}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                         className="image-asset-user-link"
                                       >
                                         View asset
-                                      </Link>
+                                      </a>
                                     ) : null}
                                     {section.key === "human-asset" &&
                                     canPersist ? (

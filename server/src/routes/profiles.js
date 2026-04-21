@@ -397,6 +397,105 @@ router.patch("/:id", async (req, res, next) => {
   }
 });
 
+router.post("/:id/tracker", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+
+    const date = String(
+      req.body?.date || new Date().toISOString().slice(0, 10),
+    ).trim();
+    const note = String(req.body?.note || "").trim();
+
+    const updated = await Profile.findOneAndUpdate(
+      { _id: id, "trackerLog.date": { $ne: date } },
+      { $push: { trackerLog: { date, note } } },
+      { new: true },
+    );
+
+    if (!updated) {
+      const exists = await Profile.exists({ _id: id });
+      if (!exists) {
+        return res.status(404).json({ message: "Profile not found" });
+      }
+      return res
+        .status(409)
+        .json({ message: `Tracker entry for ${date} already exists` });
+    }
+
+    const populated = await getPopulatedProfileQuery(id).lean();
+    res.status(201).json(formatProfile(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:id/proxy-log", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+
+    const body = req.body || {};
+    let source = body;
+
+    if (!String(body.ip || "").trim()) {
+      const callerIp = String(req.ip || "").replace(/^::ffff:/, "");
+      const lookupUrl = callerIp
+        ? `https://ipinfo.io/${callerIp}/json`
+        : "https://ipinfo.io/json";
+
+      try {
+        const ipinfoRes = await fetch(lookupUrl);
+        if (!ipinfoRes.ok) {
+          return res.status(502).json({
+            message: `ipinfo.io returned HTTP ${ipinfoRes.status}`,
+          });
+        }
+        source = await ipinfoRes.json();
+      } catch (err) {
+        return res.status(502).json({
+          message: err.message || "Failed to reach ipinfo.io",
+        });
+      }
+    }
+
+    const entry = {
+      ip: String(source.ip || "").trim(),
+      city: String(source.city || "").trim(),
+      region: String(source.region || "").trim(),
+      country: String(source.country || "").trim(),
+      loc: String(source.loc || "").trim(),
+      org: String(source.org || "").trim(),
+      postal: String(source.postal || "").trim(),
+      timezone: String(source.timezone || "").trim(),
+      checkedAt: new Date(),
+    };
+
+    if (!entry.ip) {
+      return res.status(400).json({ message: "Could not determine IP address" });
+    }
+
+    const updated = await Profile.findByIdAndUpdate(
+      id,
+      { $push: { proxyLog: entry } },
+      { new: true },
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    const populated = await getPopulatedProfileQuery(id).lean();
+    res.status(201).json(formatProfile(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/:id/images/download", async (req, res, next) => {
   try {
     const { id } = req.params;

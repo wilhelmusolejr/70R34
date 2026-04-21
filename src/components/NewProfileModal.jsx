@@ -61,8 +61,6 @@ function createEmptyProfile() {
     emails: [],
     emailPassword: "",
     facebookPassword: "",
-    proxy: "",
-    proxyLocation: "",
     city: "",
     hometown: "",
     bio: "",
@@ -572,20 +570,6 @@ export function NewProfileModal({
                     onChange={(e) =>
                       setField("facebookPassword", e.target.value)
                     }
-                  />
-                </Field>
-                <Field label="Proxy">
-                  <input
-                    className="npm-input"
-                    value={form.proxy}
-                    onChange={(e) => setField("proxy", e.target.value)}
-                  />
-                </Field>
-                <Field label="Proxy Location">
-                  <input
-                    className="npm-input"
-                    value={form.proxyLocation}
-                    onChange={(e) => setField("proxyLocation", e.target.value)}
                   />
                 </Field>
               </div>

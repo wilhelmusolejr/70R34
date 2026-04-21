@@ -1,6 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { fetchProfiles } from "../api/profiles";
+import { addTrackerEntry, fetchProfiles } from "../api/profiles";
 import { GenerateProfilesModal } from "../components/GenerateProfilesModal";
 import { NewProfileModal } from "../components/NewProfileModal";
 import { SafeImage } from "../components/SafeImage";
@@ -90,7 +89,6 @@ function getUserAvatarFilename(profile) {
 }
 
 export function ProfilesPage() {
-  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === "admin";
   const isMaker = currentUser?.role === "maker";
@@ -109,6 +107,7 @@ export function ProfilesPage() {
   const [toast, setToast] = useState("");
   const [trackerTarget, setTrackerTarget] = useState(null);
   const [trackerNote, setTrackerNote] = useState("");
+  const [trackerSaving, setTrackerSaving] = useState(false);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -167,25 +166,31 @@ export function ProfilesPage() {
     setTrackerNote("");
   }
 
-  function saveTrackerEntry() {
+  async function saveTrackerEntry() {
     if (!isAdmin || !trackerTarget || isProcessedToday(trackerTarget)) {
       closeTrackerModal();
       return;
     }
 
-    const nextEntry = { date: TODAY, note: trackerNote.trim() };
-
-    setProfiles((current) =>
-      current.map((profile) =>
-        profile._id === trackerTarget._id
-          ? {
-              ...profile,
-              trackerLog: [...(profile.trackerLog || []), nextEntry],
-            }
-          : profile,
-      ),
-    );
-    closeTrackerModal();
+    setTrackerSaving(true);
+    try {
+      const updated = await addTrackerEntry(trackerTarget._id, {
+        date: TODAY,
+        note: trackerNote.trim(),
+      });
+      setProfiles((current) =>
+        current.map((profile) =>
+          profile._id === trackerTarget._id
+            ? { ...profile, ...updated }
+            : profile,
+        ),
+      );
+      closeTrackerModal();
+    } catch (err) {
+      setToast(err.message || "Failed to save tracker entry.");
+    } finally {
+      setTrackerSaving(false);
+    }
   }
 
   function markAllToday() {
@@ -358,6 +363,7 @@ export function ProfilesPage() {
                   type="button"
                   className="btn-s"
                   onClick={closeTrackerModal}
+                  disabled={trackerSaving}
                 >
                   Cancel
                 </button>
@@ -366,8 +372,9 @@ export function ProfilesPage() {
                     type="button"
                     className="btn-p"
                     onClick={saveTrackerEntry}
+                    disabled={trackerSaving}
                   >
-                    Save Tracker Entry
+                    {trackerSaving ? "Saving..." : "Save Tracker Entry"}
                   </button>
                 </div>
               </div>
@@ -710,12 +717,14 @@ export function ProfilesPage() {
                         </div>
                       </td>
                       <td data-label="Action">
-                        <button
+                        <a
                           className="vbtn"
-                          onClick={() => navigate(`/profile/${profile._id}`)}
+                          href={`/profile/${profile._id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                         >
                           View
-                        </button>
+                        </a>
                       </td>
                     </tr>
                   );

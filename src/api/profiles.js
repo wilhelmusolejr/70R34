@@ -81,6 +81,20 @@ export function deleteProfile(id) {
   });
 }
 
+export function addTrackerEntry(id, entry) {
+  return apiFetch(`/api/profiles/${id}/tracker`, {
+    method: "POST",
+    body: JSON.stringify(entry),
+  });
+}
+
+export function addProxyLogEntry(id, entry) {
+  return apiFetch(`/api/profiles/${id}/proxy-log`, {
+    method: "POST",
+    body: JSON.stringify(entry),
+  });
+}
+
 export function unassignProfileImage(id, imageId) {
   return apiFetch(`/api/profiles/${id}/images/${imageId}`, {
     method: "DELETE",

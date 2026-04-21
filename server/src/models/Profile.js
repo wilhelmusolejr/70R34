@@ -83,6 +83,30 @@ const BrowserSchema = new Schema(
   { _id: false },
 );
 
+const ProxyEntrySchema = new Schema(
+  {
+    proxy: { type: String, default: "" },
+    source: { type: String, default: "" },
+    type: { type: String, default: "" },
+  },
+  { _id: false },
+);
+
+const ProxyLogSchema = new Schema(
+  {
+    ip: { type: String, default: "" },
+    city: { type: String, default: "" },
+    region: { type: String, default: "" },
+    country: { type: String, default: "" },
+    loc: { type: String, default: "" },
+    org: { type: String, default: "" },
+    postal: { type: String, default: "" },
+    timezone: { type: String, default: "" },
+    checkedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const TrackerLogSchema = new Schema(
   {
     date: { type: String, default: "" },
@@ -125,8 +149,8 @@ const ProfileSchema = new Schema(
     emails: { type: [EmailSchema], default: [] },
     emailPassword: { type: String, default: "" },
     facebookPassword: { type: String, default: "" },
-    proxy: { type: String, default: "" },
-    proxyLocation: { type: String, default: "" },
+    proxies: { type: [ProxyEntrySchema], default: [] },
+    proxyLog: { type: [ProxyLogSchema], default: [] },
     city: { type: String, default: "" },
     hometown: { type: String, default: "" },
     bio: { type: String, default: "" },
