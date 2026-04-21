@@ -149,6 +149,8 @@ const ProfileSchema = new Schema(
     emails: { type: [EmailSchema], default: [] },
     emailPassword: { type: String, default: "" },
     facebookPassword: { type: String, default: "" },
+    proxy: { type: String, default: "" },
+    proxyLocation: { type: String, default: "" },
     proxies: { type: [ProxyEntrySchema], default: [] },
     proxyLog: { type: [ProxyLogSchema], default: [] },
     city: { type: String, default: "" },

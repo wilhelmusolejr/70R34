@@ -98,6 +98,8 @@ function getDefaultProfile() {
     emails: [],
     emailPassword: "",
     facebookPassword: "",
+    proxy: "",
+    proxyLocation: "",
     proxies: [],
     proxyLog: [],
     city: "",
@@ -2040,6 +2042,31 @@ export function ProfileDetailPage() {
                 </div>
               </div>
             )}
+            <div className="dr">
+              <div className="dl">Proxy</div>
+              <div className="dv">
+                <EditableText
+                  value={reveal(profile.proxy, canViewProxy)}
+                  onSave={(v) => upTopLevel("proxy", v)}
+                  placeholder="Proxy"
+                  mono
+                  copyable={canViewProxy}
+                  editable={writeable}
+                />
+              </div>
+            </div>
+            <div className="dr">
+              <div className="dl">Proxy Location</div>
+              <div className="dv">
+                <EditableText
+                  value={reveal(profile.proxyLocation, confidential)}
+                  onSave={(v) => upTopLevel("proxyLocation", v)}
+                  placeholder="Proxy location"
+                  copyable={confidential}
+                  editable={writeable}
+                />
+              </div>
+            </div>
             <div className="dr">
               <div className="dl">Phone</div>
               <div className="dv">
