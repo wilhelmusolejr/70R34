@@ -133,6 +133,7 @@ function formatLinkedPage(page) {
     id: String(page._id),
     pageName: page.pageName || "",
     pageId: page.pageId || "",
+    bio: page.bio || "",
     createdAt: page.createdAt || null,
     updatedAt: page.updatedAt || null,
     assets: (page.assets || [])
@@ -174,7 +175,7 @@ function getPopulatedProfileQuery(id) {
     .populate("images.imageId")
     .populate({
       path: "pageId",
-      select: "pageName pageId assets posts createdAt updatedAt",
+      select: "pageName pageId bio assets posts createdAt updatedAt",
       populate: [
         { path: "assets.imageId" },
         { path: "posts.images" },
