@@ -33,6 +33,76 @@ function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeIp(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  if (raw === "::1") return "127.0.0.1";
+  if (raw.startsWith("::ffff:")) return raw.slice(7);
+  return raw;
+}
+
+function isPrivateIpv4(value) {
+  return (
+    value === "127.0.0.1" ||
+    value.startsWith("10.") ||
+    value.startsWith("192.168.") ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(value)
+  );
+}
+
+function isPrivateIpv6(value) {
+  const normalized = value.toLowerCase();
+  return (
+    normalized === "::1" ||
+    normalized.startsWith("fc") ||
+    normalized.startsWith("fd") ||
+    normalized.startsWith("fe80:")
+  );
+}
+
+function isPublicIp(value) {
+  const normalized = normalizeIp(value);
+  if (!normalized) return false;
+  if (normalized.includes(":")) return !isPrivateIpv6(normalized);
+  return !isPrivateIpv4(normalized);
+}
+
+function getRequestIpCandidates(req) {
+  const forwardedFor = String(req.headers["x-forwarded-for"] || "")
+    .split(",")
+    .map((part) => normalizeIp(part))
+    .filter(Boolean);
+
+  const candidates = [
+    ...forwardedFor,
+    normalizeIp(req.headers["x-real-ip"]),
+    normalizeIp(req.ip),
+    normalizeIp(req.socket?.remoteAddress),
+  ].filter(Boolean);
+
+  return [...new Set(candidates)];
+}
+
+async function fetchIpInfoForCandidates(candidates) {
+  for (const ip of candidates.filter(isPublicIp)) {
+    const response = await fetch(`https://ipinfo.io/${ip}/json`);
+    if (!response.ok) continue;
+
+    const data = await response.json();
+    if (String(data?.ip || "").trim()) {
+      return data;
+    }
+  }
+
+  const fallbackResponse = await fetch("https://ipinfo.io/json");
+  if (!fallbackResponse.ok) {
+    throw new Error(`ipinfo.io returned HTTP ${fallbackResponse.status}`);
+  }
+
+  return fallbackResponse.json();
+}
+
 function normalizeProfilePayload(payload = {}) {
   const nextPayload = { ...payload };
 
@@ -441,25 +511,20 @@ router.post("/:id/proxy-log", async (req, res, next) => {
 
     const body = req.body || {};
     let source = body;
+    const requestIpCandidates = getRequestIpCandidates(req);
 
     if (!String(body.ip || "").trim()) {
-      const callerIp = String(req.ip || "").replace(/^::ffff:/, "");
-      const lookupUrl = callerIp
-        ? `https://ipinfo.io/${callerIp}/json`
-        : "https://ipinfo.io/json";
-
       try {
-        const ipinfoRes = await fetch(lookupUrl);
-        if (!ipinfoRes.ok) {
+        source = await fetchIpInfoForCandidates(requestIpCandidates);
+      } catch (err) {
+        const fallbackIp = requestIpCandidates[0] || "";
+        source = fallbackIp ? { ip: fallbackIp } : {};
+
+        if (!fallbackIp) {
           return res.status(502).json({
-            message: `ipinfo.io returned HTTP ${ipinfoRes.status}`,
+            message: err.message || "Failed to reach ipinfo.io",
           });
         }
-        source = await ipinfoRes.json();
-      } catch (err) {
-        return res.status(502).json({
-          message: err.message || "Failed to reach ipinfo.io",
-        });
       }
     }
 

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useId, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { updateAssignmentStatus } from "../api/auth";
 import { fetchHumanAssets } from "../api/humanAssets";
@@ -264,11 +264,13 @@ function EditableText({
   mono = false,
   copyable = false,
   editable = true,
+  suggestions = null,
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
   const [copied, setCopied] = useState(false);
   const empty = !value || String(value).trim() === "";
+  const datalistId = useId();
 
   function save() {
     onSave(draft);
@@ -303,17 +305,27 @@ function EditableText({
             readOnly={!editable}
           />
         ) : (
-          <input
-            className={`ef-input${mono ? " ef-mono" : ""}`}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") save();
-              if (e.key === "Escape") cancel();
-            }}
-            autoFocus
-            readOnly={!editable}
-          />
+          <>
+            <input
+              className={`ef-input${mono ? " ef-mono" : ""}`}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") save();
+                if (e.key === "Escape") cancel();
+              }}
+              list={suggestions ? datalistId : undefined}
+              autoFocus
+              readOnly={!editable}
+            />
+            {suggestions && (
+              <datalist id={datalistId}>
+                {suggestions.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            )}
+          </>
         )}
         <div className="ef-btns">
           <button className="ef-save" onClick={save}>
@@ -592,6 +604,7 @@ function BrowserCard({ item, onUpdate, onRemove, editable = true }) {
           onSave={(v) => onUpdate("provider", v)}
           placeholder="e.g. hidemium"
           editable={editable}
+          suggestions={["hidemium", "gologin", "multilogin"]}
         />
       </div>
     </div>
@@ -625,6 +638,7 @@ function ProxyCard({ item, onUpdate, onRemove, editable = true, canCopy = true }
           onSave={(v) => onUpdate("source", v)}
           placeholder="e.g. brightdata, soax"
           editable={editable}
+          suggestions={["marsproxy", "rayobroxy"]}
         />
       </div>
       <div className="work-meta">
@@ -634,6 +648,7 @@ function ProxyCard({ item, onUpdate, onRemove, editable = true, canCopy = true }
           onSave={(v) => onUpdate("type", v)}
           placeholder="isp / residential / datacenter"
           editable={editable}
+          suggestions={["ISP", "Residential", "Sneaky", "Mobile"]}
         />
       </div>
     </div>
@@ -1137,9 +1152,16 @@ export function ProfileDetailPage() {
   function upProxy(idx, field, value) {
     persistProfile((current) => ({
       ...current,
-      proxies: (current.proxies || []).map((p, i) =>
-        i === idx ? { ...p, [field]: value } : p,
-      ),
+      proxies: (current.proxies || []).map((p, i) => {
+        if (i !== idx) return p;
+        const next = { ...p, [field]: value };
+        if (field === "proxy") {
+          const lower = String(value || "").toLowerCase();
+          if (lower.includes("rayobute")) next.source = "rayobroxy";
+          else if (lower.includes("marsproxies")) next.source = "marsproxy";
+        }
+        return next;
+      }),
     }));
   }
 
