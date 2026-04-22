@@ -13,4 +13,10 @@ export async function connectToDatabase(uri) {
   } catch {
     // index already dropped or never existed
   }
+
+  try {
+    await mongoose.connection.collection("proxies").dropIndex("host_1_port_1");
+  } catch {
+    // index already dropped or never existed
+  }
 }
