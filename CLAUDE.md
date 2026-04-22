@@ -17,7 +17,7 @@ npm run dev    # dev server
 npm run build  # production build
 ```
 
-## The Three Core Entities
+## The Core Entities
 
 ### 1. Profiles (`/`)
 Fictional person identities used for Facebook accounts. Each profile has:
@@ -26,8 +26,100 @@ Fictional person identities used for Facebook accounts. Each profile has:
 - Life details: work history, education, relationship status, languages, interests, travel
 - Browser assignments: `browsers` array — `{ browserId, provider }` (e.g. hidemium)
 - Account state: status, tags, tracker log, `has2FA`, `hasPage`, `profileSetup`
-- API: `/api/profiles` — CRUD + bulk create + image unassign
+- API: `/api/profiles` — CRUD + bulk create + image unassign + `POST /:id/proxies` (create+attach) + `POST /:id/proxy-log`
 - **IDs:** profiles use MongoDB `_id` (ObjectId string) — not a numeric `id` field. All routes and frontend refs use `_id`.
+
+#### Profile shape (source: `server/src/models/Profile.js`)
+
+Every field has a default, so a brand-new profile with only required `firstName` / `lastName` already has the full shape below populated with empty values.
+
+```jsonc
+{
+  "_id": "ObjectId",
+  "firstName": "Jane",              // required
+  "lastName": "Doe",                // required
+  "dob": "1994-07-12",              // string, YYYY-MM-DD
+  "gender": "female",               // free-text, UI classes it as male/female/neutral
+  "emails": [                       // one entry should have selected: true
+    { "address": "jane@example.com", "selected": true }
+  ],
+  "emailPassword": "",
+  "facebookPassword": "",
+
+  // --- PROXY FIELDS ---
+  "proxy": "",                      // legacy free-text proxy string (kept for back-compat)
+  "proxyLocation": "",              // legacy free-text location
+  "proxyId": "ObjectId|null",       // SINGULAR — primary assigned Proxy (populates to linkedProxy)
+  "proxies": [                      // ARRAY of Proxy refs (like images). Populated on read:
+    {
+      "proxyId": {                  // full populated Proxy doc (see Proxies entity)
+        "id": "ObjectId",
+        "host": "gate.example.com",
+        "port": 8080,
+        "username": "user",
+        "password": "pass",
+        "type": "residential",      // residential | isp | datacenter | mobile
+        "protocol": "http",         // http | https | socks5 | null
+        "status": "pending",        // pending | active | inactive | dead | expired
+        "source": "IPRoyal",
+        "label": null, "country": "US", "city": null
+      },
+      "assignedAt": "2026-04-22T00:00:00.000Z"
+    }
+  ],
+  "proxyLog": [                     // append-only IP-check history
+    {
+      "ip": "1.2.3.4", "city": "NYC", "region": "NY", "country": "US",
+      "loc": "40.71,-74.00", "org": "AS... ISP", "postal": "10001",
+      "timezone": "America/New_York", "checkedAt": "ISO date"
+    }
+  ],
+
+  "city": "", "hometown": "", "bio": "",
+  "status": "Available",            // Available | Need Setup | Pending Profile | Active | Flagged | Banned | Ready | Delivered
+  "tags": ["us", "bulk-a"],
+  "profileUrl": "", "pageUrl": "",
+  "pageId": "ObjectId|null",        // populates to linkedPage on read
+  "profileCreated": "", "accountCreated": "",
+  "friends": 0,
+  "has2FA": false, "hasPage": false, "profileSetup": false,
+  "recoveryEmail": "", "phone": "", "notes": "",
+  "avatarUrl": "", "coverPhotoUrl": "",
+  "websites": [],
+  "socialLinks": [{ "platform": "instagram", "url": "..." }],
+
+  "images": [                       // shape that `proxies` now mirrors
+    { "imageId": "ObjectId | <populated Image>", "assignedAt": "ISO date" }
+  ],
+  "trackerLog": [{ "date": "2026-04-22", "note": "..." }],
+  "personal": {
+    "relationshipStatus": "Single", // see RELATIONSHIP_STATUSES enum
+    "relationshipStatusSince": "",
+    "languages": ["en"]
+  },
+  "work": [
+    { "company": "", "position": "", "from": "", "current": false, "to": "", "city": "" }
+  ],
+  "education": {
+    "college":    { "name": "", "from": "", "to": "", "graduated": false, "degree": "" },
+    "highSchool": { "name": "", "from": "", "to": "", "graduated": false, "degree": "" }
+  },
+  "hobbies": [],
+  "interests": { "music": [], "tvShows": [], "movies": [], "games": [], "sportsTeams": [] },
+  "travel": [{ "place": "", "date": "" }],
+  "otherNames": [],
+  "browsers": [{ "browserId": "", "provider": "hidemium" }],
+  "identityPrompt": "",
+  "createdAt": "ISO date", "updatedAt": "ISO date"
+}
+```
+
+**On-read extras from `formatProfile` (`server/src/routes/profiles.js`):**
+- `linkedPage` — full populated Page when `pageId` is set, else `null`.
+- `linkedProxy` — full populated Proxy when `proxyId` (singular) is set, else `null`.
+- `pageId` / `proxyId` are coerced to string ids in the response even though they're populated internally.
+
+**Writing `proxies` back:** the UI must send entries as `{ proxyId: "<id-string>", assignedAt }` — `normalizeProfilePayload` + `serializeProfile` flatten populated objects to ids before PATCH. Do **not** delete a Proxy doc when unlinking from `proxies`; removal is a Profile-side array update only.
 
 ### 2. Images (`/images`)
 Real-person photo asset sets used as visual identity for profiles. Internally called **human assets** in the API and code. Each asset has:
@@ -45,6 +137,12 @@ Facebook page data. Each page has:
 - Posts list (can be manually added or AI-generated)
 - Status derived from state: `Pending` (no images) → `Available` (images but no identity) → `Claimed` (has identity)
 - API: `/api/pages` — CRUD, add posts, bulk-generate posts, add images
+
+### 4. Proxies (`/proxies`)
+Pool of network proxies. Each Proxy doc has `host`, `port`, optional `username`/`password`, plus `type` (residential | isp | datacenter | mobile), `protocol` (http | https | socks5 | null), `status` (pending | active | inactive | dead | expired), `source`, `label`, `country`, `city`, `tags`, `notes`, `cost`, `currency`, `lastCheckedAt`, `lastKnownIp`, `expiresAt`.
+- Unique index on `{ host, port, username, password }` — duplicates surface as 409.
+- API: `/api/proxies` (list + `/bulk` create + GET/PATCH by id) and `/api/profiles/:id/proxies` (create-and-attach to a specific Profile).
+- Profile → Proxy link lives in two places: singular `profile.proxyId` (primary) and array `profile.proxies[]` (all assignments, same pattern as `images`).
 
 ## Project Structure
 
@@ -94,5 +192,5 @@ In production, the server (`server/`) serves the built `dist/` and the API on th
 
 - All API base URL reads: `import.meta.env?.VITE_API_BASE_URL || import.meta.env?.VITE_API_URL`
 - `SafeImage` component handles missing/broken images gracefully
-- WIP nav links (Proxy, Anti-Bot ML, Analytics) show a modal — don't remove them, they're placeholders
+- WIP nav links (Anti-Bot ML, Analytics) show a modal — don't remove them, they're placeholders
 - Page status is derived client-side from page data, not stored on the backend

@@ -95,6 +95,13 @@ export function addProxyLogEntry(id, entry) {
   });
 }
 
+export function createProfileProxy(id, payload) {
+  return apiFetch(`/api/profiles/${id}/proxies`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function unassignProfileImage(id, imageId) {
   return apiFetch(`/api/profiles/${id}/images/${imageId}`, {
     method: "DELETE",

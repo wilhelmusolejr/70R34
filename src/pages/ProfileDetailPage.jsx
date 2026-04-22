@@ -6,11 +6,23 @@ import { fetchPages, updatePage } from "../api/pages";
 import { getProfileImagesDownloadUrl } from "../api/profileDownloads";
 import {
   addProxyLogEntry,
+  createProfileProxy,
   fetchProfile,
   unassignProfileImage,
   updateProfile,
 } from "../api/profiles";
+import { updateProxy } from "../api/proxies";
 import { SafeImage } from "../components/SafeImage";
+
+const PROXY_TYPE_OPTIONS = ["residential", "isp", "datacenter", "mobile"];
+const PROXY_PROTOCOL_OPTIONS = ["http", "https", "socks5"];
+const PROXY_STATUS_OPTIONS = [
+  "pending",
+  "active",
+  "inactive",
+  "dead",
+  "expired",
+];
 import { AVC, STATUS_CLASS, STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
 import { canViewConfidential, mask, reveal } from "../utils/access";
@@ -152,7 +164,25 @@ function getDefaultProfile() {
 }
 
 function serializeProfile(profile) {
-  const { linkedPage: _linkedPage, ...rest } = profile || {};
+  const { linkedPage: _linkedPage, linkedProxy: _linkedProxy, ...rest } = profile || {};
+
+  const proxies = Array.isArray(rest.proxies)
+    ? rest.proxies
+        .map((entry) => {
+          if (!entry) return null;
+          const raw = entry.proxyId;
+          const id =
+            typeof raw === "object" && raw
+              ? String(raw.id || raw._id || "")
+              : String(raw || "");
+          if (!id) return null;
+          return {
+            proxyId: id,
+            assignedAt: entry.assignedAt || new Date().toISOString(),
+          };
+        })
+        .filter(Boolean)
+    : [];
 
   return {
     ...rest,
@@ -160,6 +190,7 @@ function serializeProfile(profile) {
       typeof rest.pageId === "object" && rest.pageId
         ? String(rest.pageId.id || rest.pageId._id || "")
         : String(rest.pageId || ""),
+    proxies,
   };
 }
 
@@ -612,18 +643,47 @@ function BrowserCard({ item, onUpdate, onRemove, editable = true }) {
 }
 
 function ProxyCard({ item, onUpdate, onRemove, editable = true, canCopy = true }) {
+  const [splitter, setSplitter] = useState("");
+
+  function applySplitter(raw) {
+    const value = String(raw || "").trim();
+    if (!value) return;
+    const parts = value.split(":");
+    const host = parts[0] || "";
+    const port = parts[1] || "";
+    const username = parts[2] || "";
+    const password = parts.slice(3).join(":");
+    if (host) onUpdate("host", host);
+    if (port) {
+      const asNumber = Number(port);
+      onUpdate("port", Number.isFinite(asNumber) ? asNumber : port);
+    }
+    if (username) onUpdate("username", username);
+    if (password) onUpdate("password", password);
+  }
+
+  function handleSplitterChange(e) {
+    const next = e.target.value;
+    setSplitter(next);
+    if (next.includes(":")) applySplitter(next);
+  }
+
+  function handleSplitterPaste(e) {
+    const pasted = e.clipboardData?.getData("text") || "";
+    if (pasted.includes(":")) {
+      e.preventDefault();
+      setSplitter(pasted);
+      applySplitter(pasted);
+    }
+  }
+
+  const hostPortLabel = [item.host, item.port].filter(Boolean).join(":") || "new proxy";
+
   return (
     <div className="work-card">
       <div className="work-header">
-        <div className="work-title">
-          <EditableText
-            value={item.proxy}
-            onSave={(v) => onUpdate("proxy", v)}
-            placeholder="host:port:user:pass"
-            mono
-            copyable={canCopy}
-            editable={editable}
-          />
+        <div className="work-title" style={{ fontFamily: "monospace" }}>
+          {hostPortLabel}
         </div>
         {editable && (
           <button className="rm-btn" onClick={onRemove} title="Remove">
@@ -631,24 +691,141 @@ function ProxyCard({ item, onUpdate, onRemove, editable = true, canCopy = true }
           </button>
         )}
       </div>
+      {editable && (
+        <div className="work-meta">
+          <span style={{ color: "var(--text3)", fontSize: "11px" }}>Paste:</span>
+          <input
+            className="ef-input"
+            type="text"
+            value={splitter}
+            onChange={handleSplitterChange}
+            onPaste={handleSplitterPaste}
+            placeholder="host:port:user:pass"
+            style={{ fontFamily: "monospace", flex: 1 }}
+          />
+        </div>
+      )}
       <div className="work-meta">
-        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Source:</span>
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Host:</span>
         <EditableText
-          value={item.source}
-          onSave={(v) => onUpdate("source", v)}
-          placeholder="e.g. brightdata, soax"
+          value={item.host || ""}
+          onSave={(v) => onUpdate("host", v)}
+          placeholder="e.g. gate.example.com"
+          mono
+          copyable={canCopy}
           editable={editable}
-          suggestions={["marsproxy", "rayobroxy"]}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Port:</span>
+        <EditableText
+          value={item.port != null ? String(item.port) : ""}
+          onSave={(v) => {
+            const asNumber = Number(v);
+            onUpdate("port", Number.isFinite(asNumber) && v !== "" ? asNumber : v);
+          }}
+          placeholder="e.g. 8080"
+          mono
+          copyable={canCopy}
+          editable={editable}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Username:</span>
+        <EditableText
+          value={item.username || ""}
+          onSave={(v) => onUpdate("username", v)}
+          placeholder="auth user"
+          mono
+          copyable={canCopy}
+          editable={editable}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Password:</span>
+        <EditableText
+          value={item.password || ""}
+          onSave={(v) => onUpdate("password", v)}
+          placeholder="auth password"
+          mono
+          copyable={canCopy}
+          editable={editable}
         />
       </div>
       <div className="work-meta">
         <span style={{ color: "var(--text3)", fontSize: "11px" }}>Type:</span>
         <EditableText
-          value={item.type}
+          value={item.type || ""}
           onSave={(v) => onUpdate("type", v)}
-          placeholder="isp / residential / datacenter"
+          placeholder="residential / isp / datacenter / mobile"
           editable={editable}
-          suggestions={["ISP", "Residential", "Sneaky", "Mobile"]}
+          suggestions={PROXY_TYPE_OPTIONS}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Protocol:</span>
+        <EditableText
+          value={item.protocol || ""}
+          onSave={(v) => onUpdate("protocol", v)}
+          placeholder="http / https / socks5"
+          editable={editable}
+          suggestions={PROXY_PROTOCOL_OPTIONS}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Source:</span>
+        <EditableText
+          value={item.source || ""}
+          onSave={(v) => onUpdate("source", v)}
+          placeholder="e.g. marsproxy, brightdata"
+          editable={editable}
+          suggestions={["marsproxy", "rayobroxy", "brightdata", "soax"]}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Status:</span>
+        <EditableText
+          value={item.status || ""}
+          onSave={(v) => onUpdate("status", v)}
+          placeholder="pending / active / inactive / dead / expired"
+          editable={editable}
+          suggestions={PROXY_STATUS_OPTIONS}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Label:</span>
+        <EditableText
+          value={item.label || ""}
+          onSave={(v) => onUpdate("label", v)}
+          placeholder="optional label"
+          editable={editable}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Country:</span>
+        <EditableText
+          value={item.country || ""}
+          onSave={(v) => onUpdate("country", v)}
+          placeholder="e.g. US"
+          editable={editable}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>City:</span>
+        <EditableText
+          value={item.city || ""}
+          onSave={(v) => onUpdate("city", v)}
+          placeholder="optional city"
+          editable={editable}
+        />
+      </div>
+      <div className="work-meta">
+        <span style={{ color: "var(--text3)", fontSize: "11px" }}>Notes:</span>
+        <EditableText
+          value={item.notes || ""}
+          onSave={(v) => onUpdate("notes", v)}
+          placeholder="notes"
+          editable={editable}
         />
       </div>
     </div>
@@ -831,6 +1008,21 @@ export function ProfileDetailPage() {
   const [isSavingPageOwnership, setIsSavingPageOwnership] = useState(false);
   const [isCheckingProxyIp, setIsCheckingProxyIp] = useState(false);
   const [proxyLogError, setProxyLogError] = useState("");
+  const [isAddProxyModalOpen, setIsAddProxyModalOpen] = useState(false);
+  const [addProxyForm, setAddProxyForm] = useState(() => ({
+    entryText: "",
+    type: "residential",
+    protocol: "http",
+    status: "pending",
+    source: "",
+    country: "",
+    city: "",
+    label: "",
+    tags: "",
+    notes: "",
+  }));
+  const [addProxyError, setAddProxyError] = useState("");
+  const [isAddingProxy, setIsAddingProxy] = useState(false);
   const role = currentUser?.role || "";
   const isAdmin = role === "admin";
   const isMaker = role === "maker";
@@ -1139,30 +1331,57 @@ export function ProfileDetailPage() {
     }));
   }
 
-  function addProxy() {
-    persistProfile((current) => ({
-      ...current,
-      proxies: [
-        ...(current.proxies || []),
-        { proxy: "", source: "", type: "" },
-      ],
-    }));
+  function openAddProxyModal() {
+    if (!canPersist) return;
+    setIsAddProxyModalOpen(true);
   }
 
-  function upProxy(idx, field, value) {
-    persistProfile((current) => ({
-      ...current,
-      proxies: (current.proxies || []).map((p, i) => {
-        if (i !== idx) return p;
-        const next = { ...p, [field]: value };
-        if (field === "proxy") {
-          const lower = String(value || "").toLowerCase();
-          if (lower.includes("rayobute")) next.source = "rayobroxy";
-          else if (lower.includes("marsproxies")) next.source = "marsproxy";
-        }
-        return next;
+  async function upProxy(idx, field, value) {
+    const current = profile?.proxies || [];
+    const target = current[idx];
+    if (!target) return;
+
+    const proxyId =
+      (target.proxyId && (target.proxyId._id || target.proxyId.id)) ||
+      (typeof target.proxyId === "string" ? target.proxyId : null);
+    if (!proxyId) return;
+
+    const previous = profile;
+    setProfile((prev) => ({
+      ...prev,
+      proxies: (prev.proxies || []).map((entry, i) => {
+        if (i !== idx) return entry;
+        const populated =
+          typeof entry.proxyId === "object" && entry.proxyId
+            ? { ...entry.proxyId, [field]: value }
+            : entry.proxyId;
+        return { ...entry, proxyId: populated };
       }),
     }));
+
+    try {
+      const updated = await updateProxy(proxyId, { [field]: value });
+      if (updated) {
+        setProfile((prev) => ({
+          ...prev,
+          proxies: (prev.proxies || []).map((entry, i) =>
+            i !== idx
+              ? entry
+              : {
+                  ...entry,
+                  proxyId:
+                    typeof entry.proxyId === "object" && entry.proxyId
+                      ? { ...entry.proxyId, ...updated }
+                      : updated,
+                },
+          ),
+        }));
+      }
+      setError("");
+    } catch (err) {
+      setProfile(previous);
+      setError(err.message || "Failed to update proxy.");
+    }
   }
 
   function removeProxy(idx) {
@@ -1170,6 +1389,69 @@ export function ProfileDetailPage() {
       ...current,
       proxies: (current.proxies || []).filter((_, i) => i !== idx),
     }));
+  }
+
+  function resetAddProxyForm() {
+    setAddProxyForm({
+      entryText: "",
+      type: "residential",
+      protocol: "http",
+      status: "pending",
+      source: "",
+      country: "",
+      city: "",
+      label: "",
+      tags: "",
+      notes: "",
+    });
+    setAddProxyError("");
+  }
+
+  function closeAddProxyModal() {
+    if (isAddingProxy) return;
+    setIsAddProxyModalOpen(false);
+    resetAddProxyForm();
+  }
+
+  async function handleAddProxySubmit(event) {
+    event.preventDefault();
+    if (!profile?._id || !canPersist) return;
+
+    const entry = String(addProxyForm.entryText || "").trim();
+    if (!entry) {
+      setAddProxyError("Enter a proxy in host:port:user:pass format.");
+      return;
+    }
+
+    const tags = addProxyForm.tags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    setIsAddingProxy(true);
+    setAddProxyError("");
+    try {
+      const saved = await createProfileProxy(profile._id, {
+        entry,
+        type: addProxyForm.type,
+        protocol: addProxyForm.protocol || null,
+        status: addProxyForm.status,
+        source: addProxyForm.source.trim() || null,
+        country: addProxyForm.country.trim() || null,
+        city: addProxyForm.city.trim() || null,
+        label: addProxyForm.label.trim() || null,
+        notes: addProxyForm.notes.trim() || null,
+        tags,
+      });
+      setProfile(normalizeProfile(saved));
+      setError("");
+      setIsAddProxyModalOpen(false);
+      resetAddProxyForm();
+    } catch (err) {
+      setAddProxyError(err.message || "Failed to add proxy.");
+    } finally {
+      setIsAddingProxy(false);
+    }
   }
 
   async function recordProxyIpInfo() {
@@ -1812,18 +2094,28 @@ export function ProfileDetailPage() {
           </SectionCard>
 
           <SectionCard title="Proxies">
-            {(profile.proxies || []).map((item, idx) => (
-              <ProxyCard
-                key={idx}
-                item={item}
-                onUpdate={(field, value) => upProxy(idx, field, value)}
-                onRemove={() => removeProxy(idx)}
-                editable={writeable}
-                canCopy={canViewProxy}
-              />
-            ))}
+            {(profile.proxies || []).map((entry, idx) => {
+              const populated =
+                typeof entry.proxyId === "object" && entry.proxyId
+                  ? entry.proxyId
+                  : {};
+              const key =
+                populated._id ||
+                populated.id ||
+                (typeof entry.proxyId === "string" ? entry.proxyId : idx);
+              return (
+                <ProxyCard
+                  key={key}
+                  item={populated}
+                  onUpdate={(field, value) => upProxy(idx, field, value)}
+                  onRemove={() => removeProxy(idx)}
+                  editable={writeable}
+                  canCopy={canViewProxy}
+                />
+              );
+            })}
             {writeable && (
-              <button className="add-item-btn" onClick={addProxy}>
+              <button className="add-item-btn" onClick={openAddProxyModal}>
                 + Add Proxy
               </button>
             )}
@@ -2402,6 +2694,235 @@ export function ProfileDetailPage() {
       </div>
 
       <JsonBlock profile={profile} />
+
+      {isAddProxyModalOpen && (
+        <div
+          className="npm-backdrop"
+          onClick={isAddingProxy ? undefined : closeAddProxyModal}
+        >
+          <div
+            className="npm-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "min(640px, 100%)" }}
+          >
+            <div className="npm-header">
+              <div>
+                <div className="npm-kicker">Proxy</div>
+                <h2 className="npm-title">Add Proxy</h2>
+              </div>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={closeAddProxyModal}
+                disabled={isAddingProxy}
+              >
+                x
+              </button>
+            </div>
+            <form
+              className="npm-body npm-form"
+              onSubmit={handleAddProxySubmit}
+              aria-busy={isAddingProxy}
+            >
+              <fieldset className="npm-form-fieldset" disabled={isAddingProxy}>
+                <div className="npm-grid">
+                  <label className="npm-field" style={{ gridColumn: "1 / -1" }}>
+                    <span className="npm-label">Proxy (host:port:user:pass)</span>
+                    <input
+                      className="npm-input"
+                      type="text"
+                      value={addProxyForm.entryText}
+                      onChange={(e) =>
+                        setAddProxyForm((current) => ({
+                          ...current,
+                          entryText: e.target.value,
+                        }))
+                      }
+                      placeholder="proxy.example.com:8080:user:pass"
+                      style={{ fontFamily: "monospace" }}
+                      autoFocus
+                    />
+                    <span className="image-asset-helper">
+                      User/pass optional. Trimmed server-side.
+                    </span>
+                  </label>
+
+                  <label className="npm-field">
+                    <span className="npm-label">Type</span>
+                    <select
+                      className="npm-input"
+                      value={addProxyForm.type}
+                      onChange={(e) =>
+                        setAddProxyForm((current) => ({
+                          ...current,
+                          type: e.target.value,
+                        }))
+                      }
+                    >
+                      {PROXY_TYPE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="npm-field">
+                    <span className="npm-label">Protocol</span>
+                    <select
+                      className="npm-input"
+                      value={addProxyForm.protocol}
+                      onChange={(e) =>
+                        setAddProxyForm((current) => ({
+                          ...current,
+                          protocol: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">None</option>
+                      {PROXY_PROTOCOL_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="npm-field">
+                    <span className="npm-label">Status</span>
+                    <select
+                      className="npm-input"
+                      value={addProxyForm.status}
+                      onChange={(e) =>
+                        setAddProxyForm((current) => ({
+                          ...current,
+                          status: e.target.value,
+                        }))
+                      }
+                    >
+                      {PROXY_STATUS_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="npm-field">
+                    <span className="npm-label">Source</span>
+                    <input
+                      className="npm-input"
+                      value={addProxyForm.source}
+                      onChange={(e) =>
+                        setAddProxyForm((current) => ({
+                          ...current,
+                          source: e.target.value,
+                        }))
+                      }
+                      placeholder="IPRoyal, Bright Data, ..."
+                    />
+                  </label>
+
+                  <label className="npm-field">
+                    <span className="npm-label">Country</span>
+                    <input
+                      className="npm-input"
+                      value={addProxyForm.country}
+                      onChange={(e) =>
+                        setAddProxyForm((current) => ({
+                          ...current,
+                          country: e.target.value,
+                        }))
+                      }
+                      placeholder="US"
+                    />
+                  </label>
+
+                  <label className="npm-field">
+                    <span className="npm-label">City</span>
+                    <input
+                      className="npm-input"
+                      value={addProxyForm.city}
+                      onChange={(e) =>
+                        setAddProxyForm((current) => ({
+                          ...current,
+                          city: e.target.value,
+                        }))
+                      }
+                      placeholder="New York"
+                    />
+                  </label>
+
+                  <label className="npm-field">
+                    <span className="npm-label">Label</span>
+                    <input
+                      className="npm-input"
+                      value={addProxyForm.label}
+                      onChange={(e) =>
+                        setAddProxyForm((current) => ({
+                          ...current,
+                          label: e.target.value,
+                        }))
+                      }
+                      placeholder="Optional label"
+                    />
+                  </label>
+
+                  <label className="npm-field" style={{ gridColumn: "1 / -1" }}>
+                    <span className="npm-label">Tags (comma-separated)</span>
+                    <input
+                      className="npm-input"
+                      value={addProxyForm.tags}
+                      onChange={(e) =>
+                        setAddProxyForm((current) => ({
+                          ...current,
+                          tags: e.target.value,
+                        }))
+                      }
+                      placeholder="us, residential, pool-a"
+                    />
+                  </label>
+
+                  <label className="npm-field" style={{ gridColumn: "1 / -1" }}>
+                    <span className="npm-label">Notes</span>
+                    <textarea
+                      className="npm-input npm-textarea"
+                      rows={2}
+                      value={addProxyForm.notes}
+                      onChange={(e) =>
+                        setAddProxyForm((current) => ({
+                          ...current,
+                          notes: e.target.value,
+                        }))
+                      }
+                      placeholder="Optional notes..."
+                    />
+                  </label>
+                </div>
+
+                {addProxyError ? (
+                  <div className="npm-submit-error">{addProxyError}</div>
+                ) : null}
+
+                <div className="npm-footer">
+                  <button
+                    type="button"
+                    className="btn-s"
+                    onClick={closeAddProxyModal}
+                  >
+                    Cancel
+                  </button>
+                  <div className="npm-footer-actions">
+                    <button type="submit" className="btn-p" disabled={isAddingProxy}>
+                      {isAddingProxy ? "Adding..." : "Add Proxy"}
+                    </button>
+                  </div>
+                </div>
+              </fieldset>
+            </form>
+          </div>
+        </div>
+      )}
 
       {isTrackerModalOpen && (
         <div

@@ -9,7 +9,12 @@ import { Image } from "../models/Image.js";
 import { Profile } from "../models/Profile.js";
 import { User } from "../models/User.js";
 import "../models/Page.js";
-import "../models/Proxy.js";
+import {
+  Proxy,
+  PROXY_PROTOCOLS,
+  PROXY_STATUSES,
+  PROXY_TYPES,
+} from "../models/Proxy.js";
 import { mapImageDoc } from "../utils/publicImageUrl.js";
 
 const router = Router();
@@ -131,6 +136,26 @@ function normalizeProfilePayload(payload = {}) {
     }
   }
 
+  if (Object.prototype.hasOwnProperty.call(nextPayload, "proxies")) {
+    const rawProxies = Array.isArray(nextPayload.proxies) ? nextPayload.proxies : [];
+    nextPayload.proxies = rawProxies
+      .map((entry) => {
+        if (!entry) return null;
+        const rawId =
+          typeof entry.proxyId === "object" && entry.proxyId
+            ? entry.proxyId.id || entry.proxyId._id
+            : entry.proxyId;
+        const id = String(rawId || "").trim();
+        if (!id) return null;
+        const assignedAt = entry.assignedAt ? new Date(entry.assignedAt) : new Date();
+        return {
+          proxyId: id,
+          assignedAt: Number.isNaN(assignedAt.getTime()) ? new Date() : assignedAt,
+        };
+      })
+      .filter(Boolean);
+  }
+
   return nextPayload;
 }
 
@@ -194,10 +219,23 @@ function formatProfile(profile) {
     ...entry,
     imageId: mapImageDoc(entry.imageId),
   }));
+  const proxies = (profile?.proxies || [])
+    .map((entry) => {
+      if (!entry) return null;
+      const populated = formatLinkedProxy(entry.proxyId);
+      if (populated) {
+        return { proxyId: populated, assignedAt: entry.assignedAt || null };
+      }
+      const rawId = entry.proxyId ? String(entry.proxyId) : "";
+      if (!rawId) return null;
+      return { proxyId: rawId, assignedAt: entry.assignedAt || null };
+    })
+    .filter(Boolean);
 
   return {
     ...profile,
     images,
+    proxies,
     pageId: linkedPage?.id || (profile?.pageId ? String(profile.pageId) : ""),
     linkedPage,
     proxyId: linkedProxy?.id || (profile?.proxyId ? String(profile.proxyId) : ""),
@@ -216,7 +254,8 @@ function getPopulatedProfileQuery(id) {
         { path: "posts.images" },
       ],
     })
-    .populate("proxyId");
+    .populate("proxyId")
+    .populate("proxies.proxyId");
 }
 
 router.get("/", async (_req, res, next) => {
@@ -225,6 +264,7 @@ router.get("/", async (_req, res, next) => {
       .populate("images.imageId")
       .populate("pageId", "pageName pageId")
       .populate("proxyId", "host port username source type protocol status label country city")
+      .populate("proxies.proxyId")
       .sort({ _id: 1 })
       .lean();
     res.json(profiles.map(formatProfile));
@@ -532,6 +572,118 @@ router.post("/:id/tracker", async (req, res, next) => {
         .status(409)
         .json({ message: `Tracker entry for ${date} already exists` });
     }
+
+    const populated = await getPopulatedProfileQuery(id).lean();
+    res.status(201).json(formatProfile(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:id/proxies", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    const rawEntry = String(req.body?.entry || "").trim();
+    if (!rawEntry) {
+      return res.status(400).json({ message: "Proxy entry is required." });
+    }
+
+    const parts = rawEntry.split(":").map((part) => part.trim());
+    if (parts.length < 2) {
+      return res.status(400).json({
+        message: "Entry must be in host:port[:user:pass] format.",
+      });
+    }
+
+    const [host, portStr, username = null, password = null] = parts;
+    const port = Number.parseInt(portStr, 10);
+    if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
+      return res.status(400).json({
+        message: "Entry must be in host:port[:user:pass] format with a valid port (1–65535).",
+      });
+    }
+
+    const type = String(req.body?.type || "").trim();
+    if (!PROXY_TYPES.includes(type)) {
+      return res.status(400).json({
+        message: `Type must be one of: ${PROXY_TYPES.join(", ")}`,
+      });
+    }
+
+    const protocolInput = String(req.body?.protocol || "").trim();
+    const protocol = protocolInput
+      ? PROXY_PROTOCOLS.includes(protocolInput)
+        ? protocolInput
+        : null
+      : null;
+    if (protocolInput && !protocol) {
+      return res.status(400).json({
+        message: `Protocol must be one of: ${PROXY_PROTOCOLS.join(", ")}`,
+      });
+    }
+
+    const statusInput = String(req.body?.status || "pending").trim();
+    const status = PROXY_STATUSES.includes(statusInput) ? statusInput : "pending";
+
+    const toTrimmedOrNull = (value) => {
+      if (value === null || value === undefined) return null;
+      const trimmed = String(value).trim();
+      return trimmed || null;
+    };
+
+    const tags = Array.isArray(req.body?.tags)
+      ? req.body.tags.map((tag) => String(tag).trim()).filter(Boolean)
+      : [];
+
+    let createdProxy;
+    try {
+      createdProxy = await Proxy.create({
+        host,
+        port,
+        username: username || null,
+        password: password || null,
+        source: toTrimmedOrNull(req.body?.source),
+        type,
+        protocol,
+        status,
+        label: toTrimmedOrNull(req.body?.label),
+        country: toTrimmedOrNull(req.body?.country),
+        city: toTrimmedOrNull(req.body?.city),
+        notes: toTrimmedOrNull(req.body?.notes),
+        tags,
+      });
+    } catch (err) {
+      if (err?.code === 11000) {
+        return res.status(409).json({
+          message: "A proxy with this host:port:user:pass already exists.",
+        });
+      }
+      if (err?.name === "ValidationError") {
+        return res.status(400).json({ message: err.message });
+      }
+      throw err;
+    }
+
+    await Profile.updateOne(
+      { _id: id },
+      {
+        $push: {
+          proxies: {
+            proxyId: createdProxy._id,
+            assignedAt: new Date(),
+          },
+        },
+      },
+    );
 
     const populated = await getPopulatedProfileQuery(id).lean();
     res.status(201).json(formatProfile(populated));

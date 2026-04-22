@@ -83,11 +83,14 @@ const BrowserSchema = new Schema(
   { _id: false },
 );
 
-const ProxyEntrySchema = new Schema(
+const ProxyAssignmentSchema = new Schema(
   {
-    proxy: { type: String, default: "" },
-    source: { type: String, default: "" },
-    type: { type: String, default: "" },
+    proxyId: {
+      type: Schema.Types.ObjectId,
+      ref: "Proxy",
+      required: true,
+    },
+    assignedAt: { type: Date, default: Date.now },
   },
   { _id: false },
 );
@@ -151,7 +154,7 @@ const ProfileSchema = new Schema(
     facebookPassword: { type: String, default: "" },
     proxy: { type: String, default: "" },
     proxyLocation: { type: String, default: "" },
-    proxies: { type: [ProxyEntrySchema], default: [] },
+    proxies: { type: [ProxyAssignmentSchema], default: [] },
     proxyLog: { type: [ProxyLogSchema], default: [] },
     city: { type: String, default: "" },
     hometown: { type: String, default: "" },
