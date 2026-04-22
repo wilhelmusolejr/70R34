@@ -9,6 +9,7 @@ import { Image } from "../models/Image.js";
 import { Profile } from "../models/Profile.js";
 import { User } from "../models/User.js";
 import "../models/Page.js";
+import "../models/Proxy.js";
 import { mapImageDoc } from "../utils/publicImageUrl.js";
 
 const router = Router();
@@ -118,6 +119,18 @@ function normalizeProfilePayload(payload = {}) {
     }
   }
 
+  if (Object.prototype.hasOwnProperty.call(nextPayload, "proxyId")) {
+    const rawProxyId = nextPayload.proxyId;
+
+    if (
+      rawProxyId === null ||
+      rawProxyId === undefined ||
+      String(rawProxyId).trim() === ""
+    ) {
+      nextPayload.proxyId = null;
+    }
+  }
+
   return nextPayload;
 }
 
@@ -155,8 +168,28 @@ function formatLinkedPage(page) {
   };
 }
 
+function formatLinkedProxy(proxy) {
+  if (!proxy || typeof proxy !== "object") return null;
+
+  return {
+    id: String(proxy._id),
+    host: proxy.host,
+    port: proxy.port,
+    username: proxy.username || null,
+    password: proxy.password || null,
+    source: proxy.source || null,
+    type: proxy.type || null,
+    protocol: proxy.protocol || null,
+    label: proxy.label || null,
+    status: proxy.status || null,
+    country: proxy.country || null,
+    city: proxy.city || null,
+  };
+}
+
 function formatProfile(profile) {
   const linkedPage = formatLinkedPage(profile?.pageId);
+  const linkedProxy = formatLinkedProxy(profile?.proxyId);
   const images = (profile?.images || []).map((entry) => ({
     ...entry,
     imageId: mapImageDoc(entry.imageId),
@@ -167,6 +200,8 @@ function formatProfile(profile) {
     images,
     pageId: linkedPage?.id || (profile?.pageId ? String(profile.pageId) : ""),
     linkedPage,
+    proxyId: linkedProxy?.id || (profile?.proxyId ? String(profile.proxyId) : ""),
+    linkedProxy,
   };
 }
 
@@ -180,7 +215,8 @@ function getPopulatedProfileQuery(id) {
         { path: "assets.imageId" },
         { path: "posts.images" },
       ],
-    });
+    })
+    .populate("proxyId");
 }
 
 router.get("/", async (_req, res, next) => {
@@ -188,6 +224,7 @@ router.get("/", async (_req, res, next) => {
     const profiles = await Profile.find()
       .populate("images.imageId")
       .populate("pageId", "pageName pageId")
+      .populate("proxyId", "host port username source type protocol status label country city")
       .sort({ _id: 1 })
       .lean();
     res.json(profiles.map(formatProfile));
