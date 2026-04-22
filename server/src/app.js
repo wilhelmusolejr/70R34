@@ -4,6 +4,7 @@ import authRouter from "./routes/auth.js";
 import humanAssetsRouter from "./routes/humanAssets.js";
 import pagesRouter from "./routes/pages.js";
 import profilesRouter from "./routes/profiles.js";
+import proxiesRouter from "./routes/proxies.js";
 
 export function createApp() {
   const app = express();
@@ -21,6 +22,7 @@ export function createApp() {
   app.use("/api/human-assets", humanAssetsRouter);
   app.use("/api/pages", pagesRouter);
   app.use("/api/profiles", profilesRouter);
+  app.use("/api/proxies", proxiesRouter);
 
   app.use("/api", (_req, res) => {
     res.status(404).json({ message: "API route not found" });
