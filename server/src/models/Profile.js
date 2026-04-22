@@ -169,6 +169,11 @@ const ProfileSchema = new Schema(
       ref: "Page",
       default: null,
     },
+    proxyId: {
+      type: Schema.Types.ObjectId,
+      ref: "Proxy",
+      default: null,
+    },
     profileCreated: { type: String, default: "" },
     accountCreated: { type: String, default: "" },
     friends: { type: Number, default: 0 },
