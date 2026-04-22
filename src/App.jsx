@@ -15,6 +15,7 @@ import { PageDetailPage } from "./pages/PageDetailPage";
 import { ProfilesPage } from "./pages/ProfilesPage";
 import { PagesPage } from "./pages/PagesPage";
 import { ProfileDetailPage } from "./pages/ProfileDetailPage";
+import { ProxiesPage } from "./pages/ProxiesPage";
 import "./App.css";
 
 function AuthField({ label, value, onChange, type = "text" }) {
@@ -101,6 +102,9 @@ function getDocumentTitle(pathname) {
   }
   if (pathname.startsWith("/pages/")) {
     return "PAGE | 70R34";
+  }
+  if (pathname === "/proxies") {
+    return "PROXIES | 70R34";
   }
 
   return "70R34";
@@ -215,9 +219,7 @@ function Layout({ children }) {
             </NavLink>
             <NavLink to="/images">Images</NavLink>
             <NavLink to="/pages">Pages</NavLink>
-            <a href="#" onClick={(e) => showWipModal(e, "Proxy")}>
-              Proxy
-            </a>
+            <NavLink to="/proxies">Proxy</NavLink>
             <a href="#" onClick={(e) => showWipModal(e, "Anti-Bot ML")}>
               Anti-Bot ML
             </a>
@@ -297,16 +299,9 @@ function Layout({ children }) {
               <NavLink to="/pages" onClick={() => setIsMobileNavOpen(false)}>
                 Pages
               </NavLink>
-              <button
-                type="button"
-                className="nav-mobile-link-btn"
-                onClick={(e) => {
-                  showWipModal(e, "Proxy");
-                  setIsMobileNavOpen(false);
-                }}
-              >
+              <NavLink to="/proxies" onClick={() => setIsMobileNavOpen(false)}>
                 Proxy
-              </button>
+              </NavLink>
               <button
                 type="button"
                 className="nav-mobile-link-btn"
@@ -513,6 +508,7 @@ function App() {
             <Route path="/images/:id" element={<ImageAssetDetailPage />} />
             <Route path="/pages" element={<PagesPage />} />
             <Route path="/pages/:id" element={<PageDetailPage />} />
+            <Route path="/proxies" element={<ProxiesPage />} />
             <Route path="/profile/:id" element={<ProfileDetailPage />} />
           </Routes>
         </Layout>
