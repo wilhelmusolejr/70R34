@@ -258,16 +258,72 @@ function getPopulatedProfileQuery(id) {
     .populate("proxies.proxyId");
 }
 
-router.get("/", async (_req, res, next) => {
+const PROFILE_STATUSES = [
+  "Available",
+  "Need Setup",
+  "Pending Profile",
+  "Active",
+  "Flagged",
+  "Banned",
+  "Ready",
+  "Delivered",
+];
+
+router.get("/", async (req, res, next) => {
   try {
-    const profiles = await Profile.find()
+    const filter = {};
+
+    const statusInput = String(req.query.status || "").trim();
+    if (statusInput) {
+      if (!PROFILE_STATUSES.includes(statusInput)) {
+        return res.status(400).json({
+          message: `Status must be one of: ${PROFILE_STATUSES.join(", ")}`,
+        });
+      }
+      filter.status = statusInput;
+    }
+
+    const limitInput = Number.parseInt(req.query.limit, 10);
+    const limit =
+      Number.isInteger(limitInput) && limitInput > 0 && limitInput <= 500
+        ? limitInput
+        : null;
+
+    const random = String(req.query.random || "").trim() === "1" ||
+      String(req.query.random || "").toLowerCase() === "true";
+
+    const populateAndFormat = (docs) => docs.map(formatProfile);
+
+    if (random && limit !== null) {
+      const sampled = await Profile.aggregate([
+        { $match: filter },
+        { $sample: { size: limit } },
+      ]);
+
+      const populated = await Profile.populate(sampled, [
+        { path: "images.imageId" },
+        { path: "pageId", select: "pageName pageId" },
+        {
+          path: "proxyId",
+          select: "host port username source type protocol status label country city",
+        },
+        { path: "proxies.proxyId" },
+      ]);
+
+      return res.json(populateAndFormat(populated));
+    }
+
+    let query = Profile.find(filter)
       .populate("images.imageId")
       .populate("pageId", "pageName pageId")
       .populate("proxyId", "host port username source type protocol status label country city")
       .populate("proxies.proxyId")
-      .sort({ _id: 1 })
-      .lean();
-    res.json(profiles.map(formatProfile));
+      .sort({ _id: 1 });
+
+    if (limit !== null) query = query.limit(limit);
+
+    const profiles = await query.lean();
+    res.json(populateAndFormat(profiles));
   } catch (error) {
     next(error);
   }
