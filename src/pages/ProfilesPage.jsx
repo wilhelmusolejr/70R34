@@ -8,7 +8,9 @@ import { useAuth } from "../context/AuthContext";
 import { canViewConfidential, canWrite, mask } from "../utils/access";
 import "../App.css";
 
-const TODAY = new Date().toLocaleDateString("en-CA");
+const TODAY = new Date().toLocaleDateString("en-CA", {
+  timeZone: "Asia/Manila",
+});
 
 function getSelectedEmail(profile) {
   if (!profile?.emails?.length) return "";
@@ -98,7 +100,7 @@ export function ProfilesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState([]);
+  const [statusFilter, setStatusFilter] = useState(["Active", "Need Setup"]);
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState("id");
   const [trackerFilter, setTrackerFilter] = useState("");

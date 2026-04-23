@@ -609,24 +609,19 @@ router.post("/:id/tracker", async (req, res, next) => {
     }
 
     const date = String(
-      req.body?.date || new Date().toISOString().slice(0, 10),
+      req.body?.date ||
+        new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }),
     ).trim();
     const note = String(req.body?.note || "").trim();
 
-    const updated = await Profile.findOneAndUpdate(
-      { _id: id, "trackerLog.date": { $ne: date } },
+    const updated = await Profile.findByIdAndUpdate(
+      id,
       { $push: { trackerLog: { date, note } } },
       { new: true },
     );
 
     if (!updated) {
-      const exists = await Profile.exists({ _id: id });
-      if (!exists) {
-        return res.status(404).json({ message: "Profile not found" });
-      }
-      return res
-        .status(409)
-        .json({ message: `Tracker entry for ${date} already exists` });
+      return res.status(404).json({ message: "Profile not found" });
     }
 
     const populated = await getPopulatedProfileQuery(id).lean();

@@ -92,7 +92,9 @@ function hasPageUrl(profile) {
   return String(profile?.pageUrl || "").trim().length > 0;
 }
 
-const TODAY = new Date().toLocaleDateString("en-CA");
+const TODAY = new Date().toLocaleDateString("en-CA", {
+  timeZone: "Asia/Manila",
+});
 
 function score(p) {
   return [p.has2FA, hasPageUrl(p), p.friends >= 30, p.profileSetup].filter(
@@ -1483,7 +1485,7 @@ export function ProfileDetailPage() {
   }
 
   async function saveTrackerEntry() {
-    if (!profile || !isAdmin || trackedToday()) {
+    if (!profile || !isAdmin) {
       setIsTrackerModalOpen(false);
       setTrackerNote("");
       return;
@@ -1499,6 +1501,14 @@ export function ProfileDetailPage() {
 
     setIsTrackerModalOpen(false);
     setTrackerNote("");
+  }
+
+  async function deleteTrackerEntry(index) {
+    if (!profile || !writeable) return;
+    await persistProfile((current) => ({
+      ...current,
+      trackerLog: (current.trackerLog || []).filter((_, i) => i !== index),
+    }));
   }
 
   async function handleSubmitProfile() {
@@ -2234,19 +2244,11 @@ export function ProfileDetailPage() {
               writeable ? (
                 <button
                   type="button"
-                  className={`btn-s${hasTrackedToday ? " done-btn" : ""}`}
-                  onClick={() => {
-                    if (!hasTrackedToday) setIsTrackerModalOpen(true);
-                  }}
-                  disabled={hasTrackedToday}
-                  style={{
-                    padding: "6px 10px",
-                    fontSize: "11px",
-                    opacity: hasTrackedToday ? 0.85 : 1,
-                    cursor: hasTrackedToday ? "default" : "pointer",
-                  }}
+                  className="btn-s"
+                  onClick={() => setIsTrackerModalOpen(true)}
+                  style={{ padding: "6px 10px", fontSize: "11px" }}
                 >
-                  {hasTrackedToday ? "Tracked Today" : "Mark Tracked Today"}
+                  {hasTrackedToday ? "Add Another Entry" : "Mark Tracked Today"}
                 </button>
               ) : null
             }
@@ -2254,15 +2256,35 @@ export function ProfileDetailPage() {
             {trackerEntries.length ? (
               trackerEntries.map((entry, index) => (
                 <div
-                  key={`${entry.date}-${entry.note}-${index}`}
+                  key={`${entry.date}-${entry._index}`}
                   className="dr"
                   style={{
                     borderBottom:
                       index === trackerEntries.length - 1 ? "none" : undefined,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
                   }}
                 >
                   <div className="dl">{entry.date || "No date"}</div>
-                  <div className="dv">{entry.note || "—"}</div>
+                  <div className="dv" style={{ flex: 1 }}>
+                    {entry.note || "—"}
+                  </div>
+                  {writeable && (
+                    <button
+                      type="button"
+                      className="btn-s"
+                      onClick={() => deleteTrackerEntry(entry._index)}
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: "11px",
+                        color: "var(--red)",
+                      }}
+                      title="Delete entry"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               ))
             ) : (
