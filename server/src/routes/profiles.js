@@ -136,6 +136,25 @@ function normalizeProfilePayload(payload = {}) {
     }
   }
 
+  if (Object.prototype.hasOwnProperty.call(nextPayload, "createdBy")) {
+    const rawCreatedBy = nextPayload.createdBy;
+
+    if (rawCreatedBy && typeof rawCreatedBy.toHexString === "function") {
+      // Mongoose/BSON ObjectId — `.id` is a 12-byte Buffer, so go straight to hex.
+      nextPayload.createdBy = rawCreatedBy.toHexString();
+    } else if (rawCreatedBy && typeof rawCreatedBy === "object") {
+      const nested = rawCreatedBy._id || rawCreatedBy.id;
+      const trimmed =
+        nested && typeof nested.toHexString === "function"
+          ? nested.toHexString()
+          : String(nested || "").trim();
+      nextPayload.createdBy = trimmed || null;
+    } else {
+      const trimmed = String(rawCreatedBy || "").trim();
+      nextPayload.createdBy = trimmed || null;
+    }
+  }
+
   if (Object.prototype.hasOwnProperty.call(nextPayload, "proxies")) {
     const rawProxies = Array.isArray(nextPayload.proxies) ? nextPayload.proxies : [];
     nextPayload.proxies = rawProxies
@@ -212,6 +231,18 @@ function formatLinkedProxy(proxy) {
   };
 }
 
+function formatCreatedBy(value) {
+  if (!value) return null;
+  if (typeof value === "object" && value._id) {
+    return {
+      id: String(value._id),
+      username: value.username || "",
+      role: value.role || "",
+    };
+  }
+  return { id: String(value), username: "", role: "" };
+}
+
 function formatProfile(profile) {
   const linkedPage = formatLinkedPage(profile?.pageId);
   const linkedProxy = formatLinkedProxy(profile?.proxyId);
@@ -232,6 +263,8 @@ function formatProfile(profile) {
     })
     .filter(Boolean);
 
+  const createdBy = formatCreatedBy(profile?.createdBy);
+
   return {
     ...profile,
     images,
@@ -240,6 +273,7 @@ function formatProfile(profile) {
     linkedPage,
     proxyId: linkedProxy?.id || (profile?.proxyId ? String(profile.proxyId) : ""),
     linkedProxy,
+    createdBy,
   };
 }
 
@@ -255,7 +289,8 @@ function getPopulatedProfileQuery(id) {
       ],
     })
     .populate("proxyId")
-    .populate("proxies.proxyId");
+    .populate("proxies.proxyId")
+    .populate("createdBy", "username role");
 }
 
 const PROFILE_STATUSES = [
@@ -308,6 +343,7 @@ router.get("/", async (req, res, next) => {
           select: "host port username source type protocol status label country city",
         },
         { path: "proxies.proxyId" },
+        { path: "createdBy", select: "username role" },
       ]);
 
       return res.json(populateAndFormat(populated));
@@ -318,6 +354,7 @@ router.get("/", async (req, res, next) => {
       .populate("pageId", "pageName pageId")
       .populate("proxyId", "host port username source type protocol status label country city")
       .populate("proxies.proxyId")
+      .populate("createdBy", "username role")
       .sort({ _id: 1 });
 
     if (limit !== null) query = query.limit(limit);
@@ -438,6 +475,7 @@ router.post("/bulk", async (req, res, next) => {
     const documents = incoming.map((profile) => ({
       ...profile,
       status: createdByMaker ? "Pending Profile" : profile.status,
+      createdBy: ownerUser?._id || null,
     }));
 
     let inserted = [];
@@ -520,6 +558,7 @@ router.post("/", async (req, res, next) => {
       status: ownerUser?.role === "maker"
         ? "Pending Profile"
         : req.body?.status,
+      createdBy: ownerUser?._id || null,
     });
     delete payload.userId;
 
