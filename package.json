@@ -9,7 +9,9 @@
     "dev:server": "npm --prefix server run dev",
     "server:start": "npm --prefix server run start",
     "server:seed": "npm --prefix server run seed",
+    "proxy:test": "node scripts/test-proxy.js",
     "build": "vite build",
+    "deploy": "vite build && npm --prefix server run start",
     "lint": "eslint .",
     "preview": "vite preview"
   },
