@@ -5,7 +5,13 @@ import { NewProfileModal } from "../components/NewProfileModal";
 import { SafeImage } from "../components/SafeImage";
 import { AVC, STATUS_CLASS, STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
-import { canViewConfidential, canWrite, mask } from "../utils/access";
+import {
+  allowedStatusesFor,
+  canViewConfidential,
+  canWrite,
+  defaultStatusFilterFor,
+  mask,
+} from "../utils/access";
 import "../App.css";
 
 const TODAY = new Date().toLocaleDateString("en-CA", {
@@ -65,6 +71,12 @@ function getFriendsDisplay(profile) {
   return `${Number(profile?.friends || 0)} Friends`;
 }
 
+function hasPageUrl(profile) {
+  return String(profile?.pageUrl || "").trim().length > 0;
+}
+
+const FRIENDS_REQUIREMENT = 30;
+
 function getAvatarColor(id) {
   const str = String(id || "");
   let hash = 0;
@@ -96,11 +108,14 @@ export function ProfilesPage() {
   const isMaker = currentUser?.role === "maker";
   const confidential = canViewConfidential(currentUser);
   const writeable = canWrite(currentUser);
+  const allowedStatuses = allowedStatusesFor(currentUser, STATUS_OPTIONS);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState(["Active", "Need Setup"]);
+  const [statusFilter, setStatusFilter] = useState(() =>
+    defaultStatusFilterFor(currentUser),
+  );
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState("id");
   const [trackerFilter, setTrackerFilter] = useState("");
@@ -253,8 +268,10 @@ export function ProfilesPage() {
         .toLowerCase()
         .includes(q) ||
       (confidential && selectedEmail.includes(q));
+    const withinAllowed = allowedStatuses.includes(profile.status);
     const matchesStatus =
-      statusFilter.length === 0 || statusFilter.includes(profile.status);
+      withinAllowed &&
+      (statusFilter.length === 0 || statusFilter.includes(profile.status));
     const matchesTracker =
       !trackerFilter ||
       (trackerFilter === "done"
@@ -500,15 +517,17 @@ export function ProfilesPage() {
             {isStatusFilterOpen && (
               <div className="status-filter-box">
                 <div className="status-filter-list">
-                  <label className="status-filter-item">
-                    <input
-                      type="checkbox"
-                      checked={statusFilter.length === 0}
-                      onChange={clearStatusFilter}
-                    />
-                    <span>All</span>
-                  </label>
-                  {STATUS_OPTIONS.map((status) => (
+                  {!isMaker && (
+                    <label className="status-filter-item">
+                      <input
+                        type="checkbox"
+                        checked={statusFilter.length === 0}
+                        onChange={clearStatusFilter}
+                      />
+                      <span>All</span>
+                    </label>
+                  )}
+                  {allowedStatuses.map((status) => (
                     <label key={status} className="status-filter-item">
                       <input
                         type="checkbox"
@@ -591,6 +610,8 @@ export function ProfilesPage() {
                               src={userAvatar}
                               alt={`${profile.firstName} ${profile.lastName}`}
                               className="av-img"
+                              initials={(profile.firstName || profile.lastName || "?").charAt(0)}
+                              initialsSeed={profile._id}
                             />
                           </div>
                           <div>
@@ -671,11 +692,13 @@ export function ProfilesPage() {
                       <td data-label="Requirements">
                         <div className="cklist">
                           {[
-                            { label: "2FA", value: profile.has2FA },
-                            { label: "Page", value: profile.hasPage },
+                            { label: "2FA", value: !!profile.has2FA },
+                            { label: "Page", value: hasPageUrl(profile) },
                             {
                               label: getFriendsDisplay(profile),
-                              value: Number(profile?.friends || 0) >= 30,
+                              value:
+                                Number(profile?.friends || 0) >=
+                                FRIENDS_REQUIREMENT,
                             },
                           ].map(({ label, value }) => (
                             <div key={label} className="cki">
