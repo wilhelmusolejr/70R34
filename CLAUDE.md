@@ -110,6 +110,7 @@ Every field has a default, so a brand-new profile with only required `firstName`
   "otherNames": [],
   "browsers": [{ "browserId": "", "provider": "hidemium" }],
   "identityPrompt": "",
+  "createdBy": "ObjectId|null",     // User ref — set from req.body.userId on create/bulk. Populates to { id, username, role } on read.
   "createdAt": "ISO date", "updatedAt": "ISO date"
 }
 ```
@@ -118,6 +119,7 @@ Every field has a default, so a brand-new profile with only required `firstName`
 - `linkedPage` — full populated Page when `pageId` is set, else `null`.
 - `linkedProxy` — full populated Proxy when `proxyId` (singular) is set, else `null`.
 - `pageId` / `proxyId` are coerced to string ids in the response even though they're populated internally.
+- `createdBy` — `{ id, username, role }` when set, else `null`. Older profiles created before this field existed will read as `null`.
 
 **Writing `proxies` back:** the UI must send entries as `{ proxyId: "<id-string>", assignedAt }` — `normalizeProfilePayload` + `serializeProfile` flatten populated objects to ids before PATCH. Do **not** delete a Proxy doc when unlinking from `proxies`; removal is a Profile-side array update only.
 
