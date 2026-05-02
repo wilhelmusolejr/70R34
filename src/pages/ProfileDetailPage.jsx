@@ -35,6 +35,10 @@ const MAKER_EDITABLE_FIELDS = new Set([
   "facebookPassword",
   "profileUrl",
   "pageUrl",
+  "proxy",
+  "proxyLocation",
+  "phone",
+  "recoveryEmail",
 ]);
 
 function getAvatarColor(id) {
@@ -298,20 +302,26 @@ function EditableText({
   copyable = false,
   editable = true,
   suggestions = null,
+  numeric = false,
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
   const [copied, setCopied] = useState(false);
-  const empty = !value || String(value).trim() === "";
+  const empty = value === 0 ? false : !value || String(value).trim() === "";
   const datalistId = useId();
 
   function save() {
-    onSave(draft);
+    if (numeric) {
+      const digits = String(draft).replace(/\D+/g, "");
+      onSave(digits === "" ? 0 : Number(digits));
+    } else {
+      onSave(draft);
+    }
     setEditing(false);
   }
 
   function cancel() {
-    setDraft(value || "");
+    setDraft(value === 0 || value ? String(value) : "");
     setEditing(false);
   }
 
@@ -342,12 +352,20 @@ function EditableText({
             <input
               className={`ef-input${mono ? " ef-mono" : ""}`}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) =>
+                setDraft(
+                  numeric
+                    ? e.target.value.replace(/\D+/g, "")
+                    : e.target.value,
+                )
+              }
               onKeyDown={(e) => {
                 if (e.key === "Enter") save();
                 if (e.key === "Escape") cancel();
               }}
               list={suggestions ? datalistId : undefined}
+              inputMode={numeric ? "numeric" : undefined}
+              pattern={numeric ? "[0-9]*" : undefined}
               autoFocus
               readOnly={!editable}
             />
@@ -383,7 +401,7 @@ function EditableText({
         }}
         title={editable ? "Click to edit" : undefined}
       >
-        {value ? (
+        {value === 0 || value ? (
           <span>{value}</span>
         ) : (
           <em className="ef-empty">{placeholder}</em>
@@ -1702,6 +1720,9 @@ export function ProfileDetailPage() {
                 src={primaryProfileImage}
                 alt={`${profile.firstName} ${profile.lastName}`}
                 className="hav-img"
+                initials={(profile.firstName || profile.lastName || "?").charAt(0)}
+                initialsSeed={profile._id}
+                style={{ width: "100%", height: "100%", fontSize: "32px" }}
               />
             </div>
           </div>
@@ -1721,6 +1742,23 @@ export function ProfileDetailPage() {
                   </span>
                 ) : null}
               </div>
+              {profile.dob ? (
+                <div
+                  className="hsub"
+                  style={{ marginTop: "2px", fontSize: "12px" }}
+                >
+                  {(() => {
+                    const date = new Date(profile.dob);
+                    return Number.isNaN(date.getTime())
+                      ? profile.dob
+                      : date.toLocaleDateString("en-US", {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        });
+                  })()}
+                </div>
+              ) : null}
               <div className="hsub">
                 {profile.work?.[0]?.position || "No role yet"} ·{" "}
                 {profile.work?.[0]?.company || "No company yet"}
@@ -1749,6 +1787,7 @@ export function ProfileDetailPage() {
                 />
               </div>
             </div>
+            {!isMaker && (
             <div className="hero-req-wrap hero-req-side">
               <div className="hero-req-head">
                 <div className="hero-req-title">Requirements</div>
@@ -1819,6 +1858,7 @@ export function ProfileDetailPage() {
                 </label>
               </div>
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -1833,6 +1873,7 @@ export function ProfileDetailPage() {
       )}
 
       <div className="dgrid">
+        {!isMaker && (
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <SectionCard title="Personal Details">
             <div className="dr">
@@ -2236,8 +2277,10 @@ export function ProfileDetailPage() {
             </div>
           </SectionCard>
         </div>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          {!isMaker && (
           <SectionCard
             title="Tracker Log"
             badge={
@@ -2291,6 +2334,7 @@ export function ProfileDetailPage() {
               <div className="muted">No tracker log entries yet.</div>
             )}
           </SectionCard>
+          )}
 
           <SectionCard title="Notes">
             <EditableText
@@ -2298,7 +2342,7 @@ export function ProfileDetailPage() {
               onSave={(v) => upTopLevel("notes", v)}
               multiline
               placeholder="Add internal notes..."
-              editable={writeable}
+              editable={isAdmin || canPersist}
             />
           </SectionCard>
 
@@ -2345,39 +2389,6 @@ export function ProfileDetailPage() {
                 />
               </div>
             </div>
-            {showMakerSubmit && (
-              <div className="dr">
-                <div className="dl">Submit Profile?</div>
-                <div className="dv">
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="btn-p"
-                      onClick={handleSubmitProfile}
-                      disabled={submittingProfile}
-                    >
-                      {submittingProfile ? "Submitting..." : "Submit"}
-                    </button>
-                    {submitError ? (
-                      <span style={{ color: "var(--red)", fontSize: "12px" }}>
-                        {submitError}
-                      </span>
-                    ) : (
-                      <span style={{ color: "var(--text3)", fontSize: "12px" }}>
-                        Requires a selected email before submission.
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
             <div className="dr">
               <div className="dl">Proxy</div>
               <div className="dv">
@@ -2387,7 +2398,7 @@ export function ProfileDetailPage() {
                   placeholder="Proxy"
                   mono
                   copyable={canViewProxy}
-                  editable={writeable}
+                  editable={canEditField("proxy")}
                 />
               </div>
             </div>
@@ -2399,7 +2410,7 @@ export function ProfileDetailPage() {
                   onSave={(v) => upTopLevel("proxyLocation", v)}
                   placeholder="Proxy location"
                   copyable={confidential}
-                  editable={writeable}
+                  editable={canEditField("proxyLocation")}
                 />
               </div>
             </div>
@@ -2411,11 +2422,11 @@ export function ProfileDetailPage() {
                   onSave={(v) => upTopLevel("phone", v)}
                   placeholder="Phone"
                   copyable={confidential}
-                  editable={writeable}
+                  editable={canEditField("phone")}
                 />
               </div>
             </div>
-            <div className="dr">
+            <div className="dr" style={{ borderBottom: "none" }}>
               <div className="dl">Recovery Email</div>
               <div className="dv">
                 <EditableText
@@ -2423,11 +2434,55 @@ export function ProfileDetailPage() {
                   onSave={(v) => upTopLevel("recoveryEmail", v)}
                   placeholder="Recovery email"
                   copyable={confidential}
-                  editable={writeable}
+                  editable={canEditField("recoveryEmail")}
                 />
               </div>
             </div>
           </SectionCard>
+
+          {showMakerSubmit && (
+            <SectionCard title="Submit Profile">
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  padding: "4px 2px",
+                }}
+              >
+                <div style={{ fontSize: "13px", color: "var(--text2)" }}>
+                  Once you've filled in the credentials and links, submit this
+                  profile so an admin can finish setup.
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="btn-p"
+                    onClick={handleSubmitProfile}
+                    disabled={submittingProfile}
+                  >
+                    {submittingProfile ? "Submitting..." : "Submit Profile"}
+                  </button>
+                  {submitError ? (
+                    <span style={{ color: "var(--red)", fontSize: "12px" }}>
+                      {submitError}
+                    </span>
+                  ) : (
+                    <span style={{ color: "var(--text3)", fontSize: "12px" }}>
+                      Requires a selected email before submission.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </SectionCard>
+          )}
 
           <SectionCard title="Account & Links">
             <InfoRow
@@ -2440,7 +2495,15 @@ export function ProfileDetailPage() {
             />
             <div className="dr">
               <div className="dl">Friends</div>
-              <div className="dv">{Number(profile.friends || 0)} Friends</div>
+              <div className="dv">
+                <EditableText
+                  value={Number(profile.friends || 0)}
+                  onSave={(v) => upTopLevel("friends", Number(v) || 0)}
+                  placeholder="0"
+                  numeric
+                  editable={canEditField("friends")}
+                />
+              </div>
             </div>
             <div className="dr">
               <div className="dl">Profile URL</div>
@@ -2470,13 +2533,16 @@ export function ProfileDetailPage() {
             </div>
           </SectionCard>
 
+          {!isMaker && (
           <IdentityPromptCard
             profile={profile}
             writeable={writeable}
             onSave={(value) => upTopLevel("identityPrompt", value)}
             onRegenerate={() => upTopLevel("identityPrompt", buildIdentityPrompt(profile))}
           />
+          )}
 
+          {!isMaker && (
           <SectionCard title="Images Gallery">
             <>
               <div className="profile-gallery-shell">
@@ -2712,10 +2778,11 @@ export function ProfileDetailPage() {
               )}
             </>
           </SectionCard>
+          )}
         </div>
       </div>
 
-      <JsonBlock profile={profile} />
+      {!isMaker && <JsonBlock profile={profile} />}
 
       {isAddProxyModalOpen && (
         <div
