@@ -118,22 +118,32 @@ async function requestGitHubModels(messages, options = {}) {
     throw new Error("Missing GITHUB_MODELS_TOKEN in server environment.");
   }
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "X-GitHub-Api-Version": apiVersion,
-    },
-    body: JSON.stringify({
-      model,
-      temperature: options.temperature ?? 0.8,
-      max_tokens: options.maxTokens ?? 220,
-      response_format: options.responseFormat,
-      messages,
-    }),
-  });
+  let response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "X-GitHub-Api-Version": apiVersion,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: options.temperature ?? 0.8,
+        max_tokens: options.maxTokens ?? 220,
+        response_format: options.responseFormat,
+        messages,
+      }),
+    });
+  } catch (err) {
+    const cause = err?.cause?.code || err?.code || err?.cause?.message;
+    throw new Error(
+      `Could not reach GitHub Models at ${endpoint}${
+        cause ? ` (${cause})` : ""
+      }. Check connectivity or set GITHUB_MODELS_BASE_URL to a reachable endpoint.`,
+    );
+  }
 
   if (!response.ok) {
     let errorMessage = "GitHub Models request failed.";
