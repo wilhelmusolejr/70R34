@@ -114,7 +114,7 @@ function Layout({ children }) {
   const { currentUser, login, logout } = useAuth();
   const location = useLocation();
   const [theme, setTheme] = useState(
-    () => localStorage.getItem("pv_theme") || "light",
+    () => localStorage.getItem("pv_theme") || "dark",
   );
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
