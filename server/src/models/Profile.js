@@ -210,6 +210,11 @@ const ProfileSchema = new Schema(
     otherNames: { type: [String], default: [] },
     browsers: { type: [BrowserSchema], default: [] },
     identityPrompt: { type: String, default: "" },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   {
     timestamps: true,
