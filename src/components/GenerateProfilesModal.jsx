@@ -21,7 +21,7 @@ const DEFAULT_FORM = {
   minAge: 25,
   maxAge: 45,
   emailDomain: "",
-  status: "Available",
+  status: "Pending Profile",
 };
 
 function Field({ label, children }) {
@@ -84,7 +84,7 @@ export function GenerateProfilesModal({
         gender: form.gender,
         minAge,
         maxAge,
-        emailDomain: form.emailDomain.trim() || null,
+        emailDomain: form.emailDomain.trim() || "outlook.com",
         status: form.status,
       }).map((profile) => ({ ...profile, identityPrompt: buildIdentityPrompt(profile) }));
       const result = await bulkCreateProfiles(profiles, currentUser?.id);
@@ -161,7 +161,7 @@ export function GenerateProfilesModal({
               <input
                 className="npm-input"
                 type="text"
-                placeholder="gmail.com"
+                placeholder="outlook.com"
                 value={form.emailDomain}
                 onChange={(e) => setField("emailDomain", e.target.value)}
               />
