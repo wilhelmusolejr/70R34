@@ -12,6 +12,7 @@ import proxiesRouter from "./routes/proxies.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicImagesDir = path.resolve(__dirname, "../../public/images");
+const docsDir = path.resolve(__dirname, "../../docs");
 
 export function createApp() {
   const app = express();
@@ -24,6 +25,18 @@ export function createApp() {
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true });
   });
+
+  app.use(
+    "/docs",
+    express.static(docsDir, {
+      extensions: ["md"],
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(".md")) {
+          res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+        }
+      },
+    }),
+  );
 
   app.get("/api/dev/images", (_req, res) => {
     try {
