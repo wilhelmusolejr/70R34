@@ -297,6 +297,28 @@ export function ProfilesPage() {
     return String(a._id || "").localeCompare(String(b._id || ""));
   });
 
+  async function copyFilteredIds() {
+    const ids = sorted.map((profile) => profile._id);
+    const payload = JSON.stringify(ids);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = payload;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setToast(`Copied ${ids.length} ID${ids.length === 1 ? "" : "s"}`);
+    } catch {
+      setToast("Failed to copy IDs");
+    }
+  }
+
   function handleProfileCreated(createdProfile) {
     setProfiles((current) =>
       [...current, createdProfile].sort((a, b) =>
@@ -408,7 +430,15 @@ export function ProfilesPage() {
             <p>Track accounts, monitor requirements, and log daily activity.</p>
           </div>
           <div className="hdr-acts">
-            <button className="btn-s">Export CSV</button>
+            <button
+              type="button"
+              className="btn-s"
+              onClick={copyFilteredIds}
+              disabled={loading || sorted.length === 0}
+              title="Copy visible profile IDs as a JSON array"
+            >
+              Copy IDs
+            </button>
             {isAdmin && (
               <button
                 className="mark-all-btn"
