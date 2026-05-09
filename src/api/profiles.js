@@ -107,3 +107,29 @@ export function unassignProfileImage(id, imageId) {
     method: "DELETE",
   });
 }
+
+export function addFriendRequest(id, senderProfileId) {
+  return apiFetch(`/api/profiles/${id}/friend-requests`, {
+    method: "POST",
+    body: JSON.stringify({ senderProfileId }),
+  });
+}
+
+export function updateFriendRequestStatus(id, senderProfileId, status) {
+  return apiFetch(
+    `/api/profiles/${id}/friend-requests/${senderProfileId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+  );
+}
+
+export function removeFriendRequest(id, senderProfileId) {
+  return apiFetch(
+    `/api/profiles/${id}/friend-requests/${senderProfileId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}

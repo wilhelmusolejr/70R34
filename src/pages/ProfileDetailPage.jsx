@@ -5,10 +5,14 @@ import { fetchHumanAssets } from "../api/humanAssets";
 import { fetchPages, updatePage } from "../api/pages";
 import { getProfileImagesDownloadUrl } from "../api/profileDownloads";
 import {
+  addFriendRequest as apiAddFriendRequest,
   addProxyLogEntry,
   createProfileProxy,
   fetchProfile,
+  fetchProfiles,
+  removeFriendRequest as apiRemoveFriendRequest,
   unassignProfileImage,
+  updateFriendRequestStatus as apiUpdateFriendRequestStatus,
   updateProfile,
 } from "../api/profiles";
 import { updateProxy } from "../api/proxies";
@@ -23,6 +27,7 @@ const PROXY_STATUS_OPTIONS = [
   "dead",
   "expired",
 ];
+const FRIEND_REQUEST_STATUS_OPTIONS = ["Pending", "Accepted", "Declined"];
 import { AVC, STATUS_CLASS, STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
 import { canViewConfidential, mask, reveal } from "../utils/access";
@@ -142,6 +147,7 @@ function getDefaultProfile() {
     websites: [],
     socialLinks: [],
     images: [],
+    friendRequests: [],
     trackerLog: [],
     avatarUrl: "",
     coverPhotoUrl: "",
@@ -190,6 +196,25 @@ function serializeProfile(profile) {
         .filter(Boolean)
     : [];
 
+  const friendRequests = Array.isArray(rest.friendRequests)
+    ? rest.friendRequests
+        .map((entry) => {
+          if (!entry) return null;
+          const raw = entry.senderProfileId;
+          const id =
+            typeof raw === "object" && raw
+              ? String(raw.id || raw._id || "")
+              : String(raw || "");
+          if (!id) return null;
+          return {
+            senderProfileId: id,
+            status: entry.status || "Pending",
+            receivedAt: entry.receivedAt || new Date().toISOString(),
+          };
+        })
+        .filter(Boolean)
+    : [];
+
   return {
     ...rest,
     pageId:
@@ -197,6 +222,7 @@ function serializeProfile(profile) {
         ? String(rest.pageId.id || rest.pageId._id || "")
         : String(rest.pageId || ""),
     proxies,
+    friendRequests,
   };
 }
 
@@ -233,6 +259,7 @@ function normalizeProfile(raw) {
     browsers: raw?.browsers || [],
     proxies: raw?.proxies || [],
     proxyLog: raw?.proxyLog || [],
+    friendRequests: raw?.friendRequests || [],
   };
 }
 
@@ -1043,6 +1070,8 @@ export function ProfileDetailPage() {
   }));
   const [addProxyError, setAddProxyError] = useState("");
   const [isAddingProxy, setIsAddingProxy] = useState(false);
+  const [allProfiles, setAllProfiles] = useState([]);
+  const [friendRequestSenderInput, setFriendRequestSenderInput] = useState("");
   const role = currentUser?.role || "";
   const isAdmin = role === "admin";
   const isMaker = role === "maker";
@@ -1107,6 +1136,25 @@ export function ProfileDetailPage() {
     }
 
     loadPages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAllProfiles() {
+      try {
+        const data = await fetchProfiles();
+        if (!cancelled) setAllProfiles(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setAllProfiles([]);
+      }
+    }
+
+    loadAllProfiles();
 
     return () => {
       cancelled = true;
@@ -1409,6 +1457,93 @@ export function ProfileDetailPage() {
       ...current,
       proxies: (current.proxies || []).filter((_, i) => i !== idx),
     }));
+  }
+
+  async function addFriendRequest(senderId) {
+    const senderProfileId = String(senderId || "").trim();
+    if (!profile?._id || !canPersist || !senderProfileId) return;
+    if (senderProfileId === String(profile._id)) return;
+    const alreadyAdded = (profile.friendRequests || []).some((entry) => {
+      const existing =
+        typeof entry.senderProfileId === "object" && entry.senderProfileId
+          ? String(entry.senderProfileId.id || entry.senderProfileId._id || "")
+          : String(entry.senderProfileId || "");
+      return existing === senderProfileId;
+    });
+    if (alreadyAdded) return;
+
+    try {
+      const updated = await apiAddFriendRequest(profile._id, senderProfileId);
+      setProfile(normalizeProfile(updated));
+      setError("");
+    } catch (err) {
+      setError(err.message || "Failed to add friend request.");
+    }
+  }
+
+  async function updateFriendRequestStatus(idx, status) {
+    if (!profile?._id || !canPersist) return;
+    const target = (profile.friendRequests || [])[idx];
+    if (!target) return;
+    const senderProfileId =
+      typeof target.senderProfileId === "object" && target.senderProfileId
+        ? String(
+            target.senderProfileId.id || target.senderProfileId._id || "",
+          )
+        : String(target.senderProfileId || "");
+    if (!senderProfileId) return;
+
+    const previous = profile;
+    setProfile((prev) => ({
+      ...prev,
+      friendRequests: (prev.friendRequests || []).map((entry, i) =>
+        i === idx ? { ...entry, status } : entry,
+      ),
+    }));
+
+    try {
+      const updated = await apiUpdateFriendRequestStatus(
+        profile._id,
+        senderProfileId,
+        status,
+      );
+      setProfile(normalizeProfile(updated));
+      setError("");
+    } catch (err) {
+      setProfile(previous);
+      setError(err.message || "Failed to update friend request status.");
+    }
+  }
+
+  async function removeFriendRequest(idx) {
+    if (!profile?._id || !canPersist) return;
+    const target = (profile.friendRequests || [])[idx];
+    if (!target) return;
+    const senderProfileId =
+      typeof target.senderProfileId === "object" && target.senderProfileId
+        ? String(
+            target.senderProfileId.id || target.senderProfileId._id || "",
+          )
+        : String(target.senderProfileId || "");
+    if (!senderProfileId) return;
+
+    const previous = profile;
+    setProfile((prev) => ({
+      ...prev,
+      friendRequests: (prev.friendRequests || []).filter((_, i) => i !== idx),
+    }));
+
+    try {
+      const updated = await apiRemoveFriendRequest(
+        profile._id,
+        senderProfileId,
+      );
+      setProfile(normalizeProfile(updated));
+      setError("");
+    } catch (err) {
+      setProfile(previous);
+      setError(err.message || "Failed to remove friend request.");
+    }
   }
 
   function resetAddProxyForm() {
@@ -2532,6 +2667,216 @@ export function ProfileDetailPage() {
               </div>
             </div>
           </SectionCard>
+
+          {!isMaker && (
+            <SectionCard
+              title="Friend Requests"
+              badge={
+                <span style={{ fontSize: "11px", color: "var(--text3)" }}>
+                  {(profile.friendRequests || []).length} received
+                </span>
+              }
+            >
+              {(profile.friendRequests || []).length ? (
+                (profile.friendRequests || []).map((entry, idx) => {
+                  const sender =
+                    typeof entry.senderProfileId === "object" &&
+                    entry.senderProfileId
+                      ? entry.senderProfileId
+                      : null;
+                  const senderId =
+                    sender?.id ||
+                    sender?._id ||
+                    (typeof entry.senderProfileId === "string"
+                      ? entry.senderProfileId
+                      : "");
+                  const senderName =
+                    sender &&
+                    `${toCapitalizedWords(sender.firstName || "")} ${toCapitalizedWords(sender.lastName || "")}`.trim();
+                  const displayName = senderName || "Unknown profile";
+                  const senderProfileUrl = sender?.profileUrl || "";
+                  const statusClass =
+                    entry.status === "Accepted"
+                      ? "sp"
+                      : entry.status === "Declined"
+                        ? "sbn"
+                        : "sa";
+                  return (
+                    <div
+                      key={`${senderId}-${idx}`}
+                      className="dr"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div className="dl" style={{ flex: "1 1 160px" }}>
+                        <div style={{ fontWeight: 600 }}>{displayName}</div>
+                        <div
+                          style={{ color: "var(--text3)", fontSize: "11px" }}
+                        >
+                          {entry.receivedAt
+                            ? `Received ${fmtDate(entry.receivedAt)}`
+                            : ""}
+                        </div>
+                      </div>
+                      <div
+                        className="dv"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span className={`sbadge ${statusClass}`}>
+                          <span className="sdot2" />
+                          {writeable ? (
+                            <select
+                              className="ef-input"
+                              value={entry.status || "Pending"}
+                              onChange={(e) =>
+                                updateFriendRequestStatus(idx, e.target.value)
+                              }
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                padding: 0,
+                                minWidth: "auto",
+                                color: "inherit",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                boxShadow: "none",
+                                cursor: "pointer",
+                              }}
+                            >
+                              {FRIEND_REQUEST_STATUS_OPTIONS.map((status) => (
+                                <option key={status} value={status}>
+                                  {status}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span style={{ fontWeight: 700, fontSize: "12px" }}>
+                              {entry.status || "Pending"}
+                            </span>
+                          )}
+                        </span>
+                        {senderId ? (
+                          <a
+                            href={`/profile/${senderId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="image-asset-user-link"
+                          >
+                            Open in vault
+                          </a>
+                        ) : null}
+                        {senderProfileUrl ? (
+                          <a
+                            href={senderProfileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="image-asset-user-link"
+                          >
+                            Facebook
+                          </a>
+                        ) : null}
+                        {writeable && (
+                          <button
+                            type="button"
+                            className="btn-s"
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: "11px",
+                              color: "var(--red)",
+                            }}
+                            onClick={() => removeFriendRequest(idx)}
+                            title="Remove request"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="muted">No friend requests received yet.</div>
+              )}
+
+              {writeable && (() => {
+                const existingIds = new Set(
+                  (profile.friendRequests || []).map((entry) => {
+                    const raw = entry.senderProfileId;
+                    return typeof raw === "object" && raw
+                      ? String(raw.id || raw._id || "")
+                      : String(raw || "");
+                  }),
+                );
+                const selectableProfiles = (allProfiles || []).filter(
+                  (candidate) =>
+                    candidate?._id &&
+                    String(candidate._id) !== String(profile._id) &&
+                    !existingIds.has(String(candidate._id)),
+                );
+                const labelFor = (candidate) =>
+                  `${toCapitalizedWords(candidate.firstName || "")} ${toCapitalizedWords(candidate.lastName || "")}`.trim() ||
+                  String(candidate._id);
+                const matched = selectableProfiles.find(
+                  (candidate) =>
+                    labelFor(candidate).toLowerCase() ===
+                    friendRequestSenderInput.trim().toLowerCase(),
+                );
+                return (
+                  <div
+                    className="dr"
+                    style={{
+                      borderBottom: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      list="friend-request-sender-options"
+                      className="fsearch"
+                      style={{ flex: 1, minWidth: "200px" }}
+                      placeholder="Type a profile name to add..."
+                      value={friendRequestSenderInput}
+                      onChange={(e) =>
+                        setFriendRequestSenderInput(e.target.value)
+                      }
+                    />
+                    <datalist id="friend-request-sender-options">
+                      {selectableProfiles.map((candidate) => (
+                        <option
+                          key={candidate._id}
+                          value={labelFor(candidate)}
+                        />
+                      ))}
+                    </datalist>
+                    <button
+                      type="button"
+                      className="btn-s"
+                      onClick={() => {
+                        if (!matched) return;
+                        addFriendRequest(matched._id);
+                        setFriendRequestSenderInput("");
+                      }}
+                      disabled={!matched}
+                    >
+                      Add Request
+                    </button>
+                  </div>
+                );
+              })()}
+            </SectionCard>
+          )}
 
           {!isMaker && (
           <IdentityPromptCard

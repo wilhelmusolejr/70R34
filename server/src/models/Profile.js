@@ -13,6 +13,8 @@ const PROFILE_STATUSES = [
   "Delivered",
 ];
 
+const FRIEND_REQUEST_STATUSES = ["Pending", "Accepted", "Declined"];
+
 const RELATIONSHIP_STATUSES = [
   "",
   "Single",
@@ -130,6 +132,23 @@ const ProfileImageAssignmentSchema = new Schema(
   { _id: false },
 );
 
+const FriendRequestSchema = new Schema(
+  {
+    senderProfileId: {
+      type: Schema.Types.ObjectId,
+      ref: "Profile",
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: FRIEND_REQUEST_STATUSES,
+      default: "Pending",
+    },
+    receivedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const PersonalSchema = new Schema(
   {
     relationshipStatus: {
@@ -191,6 +210,7 @@ const ProfileSchema = new Schema(
     websites: { type: [String], default: [] },
     socialLinks: { type: [SocialLinkSchema], default: [] },
     images: { type: [ProfileImageAssignmentSchema], default: [] },
+    friendRequests: { type: [FriendRequestSchema], default: [] },
     trackerLog: { type: [TrackerLogSchema], default: [] },
     personal: { type: PersonalSchema, default: () => ({}) },
     work: { type: [WorkSchema], default: [] },
@@ -225,5 +245,5 @@ const ProfileSchema = new Schema(
 ProfileSchema.index({ status: 1 });
 ProfileSchema.index({ profileCreated: 1 });
 
-export { PROFILE_STATUSES, RELATIONSHIP_STATUSES };
+export { PROFILE_STATUSES, RELATIONSHIP_STATUSES, FRIEND_REQUEST_STATUSES };
 export const Profile = model("Profile", ProfileSchema);

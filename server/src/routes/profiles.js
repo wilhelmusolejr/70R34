@@ -6,7 +6,7 @@ import { Router } from "express";
 import { fileURLToPath } from "node:url";
 import { HumanAsset } from "../models/HumanAsset.js";
 import { Image } from "../models/Image.js";
-import { Profile } from "../models/Profile.js";
+import { Profile, FRIEND_REQUEST_STATUSES } from "../models/Profile.js";
 import { User } from "../models/User.js";
 import "../models/Page.js";
 import {
@@ -175,6 +175,34 @@ function normalizeProfilePayload(payload = {}) {
       .filter(Boolean);
   }
 
+  if (Object.prototype.hasOwnProperty.call(nextPayload, "friendRequests")) {
+    const rawRequests = Array.isArray(nextPayload.friendRequests)
+      ? nextPayload.friendRequests
+      : [];
+    nextPayload.friendRequests = rawRequests
+      .map((entry) => {
+        if (!entry) return null;
+        const rawId =
+          typeof entry.senderProfileId === "object" && entry.senderProfileId
+            ? entry.senderProfileId.id ||
+              entry.senderProfileId._id ||
+              entry.senderProfileId
+            : entry.senderProfileId;
+        const id = String(rawId || "").trim();
+        if (!id) return null;
+        const status = String(entry.status || "Pending").trim() || "Pending";
+        const receivedAt = entry.receivedAt
+          ? new Date(entry.receivedAt)
+          : new Date();
+        return {
+          senderProfileId: id,
+          status,
+          receivedAt: Number.isNaN(receivedAt.getTime()) ? new Date() : receivedAt,
+        };
+      })
+      .filter(Boolean);
+  }
+
   return nextPayload;
 }
 
@@ -231,6 +259,21 @@ function formatLinkedProxy(proxy) {
   };
 }
 
+function formatFriendRequestSender(value) {
+  if (!value) return null;
+  if (typeof value === "object" && value._id) {
+    return {
+      id: String(value._id),
+      firstName: value.firstName || "",
+      lastName: value.lastName || "",
+      profileUrl: value.profileUrl || "",
+      avatarUrl: value.avatarUrl || "",
+      status: value.status || "",
+    };
+  }
+  return { id: String(value), firstName: "", lastName: "", profileUrl: "", avatarUrl: "", status: "" };
+}
+
 function formatCreatedBy(value) {
   if (!value) return null;
   if (typeof value === "object" && value._id) {
@@ -265,10 +308,24 @@ function formatProfile(profile) {
 
   const createdBy = formatCreatedBy(profile?.createdBy);
 
+  const friendRequests = (profile?.friendRequests || [])
+    .map((entry) => {
+      if (!entry) return null;
+      const sender = formatFriendRequestSender(entry.senderProfileId);
+      if (!sender) return null;
+      return {
+        senderProfileId: sender,
+        status: entry.status || "Pending",
+        receivedAt: entry.receivedAt || null,
+      };
+    })
+    .filter(Boolean);
+
   return {
     ...profile,
     images,
     proxies,
+    friendRequests,
     pageId: linkedPage?.id || (profile?.pageId ? String(profile.pageId) : ""),
     linkedPage,
     proxyId: linkedProxy?.id || (profile?.proxyId ? String(profile.proxyId) : ""),
@@ -290,6 +347,10 @@ function getPopulatedProfileQuery(id) {
     })
     .populate("proxyId")
     .populate("proxies.proxyId")
+    .populate(
+      "friendRequests.senderProfileId",
+      "firstName lastName profileUrl avatarUrl status",
+    )
     .populate("createdBy", "username role");
 }
 
@@ -836,6 +897,125 @@ router.post("/:id/proxy-log", async (req, res, next) => {
 
     const populated = await getPopulatedProfileQuery(id).lean();
     res.status(201).json(formatProfile(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:id/friend-requests", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+
+    const senderId = String(req.body?.senderProfileId || "").trim();
+    if (!isValidId(senderId)) {
+      return res.status(400).json({ message: "Invalid senderProfileId" });
+    }
+    if (senderId === id) {
+      return res.status(400).json({
+        message: "A profile cannot send a friend request to itself.",
+      });
+    }
+
+    const sender = await Profile.findById(senderId).select("_id");
+    if (!sender) {
+      return res.status(404).json({ message: "Sender profile not found" });
+    }
+
+    const result = await Profile.updateOne(
+      { _id: id, "friendRequests.senderProfileId": { $ne: senderId } },
+      {
+        $push: {
+          friendRequests: {
+            senderProfileId: senderId,
+            status: "Pending",
+            receivedAt: new Date(),
+          },
+        },
+      },
+    );
+
+    if (!result.matchedCount) {
+      const exists = await Profile.exists({ _id: id });
+      if (!exists) {
+        return res.status(404).json({ message: "Profile not found" });
+      }
+      return res.status(409).json({
+        message: "A friend request from this sender already exists.",
+      });
+    }
+
+    const populated = await getPopulatedProfileQuery(id).lean();
+    res.status(201).json(formatProfile(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/:id/friend-requests/:senderId", async (req, res, next) => {
+  try {
+    const { id, senderId } = req.params;
+    if (!isValidId(id)) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+    if (!isValidId(senderId)) {
+      return res.status(400).json({ message: "Invalid senderProfileId" });
+    }
+
+    const status = String(req.body?.status || "").trim();
+    if (!FRIEND_REQUEST_STATUSES.includes(status)) {
+      return res.status(400).json({
+        message: `Status must be one of: ${FRIEND_REQUEST_STATUSES.join(", ")}`,
+      });
+    }
+
+    const result = await Profile.updateOne(
+      { _id: id, "friendRequests.senderProfileId": senderId },
+      { $set: { "friendRequests.$.status": status } },
+    );
+
+    if (!result.matchedCount) {
+      return res.status(404).json({
+        message: "Friend request from this sender not found on this profile.",
+      });
+    }
+
+    const populated = await getPopulatedProfileQuery(id).lean();
+    res.json(formatProfile(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/:id/friend-requests/:senderId", async (req, res, next) => {
+  try {
+    const { id, senderId } = req.params;
+    if (!isValidId(id)) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+    if (!isValidId(senderId)) {
+      return res.status(400).json({ message: "Invalid senderProfileId" });
+    }
+
+    const result = await Profile.updateOne(
+      { _id: id, "friendRequests.senderProfileId": senderId },
+      { $pull: { friendRequests: { senderProfileId: senderId } } },
+    );
+
+    if (!result.matchedCount) {
+      const exists = await Profile.exists({ _id: id });
+      if (!exists) {
+        return res.status(404).json({ message: "Profile not found" });
+      }
+      return res.status(404).json({
+        message: "Friend request from this sender not found on this profile.",
+      });
+    }
+
+    const populated = await getPopulatedProfileQuery(id).lean();
+    res.json(formatProfile(populated));
   } catch (error) {
     next(error);
   }
