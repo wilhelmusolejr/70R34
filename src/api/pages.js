@@ -55,6 +55,16 @@ export function createPage(formData) {
   });
 }
 
+export function bulkCreatePages(pagesArray) {
+  return apiFetch("/api/pages/bulk", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ pages: pagesArray }),
+  });
+}
+
 export function addPagePost(pageId, formData) {
   return apiFetch(`/api/pages/${pageId}/posts`, {
     method: "POST",
@@ -96,5 +106,11 @@ export function updatePage(pageId, payload) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
+  });
+}
+
+export function deletePage(pageId) {
+  return apiFetch(`/api/pages/${pageId}`, {
+    method: "DELETE",
   });
 }

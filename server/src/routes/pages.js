@@ -727,6 +727,79 @@ router.patch("/:id", async (req, res, next) => {
   }
 });
 
+router.post("/bulk", async (req, res, next) => {
+  try {
+    const incoming = Array.isArray(req.body?.pages) ? req.body.pages : [];
+
+    if (!incoming.length) {
+      return res.status(400).json({ message: "No pages provided" });
+    }
+
+    const docs = incoming
+      .map((entry) => {
+        const pageName = String(entry?.pageName || "").trim();
+        if (!pageName) return null;
+        return {
+          pageName,
+          pageId: String(entry?.pageId || "").trim(),
+          category: String(entry?.category || "").trim(),
+          followerCount: Number.parseInt(entry?.followerCount || 0, 10) || 0,
+          likeCount: Number.parseInt(entry?.likeCount || 0, 10) || 0,
+          bio: String(entry?.bio || "").trim(),
+          generationPrompt: String(entry?.generationPrompt || "").trim(),
+          linkedIdentities: [],
+          assets: [],
+        };
+      })
+      .filter(Boolean);
+
+    if (!docs.length) {
+      return res.status(400).json({ message: "No valid pages to create" });
+    }
+
+    const inserted = await Page.insertMany(docs);
+    const ids = inserted.map((doc) => doc._id);
+
+    const populatedPages = await Page.find({ _id: { $in: ids } })
+      .populate("linkedIdentities", "id firstName lastName pageUrl")
+      .populate("assets.imageId")
+      .populate("posts.images")
+      .lean();
+
+    res.status(201).json({
+      created: populatedPages.length,
+      pages: populatedPages.map(formatPage),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!ensureValidPageId(id)) {
+      return res.status(400).json({ message: "Invalid page id" });
+    }
+
+    const page = await Page.findById(id);
+    if (!page) {
+      return res.status(404).json({ message: "Page not found" });
+    }
+
+    await Profile.updateMany(
+      { pageId: page._id },
+      { $set: { pageId: null } },
+    );
+
+    await page.deleteOne();
+
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/:id/images/download", async (req, res, next) => {
   try {
     const { id } = req.params;

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { fetchProfiles } from "../api/profiles";
 import { createPage, fetchPages } from "../api/pages";
 import { SafeImage } from "../components/SafeImage";
+import { GeneratePagesModal } from "../components/GeneratePagesModal";
 import { useAuth } from "../context/AuthContext";
 import { generatePageInformation } from "../generator/pages";
 import "../App.css";
@@ -155,6 +156,8 @@ export function PagesPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isGenerateOpen, setIsGenerateOpen] = useState(false);
+  const [toast, setToast] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [guardMessage, setGuardMessage] = useState("");
@@ -231,6 +234,12 @@ export function PagesPage() {
       }
     });
   }, [pageForm.files]);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timeout = setTimeout(() => setToast(""), 2800);
+    return () => clearTimeout(timeout);
+  }, [toast]);
 
   function setSelectedPageFiles(fileList) {
     setPageForm((current) => ({
@@ -355,24 +364,47 @@ export function PagesPage() {
 
   return (
     <div className="page">
+      {toast ? <div className="toast-notice">{toast}</div> : null}
+      <GeneratePagesModal
+        isOpen={isGenerateOpen}
+        onClose={() => setIsGenerateOpen(false)}
+        onGenerated={(newPages) =>
+          setPages((current) => [...newPages, ...current])
+        }
+        onToast={setToast}
+      />
       <div className="page-header">
         <div>
           <h1>Pages</h1>
           <p>Browse page inventory grouped by availability and claim status.</p>
         </div>
-        <button
-          type="button"
-          className="btn-p"
-          onClick={() => {
-            if (!ensureAdminAccess()) {
-              return;
-            }
-            resetPageForm();
-            setIsModalOpen(true);
-          }}
-        >
-          Add Page
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button
+            type="button"
+            className="btn-s"
+            onClick={() => {
+              if (!ensureAdminAccess()) {
+                return;
+              }
+              setIsGenerateOpen(true);
+            }}
+          >
+            Generate
+          </button>
+          <button
+            type="button"
+            className="btn-p"
+            onClick={() => {
+              if (!ensureAdminAccess()) {
+                return;
+              }
+              resetPageForm();
+              setIsModalOpen(true);
+            }}
+          >
+            Add Page
+          </button>
+        </div>
       </div>
 
       <div className="stats-row">

@@ -7,6 +7,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   addPageImages,
   addPagePost,
+  deletePage,
   fetchPage,
   generateBulkPagePosts,
   generatePagePost,
@@ -255,6 +256,7 @@ export function PageDetailPage() {
   const [showAssignProfileInput, setShowAssignProfileInput] = useState(false);
   const [assignProfileName, setAssignProfileName] = useState("");
   const [isSavingPage, setIsSavingPage] = useState(false);
+  const [isDeletingPage, setIsDeletingPage] = useState(false);
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [bioDraft, setBioDraft] = useState("");
   const [bioCopied, setBioCopied] = useState(false);
@@ -432,6 +434,33 @@ export function PageDetailPage() {
     await savePageChanges({ bio: bioDraft });
     if (isAdmin) {
       setIsEditingBio(false);
+    }
+  }
+
+  async function handleDeletePage() {
+    if (!ensureAdminAccess()) {
+      return;
+    }
+
+    const linkedName = page?.linkedIdentity
+      ? `${page.linkedIdentity.firstName || ""} ${page.linkedIdentity.lastName || ""}`.trim()
+      : "";
+    const confirmMessage = linkedName
+      ? `Delete "${page.pageName}"? This will also unlink the assigned profile (${linkedName}).`
+      : `Delete "${page.pageName}"? This cannot be undone.`;
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setIsDeletingPage(true);
+      setError("");
+      await deletePage(id);
+      navigate("/pages");
+    } catch (err) {
+      setError(err.message || "Failed to delete page.");
+      setIsDeletingPage(false);
     }
   }
 
@@ -784,6 +813,22 @@ export function PageDetailPage() {
               Likes: {fmtNumber(page.likeCount)}
               <br />
               Updated: {fmtDate(page.updatedAt)}
+              {isAdmin ? (
+                <div style={{ marginTop: "10px" }}>
+                  <button
+                    type="button"
+                    className="btn-s"
+                    style={{
+                      color: "#dc2626",
+                      borderColor: "#dc2626",
+                    }}
+                    onClick={handleDeletePage}
+                    disabled={isDeletingPage}
+                  >
+                    {isDeletingPage ? "Deleting..." : "Delete Page"}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
           <div className="hbio-wrap">
