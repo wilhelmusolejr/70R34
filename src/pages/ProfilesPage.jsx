@@ -243,8 +243,8 @@ export function ProfilesPage() {
   const activeProfiles = visibleProfiles.filter(
     (p) => p.status === "Active",
   ).length;
-  const pendingProfiles = visibleProfiles.filter(
-    (p) => p.status === "Pending Profile",
+  const flaggedProfiles = visibleProfiles.filter(
+    (p) => p.status === "Flagged",
   ).length;
   const bannedProfiles = visibleProfiles.filter(
     (p) => p.status === "Banned",
@@ -252,11 +252,12 @@ export function ProfilesPage() {
   const readyProfiles = visibleProfiles.filter(
     (p) => p.status === "Ready",
   ).length;
-  const doneTodayCount = visibleProfiles.filter((p) =>
-    isProcessedToday(p),
-  ).length;
+  const trackableStatuses = ["Active", "Flagged", "Need Setup"];
   const trackableProfiles = visibleProfiles.filter((p) =>
-    ["Active", "Flagged", "Need Setup"].includes(p.status),
+    trackableStatuses.includes(p.status),
+  ).length;
+  const doneTodayCount = visibleProfiles.filter(
+    (p) => trackableStatuses.includes(p.status) && isProcessedToday(p),
   ).length;
 
   const filtered = visibleProfiles.filter((profile) => {
@@ -480,11 +481,11 @@ export function ProfilesPage() {
           </div>
           <div className="sc">
             <div className="snum" style={{ color: "var(--amber)" }}>
-              {pendingProfiles}
+              {flaggedProfiles}
             </div>
             <div className="slabel">
               <span className="sdot" style={{ background: "var(--amber)" }} />
-              Pending
+              Flagged
             </div>
           </div>
           <div className="sc">
@@ -751,7 +752,7 @@ export function ProfilesPage() {
                           ))}
                         </div>
                       </td>
-                      <td data-label="Daily Tracker">
+                      <td data-label="Daily Tracker" style={{ maxWidth: "260px" }}>
                         <div className="tracker-cell">
                           <span
                             className={`track-badge ${done ? "track-done" : "track-pending"}`}
@@ -759,7 +760,24 @@ export function ProfilesPage() {
                             {done ? "Done" : "Pending"}
                           </span>
                           {done && lastEntry && (
-                            <span className="track-time">{lastEntry.note}</span>
+                            <span
+                              className="track-time"
+                              title={
+                                (lastEntry.note || "").length > 200
+                                  ? lastEntry.note
+                                  : undefined
+                              }
+                              style={{
+                                display: "inline-block",
+                                maxWidth: "240px",
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {(lastEntry.note || "").length > 200
+                                ? `${lastEntry.note.slice(0, 200)}...`
+                                : lastEntry.note}
+                            </span>
                           )}
                           {!done && isAdmin && (
                             <button
