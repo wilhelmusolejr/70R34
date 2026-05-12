@@ -1,19 +1,9 @@
 import { useEffect, useState } from "react";
 import { bulkCreateProfiles } from "../api/profiles";
+import { STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
 import { generateBatch } from "../generator/generate";
 import { buildIdentityPrompt } from "../utils/identityPrompt";
-
-const STATUS_OPTIONS = [
-  "Available",
-  "Need Setup",
-  "Pending Profile",
-  "Active",
-  "Flagged",
-  "Banned",
-  "Ready",
-  "Delivered",
-];
 
 const DEFAULT_FORM = {
   count: 10,
