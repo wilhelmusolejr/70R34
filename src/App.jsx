@@ -11,6 +11,7 @@ import { loginAccount, registerAccount } from "./api/auth";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ImageAssetDetailPage } from "./pages/ImageAssetDetailPage";
 import { ImagesPage } from "./pages/ImagesPage";
+import { LogsPage } from "./pages/LogsPage";
 import { PageDetailPage } from "./pages/PageDetailPage";
 import { ProfilesPage } from "./pages/ProfilesPage";
 import { PagesPage } from "./pages/PagesPage";
@@ -105,6 +106,9 @@ function getDocumentTitle(pathname) {
   }
   if (pathname === "/proxies") {
     return "PROXIES | 70R34";
+  }
+  if (pathname === "/logs") {
+    return "LOGS | 70R34";
   }
 
   return "70R34";
@@ -220,6 +224,7 @@ function Layout({ children }) {
             <NavLink to="/images">Images</NavLink>
             <NavLink to="/pages">Pages</NavLink>
             <NavLink to="/proxies">Proxy</NavLink>
+            <NavLink to="/logs">Logs</NavLink>
             <a href="#" onClick={(e) => showWipModal(e, "Anti-Bot ML")}>
               Anti-Bot ML
             </a>
@@ -301,6 +306,9 @@ function Layout({ children }) {
               </NavLink>
               <NavLink to="/proxies" onClick={() => setIsMobileNavOpen(false)}>
                 Proxy
+              </NavLink>
+              <NavLink to="/logs" onClick={() => setIsMobileNavOpen(false)}>
+                Logs
               </NavLink>
               <button
                 type="button"
@@ -509,6 +517,7 @@ function App() {
             <Route path="/pages" element={<PagesPage />} />
             <Route path="/pages/:id" element={<PageDetailPage />} />
             <Route path="/proxies" element={<ProxiesPage />} />
+            <Route path="/logs" element={<LogsPage />} />
             <Route path="/profile/:id" element={<ProfileDetailPage />} />
           </Routes>
         </Layout>
