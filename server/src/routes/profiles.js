@@ -6,7 +6,11 @@ import { Router } from "express";
 import { fileURLToPath } from "node:url";
 import { HumanAsset } from "../models/HumanAsset.js";
 import { Image } from "../models/Image.js";
-import { Profile, FRIEND_REQUEST_STATUSES } from "../models/Profile.js";
+import {
+  Profile,
+  PROFILE_STATUSES,
+  FRIEND_REQUEST_STATUSES,
+} from "../models/Profile.js";
 import { User } from "../models/User.js";
 import "../models/Page.js";
 import {
@@ -353,17 +357,6 @@ function getPopulatedProfileQuery(id) {
     )
     .populate("createdBy", "username role");
 }
-
-const PROFILE_STATUSES = [
-  "Available",
-  "Need Setup",
-  "Pending Profile",
-  "Active",
-  "Flagged",
-  "Banned",
-  "Ready",
-  "Delivered",
-];
 
 router.get("/", async (req, res, next) => {
   try {
