@@ -5,6 +5,7 @@ const { Schema, model } = mongoose;
 const PROFILE_STATUSES = [
   "Available",
   "Need Setup",
+  "Need Checking",
   "Pending Profile",
   "Active",
   "Flagged",
