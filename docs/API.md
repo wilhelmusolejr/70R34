@@ -241,7 +241,7 @@ Create an asset with one or more images. **`multipart/form-data`.**
 | `name` | text | required |
 | `numberPossibleProfile` | text (int) | optional |
 | `imageAnnotation` | text | applied to each created Image |
-| `imageSourceType` | text | `scraped` (default) or `ai-generated` |
+| `imageSourceType` | text | `scraped` (default), `generated`, `stock`, or `real` |
 | `aiGenerated` | text (`"true"`/`"false"`) | |
 | `generationModel` | text | for AI assets |
 | `imageTypes` | JSON-stringified array | one `type` per uploaded file (`"post"`, `"profile"`, `"cover"`, …). Defaults to `"post"`. |
@@ -249,6 +249,86 @@ Create an asset with one or more images. **`multipart/form-data`.**
 | `images` | file (repeat) | required, ≥1 |
 
 **Returns 201:** populated asset.
+
+#### Minimal external integration
+
+For another project that only needs to create a human asset from a name and a list of images:
+
+- Send `multipart/form-data`, not JSON.
+- Add `name` once.
+- Add every image file under the repeated field name `images`.
+- Add `imageTypes` as a JSON-stringified array with one `"post"` entry per image.
+- Do not manually set the `Content-Type` header when using `FormData`; the client must include the multipart boundary.
+
+Browser / frontend example:
+
+```js
+async function uploadHumanAsset({ name, files }) {
+  const formData = new FormData();
+
+  formData.append("name", name);
+  formData.append("imageTypes", JSON.stringify(files.map(() => "post")));
+
+  for (const file of files) {
+    formData.append("images", file);
+  }
+
+  const response = await fetch("https://7or34.space/api/human-assets", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to upload human asset");
+  }
+
+  return response.json();
+}
+```
+
+Node.js example:
+
+```js
+import fs from "node:fs";
+
+async function uploadHumanAsset() {
+  const imagePaths = [
+    "./images/photo1.jpg",
+    "./images/photo2.jpg",
+  ];
+
+  const formData = new FormData();
+  formData.append("name", "Vanessa Roberts");
+  formData.append("imageTypes", JSON.stringify(imagePaths.map(() => "post")));
+
+  for (const imagePath of imagePaths) {
+    const file = await fs.openAsBlob(imagePath);
+    formData.append("images", file, imagePath.split("/").pop());
+  }
+
+  const response = await fetch("https://7or34.space/api/human-assets", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+}
+```
+
+curl example:
+
+```bash
+curl -X POST "https://7or34.space/api/human-assets" \
+  -F "name=Vanessa Roberts" \
+  -F 'imageTypes=["post","post"]' \
+  -F "images=@./photo1.jpg" \
+  -F "images=@./photo2.jpg"
+```
 
 ### `POST /api/human-assets/:id/images`
 Append more images to an existing asset. Same form fields as `POST /api/human-assets` minus `name` / `numberPossibleProfile`. Updates `numberProfileUsing` as needed.
