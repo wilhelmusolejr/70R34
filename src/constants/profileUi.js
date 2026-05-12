@@ -14,6 +14,7 @@ export const AVC = [
 export const STATUS_CLASS = {
   Available: "sp",
   "Need Setup": "sp",
+  "Need Checking": "sp",
   "Pending Profile": "sp",
   Active: "sa",
   Flagged: "sflag",
@@ -25,6 +26,7 @@ export const STATUS_CLASS = {
 export const STATUS_OPTIONS = [
   "Available",
   "Need Setup",
+  "Need Checking",
   "Pending Profile",
   "Active",
   "Flagged",
@@ -36,6 +38,11 @@ export const STATUS_OPTIONS = [
 export const SC = {
   Available: { bg: "bg-cyan-bg", text: "text-cyan-t", dot: "bg-cyan" },
   "Need Setup": {
+    bg: "bg-amber-bg",
+    text: "text-amber-t",
+    dot: "bg-amber",
+  },
+  "Need Checking": {
     bg: "bg-amber-bg",
     text: "text-amber-t",
     dot: "bg-amber",
