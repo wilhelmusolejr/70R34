@@ -16,6 +16,8 @@ const PROFILE_STATUSES = [
 
 const FRIEND_REQUEST_STATUSES = ["Pending", "Accepted", "Declined"];
 
+const PROFILE_COUNTRIES = ["US", "IT"];
+
 const RELATIONSHIP_STATUSES = [
   "",
   "Single",
@@ -169,6 +171,11 @@ const ProfileSchema = new Schema(
     lastName: { type: String, required: true, trim: true },
     dob: { type: String, default: "" },
     gender: { type: String, default: "" },
+    country: {
+      type: String,
+      enum: PROFILE_COUNTRIES,
+      default: "US",
+    },
     emails: { type: [EmailSchema], default: [] },
     emailPassword: { type: String, default: "" },
     facebookPassword: { type: String, default: "" },
@@ -246,5 +253,5 @@ const ProfileSchema = new Schema(
 ProfileSchema.index({ status: 1 });
 ProfileSchema.index({ profileCreated: 1 });
 
-export { PROFILE_STATUSES, RELATIONSHIP_STATUSES, FRIEND_REQUEST_STATUSES };
+export { PROFILE_STATUSES, RELATIONSHIP_STATUSES, FRIEND_REQUEST_STATUSES, PROFILE_COUNTRIES };
 export const Profile = model("Profile", ProfileSchema);

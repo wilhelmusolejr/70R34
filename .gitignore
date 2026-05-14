@@ -12,10 +12,21 @@ dist
 dist-ssr
 *.local
 .env
+.env.*
 server/.env
 MongoDB/
 
 public/images/
+
+# Local Claude Code state
+.claude/
+
+# Generated exports / one-off data drops (often contain credentials or IDs)
+*.xls
+*.xlsx
+ready-profiles*.xls
+friendRequest.json
+profile_data.json
 
 # Editor directories and files
 .vscode/*

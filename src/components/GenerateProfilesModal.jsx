@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { bulkCreateProfiles } from "../api/profiles";
+import { updateDefaultCountry } from "../api/auth";
 import { STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
 import { generateBatch } from "../generator/generate";
+import { COUNTRY_OPTIONS, DEFAULT_COUNTRY } from "../generator/countries/index.js";
 import { buildIdentityPrompt } from "../utils/identityPrompt";
 
 const DEFAULT_FORM = {
@@ -12,6 +14,7 @@ const DEFAULT_FORM = {
   maxAge: 45,
   emailDomain: "",
   status: "Pending Profile",
+  country: DEFAULT_COUNTRY,
 };
 
 function Field({ label, children }) {
@@ -36,11 +39,14 @@ export function GenerateProfilesModal({
 
   useEffect(() => {
     if (isOpen) {
-      setForm(DEFAULT_FORM);
+      setForm({
+        ...DEFAULT_FORM,
+        country: currentUser?.defaultCountry || DEFAULT_COUNTRY,
+      });
       setSaving(false);
       setError("");
     }
-  }, [isOpen]);
+  }, [isOpen, currentUser?.defaultCountry]);
 
   if (!isOpen) return null;
 
@@ -71,6 +77,7 @@ export function GenerateProfilesModal({
 
     try {
       const profiles = generateBatch(count, {
+        country: form.country,
         gender: form.gender,
         minAge,
         maxAge,
@@ -81,6 +88,21 @@ export function GenerateProfilesModal({
       if (result.user) {
         login(result.user);
       }
+
+      // Remember the selected country as the user's default for next time.
+      if (
+        currentUser?.id &&
+        form.country &&
+        form.country !== (currentUser.defaultCountry || DEFAULT_COUNTRY)
+      ) {
+        try {
+          const updated = await updateDefaultCountry(currentUser.id, form.country);
+          if (updated?.user) login(updated.user);
+        } catch {
+          // non-critical — don't block the generate flow
+        }
+      }
+
       onGenerated(result.profiles);
       onToast?.(`Generated ${result.created} profiles`);
       onClose();
@@ -115,6 +137,19 @@ export function GenerateProfilesModal({
                 value={form.count}
                 onChange={(e) => setField("count", e.target.value)}
               />
+            </Field>
+            <Field label="Country">
+              <select
+                className="npm-input"
+                value={form.country}
+                onChange={(e) => setField("country", e.target.value)}
+              >
+                {COUNTRY_OPTIONS.map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Gender">
               <select

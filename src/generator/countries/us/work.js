@@ -116,5 +116,3 @@ export const INDUSTRIES = {
     ],
   },
 };
-
-export const INDUSTRY_KEYS = Object.keys(INDUSTRIES);

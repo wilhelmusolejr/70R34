@@ -15,6 +15,8 @@ const UserProfileSchema = new Schema(
   { _id: false },
 );
 
+const USER_DEFAULT_COUNTRIES = ["US", "IT"];
+
 const UserSchema = new Schema(
   {
     username: { type: String, required: true, unique: true, trim: true },
@@ -24,6 +26,11 @@ const UserSchema = new Schema(
       enum: ["admin", "maker", "guest"],
       default: "guest",
     },
+    defaultCountry: {
+      type: String,
+      enum: USER_DEFAULT_COUNTRIES,
+      default: "US",
+    },
     profiles: { type: [UserProfileSchema], default: [] },
   },
   {
@@ -32,4 +39,5 @@ const UserSchema = new Schema(
   },
 );
 
+export { USER_DEFAULT_COUNTRIES };
 export const User = model("User", UserSchema);

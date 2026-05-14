@@ -1,5 +1,5 @@
-// High schools by state (used when city/state is known)
-export const HIGH_SCHOOLS_BY_STATE = {
+// High schools keyed by regionCode (state code in the US)
+export const HIGH_SCHOOLS_BY_REGION_CODE = {
   NY: [
     "Brooklyn Technical High School", "Stuyvesant High School", "Bronx Science High School",
     "Francis Lewis High School", "Jamaica High School", "John Adams High School",
@@ -54,8 +54,8 @@ export const HIGH_SCHOOLS_BY_STATE = {
   UT: ["Juan Diego Catholic High School", "East High School SLC", "Brighton High School"],
 };
 
-// Colleges by region
-export const COLLEGES_BY_REGION = {
+// Colleges keyed by macroRegion
+export const COLLEGES_BY_MACRO_REGION = {
   northeast: [
     "New York University", "Fordham University", "St. John's University", "Hofstra University",
     "Adelphi University", "Pace University", "Long Island University", "Stony Brook University",
@@ -110,7 +110,6 @@ export const COLLEGES_BY_REGION = {
   ],
 };
 
-// Degree options
 export const DEGREES = [
   "Business Administration", "Marketing", "Communications", "Psychology", "Sociology",
   "Computer Science", "Information Technology", "Criminal Justice", "Health Sciences",

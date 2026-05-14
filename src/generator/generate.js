@@ -1,9 +1,5 @@
-import { MALE_FIRST_NAMES, FEMALE_FIRST_NAMES, LAST_NAMES } from "./names.js";
-import { US_CITIES, NEARBY_HOMETOWNS, EUROPE_DESTINATIONS } from "./locations.js";
-import { HIGH_SCHOOLS_BY_STATE, COLLEGES_BY_REGION, DEGREES } from "./education.js";
-import { INDUSTRIES, INDUSTRY_KEYS } from "./work.js";
-import { BIO_TEMPLATES, QUOTE_TEMPLATES, QUOTES, MOTIVATIONAL_QUOTES, BIO_EMOJIS, TRAITS } from "./bios.js";
-import { ARCHETYPES, ARCHETYPE_KEYS, ALIAS_NAMES, LANGUAGES } from "./interests.js";
+import { getCountry, DEFAULT_COUNTRY } from "./countries/index.js";
+import { INTL_DESTINATIONS } from "./shared/travel.js";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -36,16 +32,15 @@ function zeroPad(n) {
   return String(n).padStart(2, "0");
 }
 
-const STATE_NAME_BY_CODE = Object.fromEntries(
-  US_CITIES.map(({ stateCode, state }) => [stateCode, state]),
-);
-
-function expandStateCodeInLocation(label) {
-  const match = String(label || "").match(/^(.*),\s([A-Z]{2})$/);
+// Expand short region codes in a "City, XX" hometown label using the country's
+// regionNameByCode map. Countries that already use full region names (e.g. Italy)
+// won't match the regex and will pass through unchanged.
+function expandRegionCodeInLocation(label, regionNameByCode = {}) {
+  const match = String(label || "").match(/^(.*),\s([A-Z]{2,3})$/);
   if (!match) return label;
-
-  const [, cityName, stateCode] = match;
-  return `${cityName}, ${STATE_NAME_BY_CODE[stateCode] || stateCode}`;
+  const [, cityName, code] = match;
+  const full = regionNameByCode[code];
+  return full ? `${cityName}, ${full}` : label;
 }
 
 // YYYY-MM string within a reasonable range
@@ -57,17 +52,12 @@ function randYearMonth(startYear, endYear) {
 
 // ─── Email variants ──────────────────────────────────────────────────────────
 
-const EMAIL_DOMAINS = [
-  "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com",
-  "aol.com", "protonmail.com", "live.com",
-];
-
-function generateEmails(firstName, lastName, birthYear) {
+function generateEmails(firstName, lastName, birthYear, emailDomains) {
   const fn = firstName.toLowerCase().replace(/[^a-z]/g, "");
   const ln = lastName.toLowerCase().replace(/[^a-z]/g, "");
   const yy4 = String(birthYear);
   const yy2 = yy4.slice(2);
-  const domain = pick(EMAIL_DOMAINS);
+  const domain = pick(emailDomains);
 
   const variants = [
     `${fn}.${ln}@${domain}`,
@@ -90,12 +80,13 @@ function generatePassword() {
 
 // ─── Work experience ─────────────────────────────────────────────────────────
 
-function generateWorkExperiences(birthYear) {
+function generateWorkExperiences(country, birthYear) {
+  const industryKeysAll = Object.keys(country.industries);
   // 0 jobs: 5%, 1 job: 40%, 2 jobs: 40%, 3 jobs: 15%
   const count = weightedCount([5, 40, 40, 15]);
   if (count === 0) return [];
 
-  const industryKeys = pickN(INDUSTRY_KEYS, count);
+  const industryKeys = pickN(industryKeysAll, count);
   const currentYear = new Date().getFullYear();
   const startWorkYear = birthYear + 18;
 
@@ -103,7 +94,7 @@ function generateWorkExperiences(birthYear) {
   let cursor = startWorkYear;
 
   for (let i = 0; i < count; i++) {
-    const industry = INDUSTRIES[industryKeys[i]];
+    const industry = country.industries[industryKeys[i]];
     const company = pick(industry.companies);
     const position = pick(industry.titles);
 
@@ -128,9 +119,12 @@ function generateWorkExperiences(birthYear) {
 
 // ─── Education ───────────────────────────────────────────────────────────────
 
-function generateEducation(stateCode, region, birthYear) {
-  const hsPool = HIGH_SCHOOLS_BY_STATE[stateCode] || Object.values(HIGH_SCHOOLS_BY_STATE).flat();
-  const collegePool = COLLEGES_BY_REGION[region] || Object.values(COLLEGES_BY_REGION).flat();
+function generateEducation(country, regionCode, macroRegion, birthYear) {
+  const hsByCode = country.education.highSchoolsByRegionCode || {};
+  const collegesByMacro = country.education.collegesByMacroRegion || {};
+
+  const hsPool = hsByCode[regionCode] || Object.values(hsByCode).flat();
+  const collegePool = collegesByMacro[macroRegion] || Object.values(collegesByMacro).flat();
 
   const hsGraduated = Math.random() < 0.9;
   const hsFrom = birthYear + 14;
@@ -153,7 +147,7 @@ function generateEducation(stateCode, region, birthYear) {
           name: pick(collegePool),
           from: String(collegeFrom),
           to: String(collegeTo),
-          degree: collegeGraduated ? pick(DEGREES) : "",
+          degree: collegeGraduated ? pick(country.education.degrees) : "",
           graduated: collegeGraduated,
         }
       : null,
@@ -183,17 +177,20 @@ function pickRelationshipStatus() {
   return RELATIONSHIP_STATUSES[weightedCount(REL_STATUS_WEIGHTS)];
 }
 
-function generatePersonalDetails(birthYear) {
+function generatePersonalDetails(country, birthYear) {
   const relStatus = pickRelationshipStatus();
   const isSingle = relStatus === "Single";
 
-  // 1–3 languages, English always first
+  const primaryLanguage = country.meta?.defaultLanguage || "English";
+  const languagePool = country.interests?.languages || [primaryLanguage];
+
+  // 1–3 languages, primary language always first
   const langCount = weightedCount([0, 50, 35, 15]); // 0=skip index so shift
   const extraLangs = pickN(
-    LANGUAGES.filter((l) => l !== "English"),
+    languagePool.filter((l) => l !== primaryLanguage),
     langCount > 0 ? langCount - 1 : 0
   );
-  const languages = langCount > 0 ? ["English", ...extraLangs] : ["English"];
+  const languages = langCount > 0 ? [primaryLanguage, ...extraLangs] : [primaryLanguage];
 
   return {
     relationshipStatus: relStatus,
@@ -211,7 +208,7 @@ function generateTravel(birthYear) {
   const count = weightedCount([40, 35, 20, 5]);
   if (count === 0) return [];
 
-  const destinations = pickN(EUROPE_DESTINATIONS, count);
+  const destinations = pickN(INTL_DESTINATIONS, count);
   return destinations.map((d) => ({
     place: d.place,
     date: randYearMonth(birthYear + 20, new Date().getFullYear()),
@@ -220,8 +217,8 @@ function generateTravel(birthYear) {
 
 // ─── Interests via archetype ─────────────────────────────────────────────────
 
-function generateInterests(archetype) {
-  const pool = ARCHETYPES[archetype];
+function generateInterests(country, archetype) {
+  const pool = country.interests.archetypes[archetype];
 
   // max 3 per category, weighted lower
   const hobbyCount = weightedCount([0, 25, 50, 25]) + 1; // at least 1
@@ -243,10 +240,10 @@ function generateInterests(archetype) {
 
 // ─── Other names (aliases) ───────────────────────────────────────────────────
 
-function generateOtherNames() {
+function generateOtherNames(country) {
   // 60% no alias, 30% 1, 10% 2
   const count = weightedCount([60, 30, 10]);
-  return pickN(ALIAS_NAMES, count);
+  return pickN(country.interests.aliasNames, count);
 }
 
 // ─── Bio ──────────────────────────────────────────────────────────────────────
@@ -269,7 +266,16 @@ function fillTemplate(template, { firstName, title, company, city, hobby1, hobby
     .trim();
 }
 
-function generateBio(firstName, title, company, city, interests) {
+function generateBio(country, firstName, title, company, city, interests) {
+  const {
+    templates: BIO_TEMPLATES,
+    quoteTemplates: QUOTE_TEMPLATES,
+    quotes: QUOTES,
+    motivationalQuotes: MOTIVATIONAL_QUOTES,
+    emojis: BIO_EMOJIS,
+    traits: TRAITS,
+  } = country.bios;
+
   const trait1 = pick(TRAITS);
   let trait2 = pick(TRAITS);
   while (trait2 === trait1) trait2 = pick(TRAITS);
@@ -318,14 +324,11 @@ function generateDOB(minAge = 25, maxAge = 45) {
   };
 }
 
-// ─── Account dates ───────────────────────────────────────────────────────────
-
-
-
 // ─── Main generator ──────────────────────────────────────────────────────────
 
 /**
  * @param {object} params
+ * @param {"US"|"IT"} [params.country] — country code (default "US")
  * @param {"male"|"female"|"any"} [params.gender]
  * @param {number} [params.minAge]
  * @param {number} [params.maxAge]
@@ -335,6 +338,7 @@ function generateDOB(minAge = 25, maxAge = 45) {
  */
 export function generateProfile(params = {}) {
   const {
+    country: countryCode = DEFAULT_COUNTRY,
     gender = "any",
     minAge = 25,
     maxAge = 45,
@@ -343,31 +347,36 @@ export function generateProfile(params = {}) {
     tags = [],
   } = params;
 
+  const country = getCountry(countryCode);
+
   // Gender
   const resolvedGender =
     gender === "any" ? (Math.random() < 0.5 ? "male" : "female") : gender;
   const firstName =
-    resolvedGender === "male" ? pick(MALE_FIRST_NAMES) : pick(FEMALE_FIRST_NAMES);
-  const lastName = pick(LAST_NAMES);
+    resolvedGender === "male" ? pick(country.names.male) : pick(country.names.female);
+  const lastName = pick(country.names.last);
 
   // DOB
   const { dob, birthYear } = generateDOB(minAge, maxAge);
 
   // Location anchor
-  const locationEntry = pick(US_CITIES);
-  const { city, state, stateCode, region } = locationEntry;
-  const displayCity = `${city}, ${state}`;
-  const hometownPool = NEARBY_HOMETOWNS[city] || [displayCity];
-  const hometown = expandStateCodeInLocation(pick(hometownPool));
+  const locationEntry = pick(country.locations.cities);
+  const { city, region, regionCode, macroRegion } = locationEntry;
+  const displayCity = `${city}, ${region}`;
+  const hometownPool = country.locations.hometowns[city] || [displayCity];
+  const hometown = expandRegionCodeInLocation(
+    pick(hometownPool),
+    country.locations.regionNameByCode,
+  );
 
   // Archetype
-  const archetype = pick(ARCHETYPE_KEYS);
+  const archetype = pick(country.interests.archetypeKeys);
 
-  // Education (anchored to state/region)
-  const { highSchool, college } = generateEducation(stateCode, region, birthYear);
+  // Education (anchored to region/macroRegion)
+  const { highSchool, college } = generateEducation(country, regionCode, macroRegion, birthYear);
 
   // Work
-  const work = generateWorkExperiences(birthYear);
+  const work = generateWorkExperiences(country, birthYear);
 
   // Current job for bio
   const currentJob = work.find((w) => w.current) || work[work.length - 1];
@@ -375,19 +384,24 @@ export function generateProfile(params = {}) {
   const bioCompany = currentJob?.company || "a local company";
 
   // Interests
-  const interests = generateInterests(archetype);
+  const interests = generateInterests(country, archetype);
 
   // Bio
-  const bio = generateBio(firstName, bioTitle, bioCompany, displayCity, interests);
+  const bio = generateBio(country, firstName, bioTitle, bioCompany, displayCity, interests);
 
   // Personal
-  const personal = generatePersonalDetails(birthYear);
+  const personal = generatePersonalDetails(country, birthYear);
 
   // Travel
   const travel = generateTravel(birthYear);
 
   // Emails
-  const emails = generateEmails(firstName, lastName, birthYear).map((e) => {
+  const emails = generateEmails(
+    firstName,
+    lastName,
+    birthYear,
+    country.meta?.emailDomains || ["gmail.com"],
+  ).map((e) => {
     if (emailDomain) {
       return { ...e, address: e.address.replace(/@.+$/, `@${emailDomain}`) };
     }
@@ -397,13 +411,14 @@ export function generateProfile(params = {}) {
   const facebookPassword = generatePassword();
 
   // Other names
-  const otherNames = generateOtherNames();
+  const otherNames = generateOtherNames(country);
 
   return {
     firstName,
     lastName,
     gender: resolvedGender.charAt(0).toUpperCase() + resolvedGender.slice(1),
     dob,
+    country: country.code,
     city: displayCity,
     hometown,
     bio,
@@ -472,4 +487,3 @@ export function generateBatch(count, params = {}) {
 
   return results;
 }
-

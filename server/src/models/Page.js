@@ -4,6 +4,8 @@ const { Schema, model } = mongoose;
 
 const PAGE_ASSET_TYPES = ["profile", "cover", "post", "reels"];
 
+const PAGE_COUNTRIES = ["US", "IT"];
+
 const PageAssetSchema = new Schema(
   {
     imageId: {
@@ -45,6 +47,11 @@ const PageSchema = new Schema(
     pageName: { type: String, required: true, trim: true },
     pageId: { type: String, default: "", trim: true },
     category: { type: String, default: "", trim: true },
+    country: {
+      type: String,
+      enum: PAGE_COUNTRIES,
+      default: "US",
+    },
     followerCount: { type: Number, default: 0 },
     likeCount: { type: Number, default: 0 },
     bio: { type: String, default: "" },
@@ -67,5 +74,5 @@ const PageSchema = new Schema(
 PageSchema.index({ pageName: 1 });
 PageSchema.index({ pageId: 1 }, { sparse: true });
 
-export { PAGE_ASSET_TYPES };
+export { PAGE_ASSET_TYPES, PAGE_COUNTRIES };
 export const Page = model("Page", PageSchema);

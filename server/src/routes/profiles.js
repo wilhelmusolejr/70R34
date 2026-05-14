@@ -35,6 +35,7 @@ function sanitizeUser(user) {
     id: user._id,
     username: user.username,
     role: user.role,
+    defaultCountry: user.defaultCountry || "US",
     profiles: user.profiles || [],
   };
 }

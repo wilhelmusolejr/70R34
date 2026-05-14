@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { bulkCreatePages } from "../api/pages";
+import { updateDefaultCountry } from "../api/auth";
+import { useAuth } from "../context/AuthContext";
 import { CATEGORIES, generatePageInformation } from "../generator/pages";
+import { COUNTRY_OPTIONS, DEFAULT_COUNTRY } from "../generator/countries/index.js";
 
 const DEFAULT_FORM = {
   count: 10,
   category: "any",
+  country: DEFAULT_COUNTRY,
 };
 
 function Field({ label, children }) {
@@ -17,6 +21,7 @@ function Field({ label, children }) {
 }
 
 export function GeneratePagesModal({ isOpen, onClose, onGenerated, onToast }) {
+  const { currentUser, login } = useAuth();
   const [form, setForm] = useState(DEFAULT_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -31,11 +36,14 @@ export function GeneratePagesModal({ isOpen, onClose, onGenerated, onToast }) {
 
   useEffect(() => {
     if (isOpen) {
-      setForm(DEFAULT_FORM);
+      setForm({
+        ...DEFAULT_FORM,
+        country: currentUser?.defaultCountry || DEFAULT_COUNTRY,
+      });
       setSaving(false);
       setError("");
     }
-  }, [isOpen]);
+  }, [isOpen, currentUser?.defaultCountry]);
 
   if (!isOpen) return null;
 
@@ -57,11 +65,11 @@ export function GeneratePagesModal({ isOpen, onClose, onGenerated, onToast }) {
     try {
       const generated = [];
       for (let i = 0; i < count; i += 1) {
-        let entry = generatePageInformation();
+        let entry = generatePageInformation({ country: form.country });
         if (form.category && form.category !== "any") {
           let attempts = 0;
           while (entry.category !== form.category && attempts < 60) {
-            entry = generatePageInformation();
+            entry = generatePageInformation({ country: form.country });
             attempts += 1;
           }
         }
@@ -69,6 +77,21 @@ export function GeneratePagesModal({ isOpen, onClose, onGenerated, onToast }) {
       }
 
       const result = await bulkCreatePages(generated);
+
+      // Remember the selected country as the user's default for next time.
+      if (
+        currentUser?.id &&
+        form.country &&
+        form.country !== (currentUser.defaultCountry || DEFAULT_COUNTRY)
+      ) {
+        try {
+          const updated = await updateDefaultCountry(currentUser.id, form.country);
+          if (updated?.user) login(updated.user);
+        } catch {
+          // non-critical
+        }
+      }
+
       onGenerated?.(result.pages || []);
       onToast?.(`Generated ${result.created} pages`);
       onClose();
@@ -108,6 +131,19 @@ export function GeneratePagesModal({ isOpen, onClose, onGenerated, onToast }) {
                 value={form.count}
                 onChange={(e) => setField("count", e.target.value)}
               />
+            </Field>
+            <Field label="Country">
+              <select
+                className="npm-input"
+                value={form.country}
+                onChange={(e) => setField("country", e.target.value)}
+              >
+                {COUNTRY_OPTIONS.map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Category">
               <select

@@ -5,6 +5,7 @@ import { NewProfileModal } from "../components/NewProfileModal";
 import { SafeImage } from "../components/SafeImage";
 import { AVC, STATUS_CLASS, STATUS_OPTIONS } from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
+import { COUNTRY_OPTIONS } from "../generator/countries/index.js";
 import {
   allowedStatusesFor,
   canViewConfidential,
@@ -77,6 +78,25 @@ function hasPageUrl(profile) {
 
 const FRIENDS_REQUIREMENT = 30;
 
+const TRACKER_FILTER_CYCLE = ["", "done", "pending"];
+const TRACKER_FILTER_LABELS = {
+  "": "All Tracker",
+  done: "Done Today",
+  pending: "Not Done Today",
+};
+
+const FILTERS_STORAGE_KEY = "pv_profiles_filters";
+
+function loadStoredFilters() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(FILTERS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 function getAvatarColor(id) {
   const str = String(id || "");
   let hash = 0;
@@ -112,13 +132,23 @@ export function ProfilesPage() {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState(() =>
-    defaultStatusFilterFor(currentUser),
-  );
+  const [search, setSearch] = useState(() => loadStoredFilters()?.search || "");
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const stored = loadStoredFilters();
+    if (Array.isArray(stored?.statusFilter)) return stored.statusFilter;
+    return defaultStatusFilterFor(currentUser);
+  });
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
-  const [sortOrder, setSortOrder] = useState("id");
-  const [trackerFilter, setTrackerFilter] = useState("");
+  const [sortOrder, setSortOrder] = useState(
+    () => loadStoredFilters()?.sortOrder || "id",
+  );
+  const [trackerFilter, setTrackerFilter] = useState(() => {
+    const stored = loadStoredFilters()?.trackerFilter;
+    return TRACKER_FILTER_CYCLE.includes(stored) ? stored : "";
+  });
+  const [countryFilter, setCountryFilter] = useState(
+    () => loadStoredFilters()?.countryFilter || "",
+  );
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [toast, setToast] = useState("");
@@ -132,6 +162,23 @@ export function ProfilesPage() {
     const timeout = setTimeout(() => setToast(""), 2800);
     return () => clearTimeout(timeout);
   }, [toast]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        FILTERS_STORAGE_KEY,
+        JSON.stringify({
+          search,
+          statusFilter,
+          sortOrder,
+          trackerFilter,
+          countryFilter,
+        }),
+      );
+    } catch {
+      // ignore quota / unavailable
+    }
+  }, [search, statusFilter, sortOrder, trackerFilter, countryFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -278,8 +325,10 @@ export function ProfilesPage() {
       (trackerFilter === "done"
         ? isProcessedToday(profile)
         : !isProcessedToday(profile));
+    const matchesCountry =
+      !countryFilter || (profile.country || "US") === countryFilter;
 
-    return matchesSearch && matchesStatus && matchesTracker;
+    return matchesSearch && matchesStatus && matchesTracker && matchesCountry;
   });
 
   const sorted = [...filtered].sort((a, b) => {
@@ -338,6 +387,13 @@ export function ProfilesPage() {
 
   function clearStatusFilter() {
     setStatusFilter([]);
+  }
+
+  function cycleTrackerFilter() {
+    setTrackerFilter((current) => {
+      const idx = TRACKER_FILTER_CYCLE.indexOf(current);
+      return TRACKER_FILTER_CYCLE[(idx + 1) % TRACKER_FILTER_CYCLE.length];
+    });
   }
 
   return (
@@ -532,6 +588,18 @@ export function ProfilesPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <select
+            className="fsel"
+            value={countryFilter}
+            onChange={(e) => setCountryFilter(e.target.value)}
+          >
+            <option value="">All Countries</option>
+            {COUNTRY_OPTIONS.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <div className="status-filter-wrap">
             <button
               type="button"
@@ -583,15 +651,14 @@ export function ProfilesPage() {
             <option value="unprocessed">Unprocessed First</option>
             <option value="ready">Ready First</option>
           </select>
-          <select
+          <button
+            type="button"
             className="fsel"
-            value={trackerFilter}
-            onChange={(e) => setTrackerFilter(e.target.value)}
+            onClick={cycleTrackerFilter}
+            title="Click to cycle: All Tracker → Done Today → Not Done Today"
           >
-            <option value="">All Tracker</option>
-            <option value="done">Done Today</option>
-            <option value="pending">Not Done Today</option>
-          </select>
+            {TRACKER_FILTER_LABELS[trackerFilter] || TRACKER_FILTER_LABELS[""]}
+          </button>
           <span className="rc">{sorted.length} profiles</span>
         </div>
 

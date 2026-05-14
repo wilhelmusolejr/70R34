@@ -51,3 +51,10 @@ export function updateAssignmentStatus(userId, profileId, assignmentStatus) {
     body: JSON.stringify({ assignmentStatus }),
   });
 }
+
+export function updateDefaultCountry(userId, country) {
+  return authFetch(`/api/auth/users/${userId}/default-country`, {
+    method: "PATCH",
+    body: JSON.stringify({ country }),
+  });
+}

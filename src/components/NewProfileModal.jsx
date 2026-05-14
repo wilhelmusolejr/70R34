@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { createProfile, updateProfile } from "../api/profiles";
+import { updateDefaultCountry } from "../api/auth";
 import { useAuth } from "../context/AuthContext";
 import { buildIdentityPrompt } from "../utils/identityPrompt";
 import { STATUS_OPTIONS } from "../constants/profileUi";
 import { generateProfile } from "../generator/generate";
+import { COUNTRY_OPTIONS, DEFAULT_COUNTRY } from "../generator/countries/index.js";
 
 const TABS = [
   "Basic Information",
@@ -57,6 +59,7 @@ function createEmptyProfile() {
     lastName: "",
     dob: "",
     gender: "",
+    country: DEFAULT_COUNTRY,
     email: "",
     emails: [],
     emailPassword: "",
@@ -185,13 +188,15 @@ export function NewProfileModal({
 
   useEffect(() => {
     if (isOpen) {
-      setForm(createEmptyProfile());
+      const initial = createEmptyProfile();
+      initial.country = currentUser?.defaultCountry || DEFAULT_COUNTRY;
+      setForm(initial);
       setErrors({});
       setSubmitError("");
       setActiveTab(0);
       setAutoFillMode(AUTO_FILL_OPTIONS.none);
     }
-  }, [isOpen]);
+  }, [isOpen, currentUser?.defaultCountry]);
 
   if (!isOpen) return null;
 
@@ -271,11 +276,16 @@ export function NewProfileModal({
     }));
   }
 
-  function applyRandomAutofill() {
-    const generated = generateProfile();
+  function applyRandomAutofill(country) {
+    const generated = generateProfile({ country });
 
     setForm((current) => ({
       ...current,
+      firstName: generated.firstName || current.firstName,
+      lastName: generated.lastName || current.lastName,
+      gender:
+        generated.gender && !current.gender ? generated.gender : current.gender,
+      dob: generated.dob || current.dob,
       bio: generated.bio || current.bio,
       work: generated.work?.length ? generated.work : [createEmptyWork()],
       city: generated.city || current.city,
@@ -310,7 +320,7 @@ export function NewProfileModal({
     setAutoFillMode(mode);
 
     if (mode === AUTO_FILL_OPTIONS.random) {
-      applyRandomAutofill();
+      applyRandomAutofill(form.country || DEFAULT_COUNTRY);
     }
   }
 
@@ -414,6 +424,20 @@ export function NewProfileModal({
         login(result.user);
       }
 
+      // Remember the selected country as the user's default for next time.
+      if (
+        currentUser?.id &&
+        form.country &&
+        form.country !== (currentUser.defaultCountry || DEFAULT_COUNTRY)
+      ) {
+        try {
+          const updated = await updateDefaultCountry(currentUser.id, form.country);
+          if (updated?.user) login(updated.user);
+        } catch {
+          // non-critical
+        }
+      }
+
       const identityPrompt = buildIdentityPrompt(result.profile);
       if (identityPrompt) {
         try {
@@ -494,6 +518,25 @@ export function NewProfileModal({
           <div className="npm-body-content">
             {activeTab === 0 && (
               <div className="npm-grid">
+                <Field label="Country">
+                  <select
+                    className="npm-input"
+                    value={form.country || DEFAULT_COUNTRY}
+                    onChange={(e) => {
+                      const nextCountry = e.target.value;
+                      setField("country", nextCountry);
+                      if (autoFillMode === AUTO_FILL_OPTIONS.random) {
+                        applyRandomAutofill(nextCountry);
+                      }
+                    }}
+                  >
+                    {COUNTRY_OPTIONS.map((option) => (
+                      <option key={option.code} value={option.code}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
                 <Field label="First Name" error={errors.firstName}>
                   <input
                     className="npm-input"

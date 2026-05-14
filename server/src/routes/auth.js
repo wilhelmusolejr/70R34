@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { Router } from "express";
-import { User } from "../models/User.js";
+import { User, USER_DEFAULT_COUNTRIES } from "../models/User.js";
 
 const router = Router();
 
@@ -26,6 +26,7 @@ function sanitizeUser(user) {
     id: user._id,
     username: user.username,
     role: user.role,
+    defaultCountry: user.defaultCountry || "US",
     profiles: user.profiles || [],
   };
 }
@@ -77,6 +78,35 @@ router.post("/login", async (req, res, next) => {
   }
 });
 
+router.patch("/users/:userId/default-country", async (req, res, next) => {
+  try {
+    const userId = String(req.params.userId || "").trim();
+    const country = String(req.body?.country || "").trim();
+
+    if (!userId) {
+      return res.status(400).json({ message: "Invalid user id." });
+    }
+    if (!USER_DEFAULT_COUNTRIES.includes(country)) {
+      return res.status(400).json({
+        message: `Country must be one of: ${USER_DEFAULT_COUNTRIES.join(", ")}`,
+      });
+    }
+
+    const result = await User.updateOne(
+      { _id: userId },
+      { $set: { defaultCountry: country } },
+    );
+    if (!result.matchedCount) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const user = await User.findById(userId).lean();
+    res.json({ user: sanitizeUser(user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.patch("/users/:userId/profiles/:profileId", async (req, res, next) => {
   try {
     const userId = String(req.params.userId || "").trim();
@@ -91,19 +121,15 @@ router.patch("/users/:userId/profiles/:profileId", async (req, res, next) => {
       return res.status(400).json({ message: "Invalid assignment status." });
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found." });
+    const result = await User.updateOne(
+      { _id: userId, "profiles.profileId": profileId },
+      { $set: { "profiles.$.assignmentStatus": assignmentStatus } },
+    );
+    if (!result.matchedCount) {
+      return res.status(404).json({ message: "User or profile assignment not found." });
     }
 
-    const entry = (user.profiles || []).find((item) => String(item.profileId) === profileId);
-    if (!entry) {
-      return res.status(404).json({ message: "Profile assignment not found." });
-    }
-
-    entry.assignmentStatus = assignmentStatus;
-    await user.save();
-
+    const user = await User.findById(userId).lean();
     res.json({ user: sanitizeUser(user) });
   } catch (error) {
     next(error);

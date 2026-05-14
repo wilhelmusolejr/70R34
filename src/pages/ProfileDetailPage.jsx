@@ -913,7 +913,15 @@ function StatusSelect({ value, onChange, disabled = false }) {
         }}
       >
         {STATUS_OPTIONS.map((status) => (
-          <option key={status} value={status}>
+          <option
+            key={status}
+            value={status}
+            style={{
+              background: "var(--surface)",
+              color: "var(--text)",
+              fontWeight: 500,
+            }}
+          >
             {status}
           </option>
         ))}
@@ -2753,7 +2761,15 @@ export function ProfileDetailPage() {
                               }}
                             >
                               {FRIEND_REQUEST_STATUS_OPTIONS.map((status) => (
-                                <option key={status} value={status}>
+                                <option
+                                  key={status}
+                                  value={status}
+                                  style={{
+                                    background: "var(--surface)",
+                                    color: "var(--text)",
+                                    fontWeight: 500,
+                                  }}
+                                >
                                   {status}
                                 </option>
                               ))}
