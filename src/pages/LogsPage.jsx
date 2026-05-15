@@ -1,112 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "../App.css";
 
-// ────────────────────────────────────────────────────────────────────────────
-// Hardcoded mock — mirrors what the bot will send over SSE.
-// Shape:
-//   task        → { taskId, concurrency, profiles[], steps[], startedAt }
-//   browsers[]  → { browserId, profileId, online, currentStepPath, logs[] }
-//   processed[] → profileIds that finished
-// ────────────────────────────────────────────────────────────────────────────
-
-const MOCK_TASK = {
-  taskId: "homepage-then-connect-loop",
-  concurrency: 3,
-  blockMedia: true,
-  startedAt: Date.now() - 4 * 60 * 1000 - 23 * 1000,
-  profiles: [
-    "69e22287bb8fecced7bfda54", "69e22e3dbb8fecced7bfdaa0",
-    "69f3585493738d563ce21827", "69f3585493738d563ce21828",
-    "69f3585493738d563ce21829", "69f3585493738d563ce2182e",
-    "69f36dd093738d563ce21912", "69f3f38993738d563ce21cef",
-    "69f3f38993738d563ce21cf0", "69f3f38993738d563ce21cf2",
-    "69f488af93738d563ce21fee", "69f488af93738d563ce21fef",
-    "69f488af93738d563ce21ff1", "69f4b475e4db22596b581e27",
-    "69f5c624497c702fe2920960", "69f5c624497c702fe2920961",
-    "69f5c624497c702fe2920962", "69f5c624497c702fe2920963",
-    "69f5df5d497c702fe29209df", "69f831de497c702fe2921a1d",
-    "69f831de497c702fe2921a1f", "69f857a6497c702fe2921bf1",
-    "69f85883497c702fe2921bfa", "69f85a71497c702fe2921c03",
-    "69f85b36497c702fe2921c14", "69f85c44497c702fe2921c27",
-    "69f85de8497c702fe2921c39", "69f85e43497c702fe2921c42",
-    "69f85fbb497c702fe2921c58", "69f86029497c702fe2921c61",
-    "69f8611a497c702fe2921c6a", "69f86260497c702fe2921c7c",
-    "69f862da497c702fe2921c85", "69f86340497c702fe2921c8e",
-    "69f86400497c702fe2921c9a", "69f86481497c702fe2921cad",
-    "69f86569497c702fe2921cc4", "69f86782497c702fe2921ccd",
-    "69fab5d4d7f59db2c21aeb16", "69fab5d4d7f59db2c21aeb18",
-    "69fae777d7f59db2c21aece7", "69fae84ad7f59db2c21aed24",
-    "69fae84ad7f59db2c21aed25", "69faf30ad7f59db2c21aee3e",
-    "69fb09bad7f59db2c21aeed2", "69fb09bad7f59db2c21aeed3",
-    "69fb09bad7f59db2c21aeed4",
-  ],
-  steps: [
-    { type: "homepage_interaction" },
-    { type: "accept_loop" },
-    { type: "wait" },
-    { type: "connect_loop" },
-    { type: "wait" },
-    { type: "visit_profile" },
-    { type: "wait" },
-  ],
-};
-
-// 12 of 47 profiles already processed
-const PROCESSED_PROFILE_IDS = MOCK_TASK.profiles.slice(0, 12);
-
-const MOCK_BROWSERS = [
-  {
-    browserId: "hidemium-1",
-    profileId: "69f488af93738d563ce21fee",
-    profileName: "Jane Doe",
-    online: true,
-    currentStepPath: "homepage_interaction › like_posts",
-    logs: [
-      { ts: "14:02:11", level: "info",  msg: "browser:online" },
-      { ts: "14:02:11", level: "info",  msg: "Login successful" },
-      { ts: "14:02:14", level: "warn",  msg: "Captcha appeared, solving…" },
-      { ts: "14:02:18", level: "info",  msg: "Captcha solved" },
-      { ts: "14:02:21", level: "info",  msg: "step:homepage_interaction start" },
-      { ts: "14:02:24", level: "info",  msg: "scroll 38px (target 30–50)" },
-      { ts: "14:02:29", level: "info",  msg: "like_posts → liked 1 of 2" },
-      { ts: "14:02:33", level: "info",  msg: "like_posts → liked 2 of 2" },
-    ],
-  },
-  {
-    browserId: "hidemium-2",
-    profileId: "69f5c624497c702fe2920960",
-    profileName: "Mike Smith",
-    online: true,
-    currentStepPath: "connect_loop (3 / 7)",
-    logs: [
-      { ts: "14:02:09", level: "info",  msg: "browser:online" },
-      { ts: "14:02:09", level: "info",  msg: "step:accept_loop start" },
-      { ts: "14:02:13", level: "info",  msg: "accept_loop → 0 pending requests" },
-      { ts: "14:02:17", level: "info",  msg: "step:wait 12s" },
-      { ts: "14:02:29", level: "info",  msg: "step:connect_loop start (pool=users, count=7)" },
-      { ts: "14:02:33", level: "info",  msg: "connect → Anna Lee (1/7)" },
-      { ts: "14:02:37", level: "info",  msg: "connect → Tom Reyes (2/7)" },
-      { ts: "14:02:41", level: "info",  msg: "connect → Lia Park (3/7)" },
-    ],
-  },
-  {
-    browserId: "hidemium-3",
-    profileId: "69fae84ad7f59db2c21aed24",
-    profileName: "Anna Lee",
-    online: true,
-    currentStepPath: "visit_profile › share_posts",
-    logs: [
-      { ts: "14:02:05", level: "info",  msg: "browser:online" },
-      { ts: "14:02:05", level: "info",  msg: "Open profile page" },
-      { ts: "14:02:08", level: "error", msg: "Proxy timeout (3 retries)" },
-      { ts: "14:02:11", level: "info",  msg: "Reconnecting via fallback" },
-      { ts: "14:02:14", level: "info",  msg: "Login successful" },
-      { ts: "14:02:18", level: "info",  msg: "step:visit_profile start (pool=sharers)" },
-      { ts: "14:02:24", level: "info",  msg: "scroll 34px (target 30–40)" },
-      { ts: "14:02:31", level: "info",  msg: "share_posts → shared 1 of 1" },
-    ],
-  },
-];
+const API_BASE =
+  import.meta.env?.VITE_API_BASE_URL ||
+  import.meta.env?.VITE_API_URL ||
+  "";
 
 const LEVEL_FILTERS = [
   { value: "all",   label: "All" },
@@ -186,12 +84,11 @@ function TaskPanel({ task, processedIds, browsers }) {
             {done} <span style={{ color: "var(--text3)", fontWeight: 500 }}>/ {total}</span>
           </div>
           <div style={{ fontSize: 12, color: "var(--text2)" }}>
-            {inFlight} in flight · {total - done - inFlight} queued
+            {inFlight} in flight · {Math.max(0, total - done - inFlight)} queued
           </div>
         </div>
       </div>
 
-      {/* Progress bar */}
       <div
         style={{
           marginTop: 14,
@@ -215,7 +112,6 @@ function TaskPanel({ task, processedIds, browsers }) {
         {pct}% complete
       </div>
 
-      {/* Steps timeline */}
       <div style={{ marginTop: 14 }}>
         <div style={{ fontSize: 11, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
           Steps
@@ -290,7 +186,7 @@ function BrowserColumn({ browser, levelFilter, search }) {
           {browser.browserId}
         </div>
         <div style={{ color: "var(--text2)", fontSize: 12, marginTop: 2 }}>
-          {browser.profileName}{" "}
+          {browser.profileName || "—"}{" "}
           <span style={{ color: "var(--text3)", fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace" }}>
             ({shortId(browser.profileId)})
           </span>
@@ -366,30 +262,126 @@ function BrowserColumn({ browser, levelFilter, search }) {
   );
 }
 
+function EmptyState({ connected }) {
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px dashed var(--border)",
+        borderRadius: 12,
+        padding: "40px 20px",
+        textAlign: "center",
+        color: "var(--text2)",
+      }}
+    >
+      <div style={{ fontSize: 14, color: "var(--text)", fontWeight: 600, marginBottom: 6 }}>
+        {connected ? "Waiting for bot…" : "Connecting to log stream…"}
+      </div>
+      <div style={{ fontSize: 12 }}>
+        Run the bot (POST <code>/api/logs/task</code>, then <code>/api/logs/browser</code>) to see live events here.
+      </div>
+    </div>
+  );
+}
+
 export function LogsPage() {
   const [levelFilter, setLevelFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [task, setTask] = useState(null);
+  const [processedIds, setProcessedIds] = useState([]);
+  const [browsersMap, setBrowsersMap] = useState({});
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    const source = new EventSource(`${API_BASE}/api/logs/stream`);
+
+    source.onopen = () => setConnected(true);
+    source.onerror = () => setConnected(false);
+
+    source.onmessage = (ev) => {
+      let data;
+      try {
+        data = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+
+      if (data.type === "snapshot") {
+        setTask(data.task);
+        setProcessedIds(data.processed || []);
+        const map = {};
+        for (const b of data.browsers || []) map[b.browserId] = b;
+        setBrowsersMap(map);
+        return;
+      }
+
+      if (data.type === "task") {
+        setTask(data.task);
+        setProcessedIds([]);
+        setBrowsersMap({});
+        return;
+      }
+
+      if (data.type === "browser") {
+        setBrowsersMap((prev) => ({ ...prev, [data.browser.browserId]: data.browser }));
+        return;
+      }
+
+      if (data.type === "processed") {
+        setProcessedIds((prev) =>
+          prev.includes(data.profileId) ? prev : [...prev, data.profileId],
+        );
+        return;
+      }
+
+      if (data.type === "reset") {
+        setTask(null);
+        setProcessedIds([]);
+        setBrowsersMap({});
+      }
+    };
+
+    return () => {
+      source.close();
+    };
+  }, []);
+
+  const browsers = useMemo(
+    () => Object.values(browsersMap).sort((a, b) => a.browserId.localeCompare(b.browserId)),
+    [browsersMap],
+  );
+
+  async function handleClear() {
+    try {
+      await fetch(`${API_BASE}/api/logs/reset`, { method: "POST" });
+    } catch {
+      // ignore — SSE will update if it works
+    }
+  }
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1>Logs</h1>
-          <p>Live stream from the L0r3a bot. Mock data — bot will push real events over SSE.</p>
+          <p>
+            Live stream from the L0r3a bot.{" "}
+            <span style={{ color: connected ? "#22c55e" : "var(--text3)" }}>
+              {connected ? "● connected" : "○ disconnected"}
+            </span>
+          </p>
         </div>
         <div className="hdr-acts" style={{ display: "flex", gap: 8 }}>
-          <button type="button" className="btn-s">pause all</button>
-          <button type="button" className="btn-s">clear</button>
+          <button type="button" className="btn-s" onClick={handleClear}>clear</button>
         </div>
       </div>
 
-      <TaskPanel
-        task={MOCK_TASK}
-        processedIds={PROCESSED_PROFILE_IDS}
-        browsers={MOCK_BROWSERS}
-      />
+      {task ? (
+        <TaskPanel task={task} processedIds={processedIds} browsers={browsers} />
+      ) : (
+        <EmptyState connected={connected} />
+      )}
 
-      {/* Filter bar */}
       <div
         style={{
           display: "flex",
@@ -440,21 +432,23 @@ export function LogsPage() {
             fontSize: 13,
           }}
         />
-        <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text2)", fontSize: 12 }}>
-          <input type="checkbox" defaultChecked /> auto-scroll
-        </label>
       </div>
 
-      {/* Browser columns */}
       <div style={{ display: "flex", gap: 16, alignItems: "stretch", flexWrap: "wrap" }}>
-        {MOCK_BROWSERS.map((browser) => (
-          <BrowserColumn
-            key={browser.browserId}
-            browser={browser}
-            levelFilter={levelFilter}
-            search={search}
-          />
-        ))}
+        {browsers.length === 0 ? (
+          <div style={{ color: "var(--text3)", fontStyle: "italic", padding: 12 }}>
+            No active browsers yet.
+          </div>
+        ) : (
+          browsers.map((browser) => (
+            <BrowserColumn
+              key={browser.browserId}
+              browser={browser}
+              levelFilter={levelFilter}
+              search={search}
+            />
+          ))
+        )}
       </div>
     </div>
   );
