@@ -5,10 +5,10 @@ This document is for whoever is implementing the bot side (`run-task.js`). It te
 ## Mental model
 
 ```
-  [your bot: run-task.js]  ── POST ──►  [profile-vault server]  ── SSE ──►  [Logs page in browser]
+  [your bot: run-task.js]  ── POST ──►  [profile-vault server]  ── WebSocket ──►  [Logs page in browser]
 ```
 
-The bot is the **source of truth** for what's happening. The vault server is a thin in-memory relay: it stores the latest snapshot and fans events out to any connected browser via Server-Sent Events. You don't need to know anything about SSE — you just POST JSON to a few endpoints.
+The bot is the **source of truth** for what's happening. The vault server is a thin in-memory relay: it stores the latest snapshot and fans events out to any connected browser via WebSocket. **The bot does not speak WebSocket** — it just POSTs JSON to the endpoints below.
 
 ## Base URL
 

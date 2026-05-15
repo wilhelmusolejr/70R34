@@ -1,19 +1,21 @@
 import { Router } from "express";
+import { WebSocketServer } from "ws";
 
 const router = Router();
 
 // In-memory state. The bot pushes events; the latest snapshot is held here
-// so newly-connected SSE clients can hydrate immediately.
+// so newly-connected WebSocket clients can hydrate immediately.
 const state = {
   task: null,
   processed: [],
   browsers: new Map(),
 };
 
-const subscribers = new Set();
+const wss = new WebSocketServer({ noServer: true });
 
 function snapshot() {
   return {
+    type: "snapshot",
     task: state.task,
     processed: [...state.processed],
     browsers: Array.from(state.browsers.values()),
@@ -21,12 +23,14 @@ function snapshot() {
 }
 
 function broadcast(event) {
-  const payload = `data: ${JSON.stringify(event)}\n\n`;
-  for (const res of subscribers) {
-    try {
-      res.write(payload);
-    } catch {
-      // ignore broken pipes; the close handler cleans up
+  const payload = JSON.stringify(event);
+  for (const client of wss.clients) {
+    if (client.readyState === 1) {
+      try {
+        client.send(payload);
+      } catch {
+        // ignore — broken sockets get cleaned up by ws
+      }
     }
   }
 }
@@ -51,33 +55,48 @@ function coerceLogs(input) {
     .filter(Boolean);
 }
 
-router.get("/stream", (req, res) => {
-  res.set({
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
-    "X-Accel-Buffering": "no",
+wss.on("connection", (socket) => {
+  try {
+    socket.send(JSON.stringify(snapshot()));
+  } catch {
+    // ignore
+  }
+
+  // ws ping/pong keepalive
+  socket.isAlive = true;
+  socket.on("pong", () => {
+    socket.isAlive = true;
   });
-  res.flushHeaders?.();
+});
 
-  res.write(`data: ${JSON.stringify({ type: "snapshot", ...snapshot() })}\n\n`);
-
-  subscribers.add(res);
-
-  // Heartbeat so proxies don't kill idle connections.
-  const heartbeat = setInterval(() => {
+const heartbeat = setInterval(() => {
+  for (const socket of wss.clients) {
+    if (socket.isAlive === false) {
+      socket.terminate();
+      continue;
+    }
+    socket.isAlive = false;
     try {
-      res.write(": ping\n\n");
+      socket.ping();
     } catch {
       // ignore
     }
-  }, 25000);
+  }
+}, 25000);
+heartbeat.unref?.();
 
-  req.on("close", () => {
-    clearInterval(heartbeat);
-    subscribers.delete(res);
+export function attachLogsWebSocket(httpServer) {
+  httpServer.on("upgrade", (request, socket, head) => {
+    const { url } = request;
+    if (!url) return;
+    const pathname = url.split("?")[0];
+    if (pathname !== "/api/logs/ws") return;
+
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit("connection", ws, request);
+    });
   });
-});
+}
 
 router.post("/task", (req, res) => {
   const body = req.body || {};

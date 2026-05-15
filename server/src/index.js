@@ -1,11 +1,13 @@
 /* global process */
 import dotenv from "dotenv";
 import express from "express";
+import http from "node:http";
 import fs from "node:fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createApp } from "./app.js";
 import { connectToDatabase } from "./config/db.js";
+import { attachLogsWebSocket } from "./routes/logs.js";
 
 dotenv.config();
 
@@ -30,6 +32,9 @@ app.get("/{*path}", (_req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 
-app.listen(PORT, () => {
+const httpServer = http.createServer(app);
+attachLogsWebSocket(httpServer);
+
+httpServer.listen(PORT, () => {
   console.log(`70R34 server listening on http://localhost:${PORT}`);
 });

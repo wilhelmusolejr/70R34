@@ -6,6 +6,13 @@ const API_BASE =
   import.meta.env?.VITE_API_URL ||
   "";
 
+function wsUrl() {
+  const base = API_BASE || window.location.origin;
+  const url = new URL("/api/logs/ws", base);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
+}
+
 const LEVEL_FILTERS = [
   { value: "all",   label: "All" },
   { value: "info",  label: "Info" },
@@ -293,19 +300,11 @@ export function LogsPage() {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const source = new EventSource(`${API_BASE}/api/logs/stream`);
+    let socket = null;
+    let reconnectTimer = null;
+    let stopped = false;
 
-    source.onopen = () => setConnected(true);
-    source.onerror = () => setConnected(false);
-
-    source.onmessage = (ev) => {
-      let data;
-      try {
-        data = JSON.parse(ev.data);
-      } catch {
-        return;
-      }
-
+    function handle(data) {
       if (data.type === "snapshot") {
         setTask(data.task);
         setProcessedIds(data.processed || []);
@@ -314,35 +313,67 @@ export function LogsPage() {
         setBrowsersMap(map);
         return;
       }
-
       if (data.type === "task") {
         setTask(data.task);
         setProcessedIds([]);
         setBrowsersMap({});
         return;
       }
-
       if (data.type === "browser") {
         setBrowsersMap((prev) => ({ ...prev, [data.browser.browserId]: data.browser }));
         return;
       }
-
       if (data.type === "processed") {
         setProcessedIds((prev) =>
           prev.includes(data.profileId) ? prev : [...prev, data.profileId],
         );
         return;
       }
-
       if (data.type === "reset") {
         setTask(null);
         setProcessedIds([]);
         setBrowsersMap({});
       }
-    };
+    }
+
+    function connect() {
+      if (stopped) return;
+      socket = new WebSocket(wsUrl());
+
+      socket.onopen = () => setConnected(true);
+      socket.onclose = () => {
+        setConnected(false);
+        if (stopped) return;
+        reconnectTimer = setTimeout(connect, 2000);
+      };
+      socket.onerror = () => {
+        try {
+          socket?.close();
+        } catch {
+          // ignore
+        }
+      };
+      socket.onmessage = (ev) => {
+        let data;
+        try {
+          data = JSON.parse(ev.data);
+        } catch {
+          return;
+        }
+        handle(data);
+      };
+    }
+
+    connect();
 
     return () => {
-      source.close();
+      stopped = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      try {
+        socket?.close();
+      } catch {
+        // ignore
+      }
     };
   }, []);
 
