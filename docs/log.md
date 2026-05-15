@@ -89,6 +89,95 @@ This is what drives the `12 / 47` counter and the progress bar.
 
 Optional. Clears the active task, processed list, and all browsers. Useful between manual test runs. No body needed.
 
+## Ending a profile = two calls
+
+When a profile run terminates (success or terminal failure), the bot sends **both**:
+
+1. A final `POST /api/logs/browser` with `online: false` — so the UI's status dot turns gray and the worker stops looking active.
+2. A `POST /api/logs/processed` with that `profileId` — so the counter and progress bar advance.
+
+```jsonc
+// (a) — final browser update
+POST /api/logs/browser
+{
+  "browserId": "hidemium-1",
+  "currentStepPath": "done",
+  "online": false,
+  "logs": [
+    { "level": "info", "msg": "profile complete" },
+    { "level": "info", "msg": "browser:offline" }
+  ]
+}
+
+// (b) — mark profile processed
+POST /api/logs/processed
+{ "profileId": "69fd72f01e49eec688fd0552" }
+```
+
+If the worker then picks up a **new** profile in the same slot, just send `/browser` again with the new `profileId` / `profileName` and `online: true`. The server will reset the displayed step but the log buffer for that `browserId` persists (capped at 500 lines).
+
+## Full sequenced walkthrough
+
+What a single profile run looks like end-to-end on the wire:
+
+```jsonc
+// 1. Task starts (once, at the top of run-task.js)
+POST /api/logs/task
+{
+  "taskId": "setup-engage-share-connect",
+  "concurrency": 3,
+  "blockMedia": true,
+  "profiles": ["69fd...02ff", "69fd...045f", "69fd...0552"],
+  "steps": [
+    { "type": "facebook_signup" },
+    { "type": "wait" },
+    { "type": "visit_profile" }
+  ]
+}
+
+// 2. Worker comes online — first call carries full state
+POST /api/logs/browser
+{
+  "browserId": "hidemium-1",
+  "profileId": "69fd72f01e49eec688fd0552",
+  "profileName": "Lia Park",
+  "online": true,
+  "currentStepPath": "facebook_signup",
+  "logs": [
+    { "level": "info", "msg": "browser:online" },
+    { "level": "info", "msg": "step:facebook_signup start" }
+  ]
+}
+
+// 3. Progress — only browserId + what changed
+POST /api/logs/browser
+{
+  "browserId": "hidemium-1",
+  "currentStepPath": "visit_profile -> like_posts",
+  "logs": [
+    { "level": "info", "msg": "step:visit_profile start (pool=sharers)" },
+    { "level": "info", "msg": "like_posts -> liked 1 of 2" }
+  ]
+}
+
+// 4. Something goes wrong mid-run — just send the new lines
+POST /api/logs/browser
+{
+  "browserId": "hidemium-1",
+  "logs": [
+    { "level": "warn",  "msg": "Captcha appeared, solving..." },
+    { "level": "error", "msg": "Proxy timeout (1 retry)" },
+    { "level": "info",  "msg": "Reconnected via fallback" }
+  ]
+}
+
+// 5. Profile finishes — see "Ending a profile" above
+POST /api/logs/browser   // online: false
+POST /api/logs/processed // { profileId }
+```
+
+After step 5, `hidemium-1` is free. Either send a new `/browser` with the next `profileId` (slot reused), or just leave it offline if the run is over.
+
 ## A drop-in helper
 
 Save this as `vault-log.js` next to `run-task.js`:
