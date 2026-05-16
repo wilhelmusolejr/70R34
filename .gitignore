@@ -17,6 +17,7 @@ server/.env
 MongoDB/
 
 public/images/
+generated-images-openai/
 
 # Local Claude Code state
 .claude/

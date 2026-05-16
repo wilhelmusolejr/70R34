@@ -10,6 +10,7 @@ import { Image } from "../models/Image.js";
 import { Page } from "../models/Page.js";
 import { Profile } from "../models/Profile.js";
 import { mapImageDoc } from "../utils/publicImageUrl.js";
+import { generateBrandImages } from "../services/openaiImages.js";
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -1046,6 +1047,109 @@ router.post("/:id/images", upload.array("images"), async (req, res, next) => {
       .lean();
 
     res.status(201).json(formatPage(populatedPage));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Generate a brand profile + cover image pair via OpenAI from the page's
+// stored `generationPrompt`, write them to disk, and attach them as
+// `profile` / `cover` page assets in a single call.
+router.post("/:id/generate-images", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!ensureValidPageId(id)) {
+      return res.status(400).json({ message: "Invalid page id" });
+    }
+
+    const page = await Page.findById(id).populate("linkedIdentities", "_id");
+    if (!page) {
+      return res.status(404).json({ message: "Page not found" });
+    }
+
+    const brief = String(page.generationPrompt || "").trim();
+    if (!brief) {
+      return res.status(400).json({
+        message:
+          "Page has no generationPrompt — set it before generating brand images.",
+      });
+    }
+
+    const quality = req.body?.quality
+      ? String(req.body.quality).trim()
+      : undefined;
+
+    let result;
+    try {
+      result = await generateBrandImages(brief, quality ? { quality } : {});
+    } catch (err) {
+      return res.status(502).json({
+        message: err?.message || "Image generation failed",
+      });
+    }
+
+    const linkedIdentityId = page.linkedIdentities?.[0]?._id || null;
+    const slot = [
+      { type: "profile", payload: result.profile },
+      { type: "cover", payload: result.cover },
+    ];
+
+    const writtenFiles = slot.map(({ type, payload }) => {
+      const filename = `page_${type}_${randomUUID()}.png`;
+      fs.writeFileSync(path.resolve(publicImagesDir, filename), payload.bytes);
+      return { type, filename, payload };
+    });
+
+    const createdImages = await Image.insertMany(
+      writtenFiles.map(({ filename, type }) => ({
+        filename: `/images/${filename}`,
+        annotation: page.pageName,
+        type,
+        sourceType: "generated",
+        aiGenerated: true,
+        generationModel: result.model,
+        usedBy: linkedIdentityId ? [{ userId: linkedIdentityId }] : [],
+        annotations: [],
+      })),
+    );
+
+    page.assets.push(
+      ...createdImages.map((image, index) => ({
+        imageId: image._id,
+        type: writtenFiles[index].type,
+        postDescription: String(page.bio || "").trim(),
+        postedAt: null,
+        engagementScore: 0,
+      })),
+    );
+
+    await page.save();
+
+    const populatedPage = await Page.findById(id)
+      .populate("linkedIdentities", "id firstName lastName pageUrl")
+      .populate("assets.imageId")
+      .populate("posts.images")
+      .lean();
+
+    res.status(201).json({
+      page: formatPage(populatedPage),
+      generation: {
+        model: result.model,
+        quality: result.quality,
+        brandName: result.brandName,
+        subtotalEstimate: result.subtotalEstimate,
+        profile: {
+          size: result.profile.size,
+          costEstimate: result.profile.costEstimate,
+          revised: result.profile.revised,
+        },
+        cover: {
+          size: result.cover.size,
+          costEstimate: result.cover.costEstimate,
+          revised: result.cover.revised,
+        },
+      },
+    });
   } catch (error) {
     next(error);
   }

@@ -99,6 +99,16 @@ export function addPageImages(pageId, formData) {
   });
 }
 
+export function generatePageBrandImages(pageId, payload = {}) {
+  return apiFetch(`/api/pages/${pageId}/generate-images`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function updatePage(pageId, payload) {
   return apiFetch(`/api/pages/${pageId}`, {
     method: "PATCH",

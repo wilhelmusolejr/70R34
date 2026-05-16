@@ -10,6 +10,7 @@ import {
   deletePage,
   fetchPage,
   generateBulkPagePosts,
+  generatePageBrandImages,
   generatePagePost,
   updatePage,
 } from "../api/pages";
@@ -243,6 +244,13 @@ export function PageDetailPage() {
   const [pageImageEngagementScore, setPageImageEngagementScore] = useState("0");
   const [isAddingImages, setIsAddingImages] = useState(false);
   const [addImagesError, setAddImagesError] = useState("");
+  const [isGeneratingBrandImages, setIsGeneratingBrandImages] = useState(false);
+  const [generateBrandImagesError, setGenerateBrandImagesError] = useState("");
+  const [lastBrandGeneration, setLastBrandGeneration] = useState(null);
+  const [
+    isGenerateBrandImagesModalOpen,
+    setIsGenerateBrandImagesModalOpen,
+  ] = useState(false);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
   const [isGeneratingPost, setIsGeneratingPost] = useState(false);
   const [isBulkGeneratingPosts, setIsBulkGeneratingPosts] = useState(false);
@@ -714,6 +722,48 @@ export function PageDetailPage() {
       setAddImagesError(err.message || "Failed to add images.");
     } finally {
       setIsAddingImages(false);
+    }
+  }
+
+  function openGenerateBrandImagesModal() {
+    if (!ensureAdminAccess()) return;
+    if (!page) return;
+
+    const brief = String(page.generationPrompt || "").trim();
+    if (!brief) {
+      setGenerateBrandImagesError(
+        "This page has no prompt yet. Add one in the Prompt field below.",
+      );
+      return;
+    }
+    setGenerateBrandImagesError("");
+    setIsGenerateBrandImagesModalOpen(true);
+  }
+
+  function closeGenerateBrandImagesModal() {
+    if (isGeneratingBrandImages) return;
+    setIsGenerateBrandImagesModalOpen(false);
+  }
+
+  async function handleConfirmGenerateBrandImages() {
+    if (!page) return;
+    try {
+      setIsGeneratingBrandImages(true);
+      setGenerateBrandImagesError("");
+      const response = await generatePageBrandImages(page.id);
+      if (response?.page) {
+        setPage(response.page);
+      }
+      if (response?.generation) {
+        setLastBrandGeneration(response.generation);
+      }
+      setIsGenerateBrandImagesModalOpen(false);
+    } catch (err) {
+      setGenerateBrandImagesError(
+        err?.message || "Failed to generate brand images.",
+      );
+    } finally {
+      setIsGeneratingBrandImages(false);
     }
   }
 
@@ -1194,6 +1244,17 @@ export function PageDetailPage() {
         title="Images Gallery"
         badge={
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn-s"
+              onClick={openGenerateBrandImagesModal}
+              disabled={isGeneratingBrandImages}
+              title="Generate profile + cover via OpenAI from this page's prompt"
+            >
+              {isGeneratingBrandImages
+                ? "Generating..."
+                : "Generate brand images"}
+            </button>
             <button type="button" className="btn-s" onClick={openAddImagesModal}>
               Add Images
             </button>
@@ -1205,6 +1266,45 @@ export function PageDetailPage() {
           </div>
         }
       >
+        {generateBrandImagesError ? (
+          <div
+            style={{
+              padding: "8px 12px",
+              marginBottom: 12,
+              borderRadius: 8,
+              border: "1px solid #b91c1c",
+              background: "rgba(185, 28, 28, 0.08)",
+              color: "#b91c1c",
+              fontSize: 13,
+            }}
+          >
+            {generateBrandImagesError}
+          </div>
+        ) : null}
+        {lastBrandGeneration ? (
+          <div
+            style={{
+              padding: "8px 12px",
+              marginBottom: 12,
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+              background: "var(--surface2)",
+              color: "var(--text2)",
+              fontSize: 12,
+            }}
+          >
+            Last generation:{" "}
+            <strong style={{ color: "var(--text)" }}>
+              {lastBrandGeneration.model}
+            </strong>{" "}
+            ({lastBrandGeneration.quality}) — est $
+            {lastBrandGeneration.subtotalEstimate?.toFixed(3) ?? "0.000"} (₱
+            {(
+              (lastBrandGeneration.subtotalEstimate || 0) * 60
+            ).toFixed(2)}
+            )
+          </div>
+        ) : null}
         {gallery.length ? (
           <>
             <div className="profile-image-gallery-head">
@@ -1635,6 +1735,141 @@ export function PageDetailPage() {
                 </div>
               ) : null}
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isGenerateBrandImagesModalOpen ? (
+        <div
+          className="npm-backdrop"
+          onClick={closeGenerateBrandImagesModal}
+        >
+          <div
+            className="npm-modal"
+            onClick={(event) => event.stopPropagation()}
+            style={{ width: "min(640px, 100%)" }}
+          >
+            <div className="npm-header">
+              <div>
+                <div className="npm-kicker">AI Image Generation</div>
+                <h2 className="npm-title">Generate brand images</h2>
+              </div>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={closeGenerateBrandImagesModal}
+                disabled={isGeneratingBrandImages}
+              >
+                x
+              </button>
+            </div>
+            <div className="npm-body" aria-busy={isGeneratingBrandImages}>
+              <p style={{ marginTop: 0, color: "var(--text2)", fontSize: 13 }}>
+                Generate a <strong>profile</strong> (1024×1024) and{" "}
+                <strong>cover</strong> (1536×1024) image via OpenAI using this
+                page's saved prompt. Both images will be attached automatically
+                with the matching asset types.
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  background: "var(--surface2)",
+                  border: "1px solid var(--border)",
+                  fontSize: 12,
+                  color: "var(--text2)",
+                  marginBottom: 14,
+                }}
+              >
+                <span>
+                  Model: <strong style={{ color: "var(--text)" }}>gpt-image-1</strong>
+                </span>
+                <span>
+                  Quality: <strong style={{ color: "var(--text)" }}>medium</strong>
+                </span>
+                <span>
+                  Estimated cost:{" "}
+                  <strong style={{ color: "var(--text)" }}>≈ $0.105 (₱6.30)</strong>
+                </span>
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--text3)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 6,
+                }}
+              >
+                Brief preview
+              </div>
+              <div
+                style={{
+                  maxHeight: 220,
+                  overflowY: "auto",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Consolas, monospace",
+                  fontSize: 12,
+                  color: "var(--text2)",
+                  whiteSpace: "pre-wrap",
+                  lineHeight: 1.5,
+                }}
+              >
+                {page?.generationPrompt || "(no prompt set)"}
+              </div>
+              {generateBrandImagesError ? (
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #b91c1c",
+                    background: "rgba(185, 28, 28, 0.08)",
+                    color: "#b91c1c",
+                    fontSize: 13,
+                  }}
+                >
+                  {generateBrandImagesError}
+                </div>
+              ) : null}
+              <div
+                className="npm-footer-actions"
+                style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 8 }}
+              >
+                <button
+                  type="button"
+                  className="btn-s"
+                  onClick={closeGenerateBrandImagesModal}
+                  disabled={isGeneratingBrandImages}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-p"
+                  onClick={handleConfirmGenerateBrandImages}
+                  disabled={isGeneratingBrandImages}
+                >
+                  {isGeneratingBrandImages ? "Generating..." : "Generate"}
+                </button>
+              </div>
+              {isGeneratingBrandImages ? (
+                <div className="npm-loading-overlay">
+                  <div className="npm-spinner" />
+                  <div className="npm-loading-title">Generating brand images</div>
+                  <div className="npm-loading-copy">
+                    Calling OpenAI for profile + cover (≈ 40s total). Keep this modal open until it finishes.
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
