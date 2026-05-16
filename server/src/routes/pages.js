@@ -1091,13 +1091,33 @@ router.post("/:id/generate-images", async (req, res, next) => {
       });
     }
 
-    const linkedIdentityId = page.linkedIdentities?.[0]?._id || null;
-    const slot = [
-      { type: "profile", payload: result.profile },
-      { type: "cover", payload: result.cover },
-    ];
+    const errors = [];
+    if (!result.profile.ok) {
+      errors.push({ slot: "profile", ...result.profile.error });
+    }
+    if (!result.cover.ok) {
+      errors.push({ slot: "cover", ...result.cover.error });
+    }
 
-    const writtenFiles = slot.map(({ type, payload }) => {
+    const succeededSlots = [
+      result.profile.ok
+        ? { type: "profile", payload: result.profile }
+        : null,
+      result.cover.ok ? { type: "cover", payload: result.cover } : null,
+    ].filter(Boolean);
+
+    if (succeededSlots.length === 0) {
+      return res.status(502).json({
+        message: errors
+          .map((e) => `${e.slot}: ${e.message}`)
+          .join("; "),
+        errors,
+      });
+    }
+
+    const linkedIdentityId = page.linkedIdentities?.[0]?._id || null;
+
+    const writtenFiles = succeededSlots.map(({ type, payload }) => {
       const filename = `page_${type}_${randomUUID()}.png`;
       fs.writeFileSync(path.resolve(publicImagesDir, filename), payload.bytes);
       return { type, filename, payload };
@@ -1134,24 +1154,29 @@ router.post("/:id/generate-images", async (req, res, next) => {
       .populate("posts.images")
       .lean();
 
-    res.status(201).json({
+    res.status(errors.length > 0 ? 207 : 201).json({
       page: formatPage(populatedPage),
       generation: {
         model: result.model,
         quality: result.quality,
         brandName: result.brandName,
         subtotalEstimate: result.subtotalEstimate,
-        profile: {
-          size: result.profile.size,
-          costEstimate: result.profile.costEstimate,
-          revised: result.profile.revised,
-        },
-        cover: {
-          size: result.cover.size,
-          costEstimate: result.cover.costEstimate,
-          revised: result.cover.revised,
-        },
+        profile: result.profile.ok
+          ? {
+              size: result.profile.size,
+              costEstimate: result.profile.costEstimate,
+              revised: result.profile.revised,
+            }
+          : null,
+        cover: result.cover.ok
+          ? {
+              size: result.cover.size,
+              costEstimate: result.cover.costEstimate,
+              revised: result.cover.revised,
+            }
+          : null,
       },
+      errors,
     });
   } catch (error) {
     next(error);

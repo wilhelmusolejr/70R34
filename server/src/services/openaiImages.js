@@ -238,6 +238,10 @@ export function buildPrompts(parsed, opts = {}) {
   };
 }
 
+function makeApiError(message, fields) {
+  return Object.assign(new Error(message), fields);
+}
+
 async function callOpenAI({ prompt, size, model, quality, apiKey }) {
   const response = await fetch(API_URL, {
     method: "POST",
@@ -253,15 +257,29 @@ async function callOpenAI({ prompt, size, model, quality, apiKey }) {
   try {
     data = raw ? JSON.parse(raw) : {};
   } catch {
-    throw new Error(`OpenAI returned non-JSON (HTTP ${response.status})`);
+    throw makeApiError(`OpenAI returned non-JSON (HTTP ${response.status})`, {
+      status: response.status,
+      code: "non_json",
+    });
   }
 
   if (!response.ok) {
-    throw new Error(data?.error?.message || `OpenAI HTTP ${response.status}`);
+    throw makeApiError(
+      data?.error?.message || `OpenAI HTTP ${response.status}`,
+      {
+        status: response.status,
+        code: data?.error?.code || data?.error?.type || null,
+      },
+    );
   }
 
   const b64 = data?.data?.[0]?.b64_json;
-  if (!b64) throw new Error("No image data in OpenAI response");
+  if (!b64) {
+    throw makeApiError("No image data in OpenAI response", {
+      status: response.status,
+      code: "empty_response",
+    });
+  }
 
   return {
     bytes: Buffer.from(b64, "base64"),
@@ -269,22 +287,50 @@ async function callOpenAI({ prompt, size, model, quality, apiKey }) {
   };
 }
 
+// Retry once on transient rate-limit. `insufficient_quota` is permanent —
+// no point retrying, it just delays the user seeing the real error.
+async function callOpenAIWithRetry(args, { retries = 1, backoffMs = 1500 } = {}) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await callOpenAI(args);
+    } catch (err) {
+      const transient =
+        err?.status === 429 && err?.code !== "insufficient_quota";
+      if (!transient || attempt >= retries) throw err;
+      await new Promise((resolve) =>
+        setTimeout(resolve, backoffMs * 2 ** attempt),
+      );
+      attempt += 1;
+    }
+  }
+}
+
+function errorToInfo(err) {
+  return {
+    message: err?.message || "OpenAI call failed",
+    status: err?.status ?? null,
+    code: err?.code ?? null,
+  };
+}
+
 /**
  * Generate a profile + cover image pair from a brand brief.
  *
+ * Both API calls run in parallel and via `Promise.allSettled`, so a failure
+ * in one slot doesn't cancel the other. Each slot returns either
+ * `{ ok: true, ... }` with the bytes, or `{ ok: false, error }` with the
+ * tagged failure info. Callers decide how to handle partial success.
+ *
+ * Throws only for pre-flight problems: missing API key, unparseable brief.
+ *
  * @param {string} brief - Raw brief text (see generatePagePersonalityPrompt).
  * @param {object} [opts]
- * @param {string} [opts.apiKey]   - Override env OPENAI_API_KEY
- * @param {string} [opts.model]    - Override env OPENAI_IMAGE_MODEL (default "gpt-image-1")
- * @param {string} [opts.quality]  - Override env OPENAI_IMAGE_QUALITY (default "medium")
- * @returns {Promise<{
- *   brandName: string,
- *   profile: { bytes: Buffer, prompt: string, revised: string|null, size: string, costEstimate: number },
- *   cover:   { bytes: Buffer, prompt: string, revised: string|null, size: string, costEstimate: number },
- *   subtotalEstimate: number,
- *   model: string,
- *   quality: string,
- * }>}
+ * @param {string} [opts.apiKey]
+ * @param {string} [opts.model]
+ * @param {string} [opts.quality]
+ * @param {string} [opts.country]
+ * @param {object} [opts.profileVariation]
  */
 export async function generateBrandImages(brief, opts = {}) {
   const apiKey = opts.apiKey || process.env.OPENAI_API_KEY || "";
@@ -306,42 +352,57 @@ export async function generateBrandImages(brief, opts = {}) {
     country: opts.country,
   });
 
-  const profile = await callOpenAI({
-    prompt: profilePrompt,
-    size: PROFILE_SIZE,
-    model,
-    quality,
-    apiKey,
-  });
-  const cover = await callOpenAI({
-    prompt: coverPrompt,
-    size: COVER_SIZE,
-    model,
-    quality,
-    apiKey,
-  });
+  const [profileSettled, coverSettled] = await Promise.allSettled([
+    callOpenAIWithRetry({
+      prompt: profilePrompt,
+      size: PROFILE_SIZE,
+      model,
+      quality,
+      apiKey,
+    }),
+    callOpenAIWithRetry({
+      prompt: coverPrompt,
+      size: COVER_SIZE,
+      model,
+      quality,
+      apiKey,
+    }),
+  ]);
 
-  const profileCost = costFor(PROFILE_SIZE, quality);
-  const coverCost = costFor(COVER_SIZE, quality);
+  const profileResult =
+    profileSettled.status === "fulfilled"
+      ? {
+          ok: true,
+          bytes: profileSettled.value.bytes,
+          prompt: profilePrompt,
+          revised: profileSettled.value.revisedPrompt,
+          size: PROFILE_SIZE,
+          costEstimate: costFor(PROFILE_SIZE, quality),
+          variation: profileVariation,
+        }
+      : { ok: false, error: errorToInfo(profileSettled.reason) };
+
+  const coverResult =
+    coverSettled.status === "fulfilled"
+      ? {
+          ok: true,
+          bytes: coverSettled.value.bytes,
+          prompt: coverPrompt,
+          revised: coverSettled.value.revisedPrompt,
+          size: COVER_SIZE,
+          costEstimate: costFor(COVER_SIZE, quality),
+        }
+      : { ok: false, error: errorToInfo(coverSettled.reason) };
+
+  const subtotalEstimate =
+    (profileResult.ok ? profileResult.costEstimate : 0) +
+    (coverResult.ok ? coverResult.costEstimate : 0);
 
   return {
     brandName: parsed.brandName,
-    profile: {
-      bytes: profile.bytes,
-      prompt: profilePrompt,
-      revised: profile.revisedPrompt,
-      size: PROFILE_SIZE,
-      costEstimate: profileCost,
-      variation: profileVariation,
-    },
-    cover: {
-      bytes: cover.bytes,
-      prompt: coverPrompt,
-      revised: cover.revisedPrompt,
-      size: COVER_SIZE,
-      costEstimate: coverCost,
-    },
-    subtotalEstimate: profileCost + coverCost,
+    profile: profileResult,
+    cover: coverResult,
+    subtotalEstimate,
     model,
     quality,
   };

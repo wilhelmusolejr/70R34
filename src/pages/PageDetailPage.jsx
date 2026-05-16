@@ -757,6 +757,16 @@ export function PageDetailPage() {
       if (response?.generation) {
         setLastBrandGeneration(response.generation);
       }
+      const errors = Array.isArray(response?.errors) ? response.errors : [];
+      if (errors.length > 0) {
+        const detail = errors
+          .map((e) => `${e.slot}: ${e.message}`)
+          .join(" — ");
+        setGenerateBrandImagesError(
+          `Partial success — kept what worked. ${detail}`,
+        );
+        return;
+      }
       setIsGenerateBrandImagesModalOpen(false);
     } catch (err) {
       setGenerateBrandImagesError(
