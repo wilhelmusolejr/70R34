@@ -115,16 +115,96 @@ export function cleanProfilePrompt(profileSection) {
     .trim();
 }
 
-const PROFILE_STYLE = `STYLE & CONSTRAINTS:
-- This is a PREMIUM BRAND EMBLEM — think high-end brand-book identity mark, NOT a flat vector clip-art icon
-- Render as a polished circular badge, sculpted monogram, or abstract emblem WITH visible depth, soft shading, subtle texture or gradient — NEVER as a flat SVG silhouette
-- MUST sit on a rich solid-color or subtly textured background (brand hues, jewel tones, warm metallics, gradients) — NEVER on plain white or transparent
-- ONE single unified abstract mark — NOT a montage of services, NOT multiple icons grouped, NOT a scene
+// Mutually-distinct visual territories. We randomly pick one per call so two
+// adjacent generations land in genuinely different aesthetic worlds rather
+// than all converging to the model's default "embossed-relief on green"
+// brand-emblem look.
+//
+// Organized loosely by category (material, era, hand-rendered, geometric,
+// digital, ornamental) so even if a few adjacent picks land in the same
+// neighborhood the overall pool stays diverse.
+const PROFILE_VARIATIONS = [
+  // ── Material / technique ────────────────────────────────────────────────
+  { style: "embossed metallic relief emblem — a sculpted brand mark with raised gold, bronze, copper, or silver elements casting subtle shadows on a rich textured background; tactile premium brand-book quality", palette: "warm metallics (gold / bronze / copper) on a deep jewel-toned background" },
+  { style: "letterpress impression on heavy cotton paper — pressed ink leaving a tactile debossed shape, with visible paper grain and slight ink-soak edges", palette: "single dark ink (deep navy, forest, oxblood, charcoal) on cream or ecru paper" },
+  { style: "embroidered patch with visible stitched threads, fabric weave background, and a crisp stitched border ring", palette: "saturated thread colors on a contrasting fabric backdrop (cobalt, scarlet, mustard, ivory)" },
+  { style: "glazed ceramic tile emblem with subtle surface irregularities, hand-painted brush variation, and reflective glaze highlights", palette: "Mediterranean blue-and-white, terracotta-and-cream, or moss-and-sand" },
+  { style: "wax seal stamped into deep colored wax on aged parchment, raised relief with sharp edges and slight wax drip imperfections", palette: "deep red, wine, forest, or midnight wax on parchment cream" },
+  { style: "holographic foil emblem with iridescent rainbow shimmer that shifts across the mark, on a dark backdrop", palette: "iridescent rainbow on near-black or deep midnight" },
+  { style: "liquid chrome metal rendering with mirror-like reflections, soft studio gradient reflections, and crisp edge highlights", palette: "polished silver / chrome on a soft pastel gradient backdrop" },
+  { style: "neon tube glow emblem — the mark drawn as a single luminous neon line on a dark wall, with realistic bloom and reflection", palette: "saturated neon (electric pink, cyan, magenta, lime, amber) on dark slate or brick" },
+  { style: "frosted etched glass mark — the symbol etched into smoked or frosted glass with soft diffused light passing through", palette: "muted translucent whites and pale greys with one accent backlight color" },
+  { style: "spray-paint stencil aesthetic with slight overspray fuzz, drip details, and a torn-cardboard stencil edge", palette: "bold high-contrast (black + neon, white + arterial red, cream + ultramarine)" },
+  { style: "luxurious velvet or felt textile emblem with rich nap, subtle directional sheen, and embroidered metallic trim", palette: "jewel velvet (sapphire, emerald, ruby, plum) with gold thread accents" },
+  { style: "Carrara marble emblem with veining flowing through the mark, polished surface, and luxurious cool light", palette: "white marble with grey veining, OR green marble with gold veining, OR pink marble with white veining" },
+  { style: "raw concrete / brutalist mark with cast-in relief, visible aggregate texture, and dramatic side lighting", palette: "concrete greys with a single saturated accent (safety orange, mustard, cobalt)" },
+  { style: "layered cut-paper collage emblem — multiple paper layers cut and stacked with visible edges and soft drop shadows between layers", palette: "playful paired pastels with one rich saturated layer for contrast" },
+  { style: "stained-glass cathedral panel — rich saturated jewel-toned panels separated by thick dark leading, soft backlit glow", palette: "deep sapphire, emerald, ruby, amber separated by black leading" },
+
+  // ── Era / design movement ───────────────────────────────────────────────
+  { style: "Art Deco emblem with strong vertical symmetry, sunburst rays, and ornamental geometric detail — Gatsby-era luxury", palette: "deep monochrome with a single metallic accent (navy + gold, charcoal + copper, forest + silver)" },
+  { style: "Bauhaus emblem using primary-color geometric forms (circle, square, triangle) in flat composition with confident grid layout", palette: "primary red / yellow / blue plus black on off-white" },
+  { style: "mid-century modern minimal mark in the style of Saul Bass — flat, slightly distressed paper-cut shapes with playful negative space", palette: "muted retro palette (avocado, mustard, burnt orange, cream) or limited two-tone" },
+  { style: "Memphis Group 80s aesthetic — playful jumbled shapes, polka dots, squiggles, primary brights, and ironic geometry", palette: "hot pink + electric blue + lemon + black-and-white scatter" },
+  { style: "60s Op-Art emblem with bold optical-illusion striping and high-contrast geometric distortion", palette: "stark black-and-white with one accent (or two-tone in a saturated complementary pair)" },
+  { style: "70s psychedelic flowing organic forms with melting curves, swirling color bleeds, and groovy hand-lettering vibes (but no actual letters)", palette: "warm 70s spectrum (avocado, ochre, burnt sienna, mustard, rust)" },
+  { style: "80s synthwave emblem set against a chrome grid horizon with sunset gradient sky and chrome / outline-glow treatment", palette: "magenta-to-purple sunset gradient with cyan and chrome accents" },
+  { style: "Y2K chrome-and-jelly bubble graphic — glossy 3D bubble text-free icon, jelly translucency, soft chrome highlights", palette: "candy pastels with chrome reflections (bubblegum pink, mint, lavender, baby blue)" },
+  { style: "vaporwave aesthetic emblem — pastel gradients, classical statue fragment, soft grid, dreamy lo-fi atmosphere", palette: "soft pastel pink + lavender + mint + cream with chrome accents" },
+  { style: "William Morris vintage botanical pattern emblem — intricate Arts-and-Crafts foliage and vines forming the mark", palette: "rich Victorian (forest + cream, oxblood + mustard, navy + ochre)" },
+
+  // ── Hand-rendered ───────────────────────────────────────────────────────
+  { style: "soft watercolor wash emblem with visible pigment pooling, gentle bleeds at edges, and a hand-painted feel", palette: "muted earth tones with one saturated accent (terracotta, sage, ochre + indigo)" },
+  { style: "gouache-painted matte emblem with confident opaque brush strokes, slightly imperfect edges, and modern-illustration feel", palette: "muted modern palette (dusty rose, sage, terracotta, sand, slate)" },
+  { style: "sumi-e Japanese ink-wash emblem — confident single-stroke brushwork, gradient ink tones from deep black to grey, on rice-paper backdrop", palette: "black ink with cream or warm-white paper, optionally one vermillion accent" },
+  { style: "pen-and-ink stippling emblem composed entirely of dots in varying density, building tonal form like scientific botanical illustration", palette: "black ink on cream with optional warm sepia tone" },
+  { style: "loose charcoal sketch emblem with smudged shading, expressive line weight, and visible newsprint texture", palette: "charcoal grays on warm off-white newsprint" },
+  { style: "linocut / woodblock print emblem with bold confident carved-out shapes, organic edge imperfections, and high contrast", palette: "single saturated ink (deep red, navy, forest, black) on textured cream" },
+  { style: "Risograph print emblem with slight color-channel misalignment, grainy spot-color overlay, and zine aesthetic", palette: "duotone Risograph (fluorescent pink + teal, mint + violet, yellow + bright blue)" },
+  { style: "soft pastel chalk emblem with powdery edges, gentle color gradients, and a slightly dusted backdrop", palette: "dusty pastels (peach, lavender, sage, butter, blush) on warm cream" },
+
+  // ── Geometric / modernist ───────────────────────────────────────────────
+  { style: "modern flat geometric mark using bold color blocks and clean shapes; editorial top-studio identity design", palette: "two confident contrasting colors (coral + navy, mustard + teal, magenta + cream, lime + plum)" },
+  { style: "Scandinavian flat-design emblem with generous negative space, restrained shape language, and serene composition", palette: "soft Nordic (cloud white, slate, sage, dusty blue, with one warm accent)" },
+  { style: "single-line continuous-stroke emblem — the entire mark drawn as one elegant unbroken line with confident curves", palette: "single bold line (black, gold, deep navy) on a clean solid color field" },
+  { style: "low-poly geometric crystal-facet emblem with sharp triangular facets and a faceted gemstone feel", palette: "jewel facets shifting from a deep base to a bright highlight (sapphire, emerald, amethyst, citrine)" },
+  { style: "isometric architectural mini-composition forming the brand mark — clean axonometric lines, soft shadows", palette: "muted architectural (warm grey, oat, sage, terracotta, with one saturated accent)" },
+  { style: "modernist heraldic crest / shield with simplified geometric heraldry — clean lines, no fussy ornament", palette: "deep two-tone heraldry (navy + gold, oxblood + ivory, forest + cream)" },
+  { style: "Swiss-style international-typographic emblem — pure geometric grid composition, ruthless minimalism", palette: "monochrome with one saturated grid-accent color (red, cobalt, or yellow)" },
+
+  // ── 3D / digital ────────────────────────────────────────────────────────
+  { style: "modern 3D-rendered emblem with smooth gradient surfaces, soft studio lighting, and subtle ambient occlusion", palette: "vibrant gradient (sunset orange-to-pink, ocean teal-to-purple, peach-to-magenta)" },
+  { style: "voxel / pixelated 3D emblem built from chunky cubes with isometric perspective and playful retro-game feel", palette: "saturated game-art palette (turquoise, magenta, lemon, royal blue)" },
+  { style: "gradient-mesh fluid abstract emblem with smooth flowing color blends forming organic abstract forms", palette: "iridescent gradient (oil-slick, aurora, dawn sky)" },
+  { style: "glitch-art emblem with duotone displacement, RGB channel split, and scan-line interference", palette: "duotone glitch (cyan + magenta, lime + violet) on near-black" },
+  { style: "cyberpunk neon dystopian emblem — sharp angular brand mark with chromatic aberration, rain-soaked reflection, and dense atmosphere", palette: "neon magenta + cyan + electric blue against deep blacks" },
+
+  // ── Ornamental / pattern ────────────────────────────────────────────────
+  { style: "mandala radial-pattern emblem with concentric ornamental rings of fine detail building toward the center", palette: "rich symmetrical palette (gold + indigo, copper + plum, sage + ochre)" },
+  { style: "Celtic knotwork interlace emblem with woven over-under bands forming the symbol, fine traditional detail", palette: "deep green + gold, or oxblood + cream, or navy + brass" },
+  { style: "classical heraldic crest with full mantling, supporters implied, and traditional shield form — heritage-brand quality", palette: "deep heraldic (royal blue + gold, crimson + ivory, forest + silver)" },
+  { style: "mosaic tessellation emblem made from tiny irregular tiles forming the mark, with visible grout lines", palette: "Byzantine palette (cobalt, gold tesserae, deep red, off-white)" },
+  { style: "tarot-card illustrated frame style — ornamental border, central symbolic figure, mystical line work", palette: "deep midnight + gold + ivory with one saturated accent (ruby, emerald, amethyst)" },
+];
+
+function pickProfileVariation() {
+  return PROFILE_VARIATIONS[
+    Math.floor(Math.random() * PROFILE_VARIATIONS.length)
+  ];
+}
+
+function buildProfileStyle(variation) {
+  return `STYLE & CONSTRAINTS:
+- This is a PREMIUM BRAND EMBLEM / profile avatar — a brand-book-quality identity mark, NOT flat vector clip-art
+- VISUAL STYLE for this specific brand: ${variation.style}
+- COLOR PALETTE: ${variation.palette}
+- ONE single unified mark — NOT a montage of services, NOT multiple icons grouped, NOT a scene
 - ABSOLUTELY NO rendered text, NO letters, NO words, NO typography, NO wordmark
 - Use the brand context ONLY as thematic inspiration; do NOT render the brand name in the image
-- Modern, polished, professional, premium-brand-identity quality
+- MUST sit on a rich background (solid color, gradient, or subtle texture) — NEVER on plain white or transparent
 - Centered, balanced composition that reads cleanly when cropped to a circle for a social-media avatar
 - Forbidden: flat clip-art, sticker aesthetics, stock-SVG logos, black silhouettes on white, transparent backgrounds, montage compositions`;
+}
 
 const COVER_STYLE = `STYLE & CONSTRAINTS:
 - ABSOLUTELY NO rendered text, NO letters, NO words, NO typography, NO captions, NO signage, NO storefront writing
@@ -134,11 +214,13 @@ const COVER_STYLE = `STYLE & CONSTRAINTS:
 - Leave clean breathing room in the upper third where a headline could later sit, but DO NOT render any words there
 - Avoid poster, advertisement, banner, or flat-graphic aesthetics`;
 
-export function buildPrompts(parsed) {
+export function buildPrompts(parsed, opts = {}) {
   const cleanBrand = cleanBrandBlock(parsed.brand);
+  const variation = opts.profileVariation || pickProfileVariation();
   return {
-    profile: `${cleanBrand}\n\n${cleanProfilePrompt(parsed.profile)}\n\n${PROFILE_STYLE}`,
+    profile: `${cleanBrand}\n\n${cleanProfilePrompt(parsed.profile)}\n\n${buildProfileStyle(variation)}`,
     cover: `${cleanBrand}\n\n${parsed.cover}\n\n${COVER_STYLE}`,
+    profileVariation: variation,
   };
 }
 
@@ -201,7 +283,13 @@ export async function generateBrandImages(brief, opts = {}) {
     opts.quality || process.env.OPENAI_IMAGE_QUALITY || "medium";
 
   const parsed = parseBrief(brief);
-  const { profile: profilePrompt, cover: coverPrompt } = buildPrompts(parsed);
+  const {
+    profile: profilePrompt,
+    cover: coverPrompt,
+    profileVariation,
+  } = buildPrompts(parsed, {
+    profileVariation: opts.profileVariation,
+  });
 
   const profile = await callOpenAI({
     prompt: profilePrompt,
@@ -229,6 +317,7 @@ export async function generateBrandImages(brief, opts = {}) {
       revised: profile.revisedPrompt,
       size: PROFILE_SIZE,
       costEstimate: profileCost,
+      variation: profileVariation,
     },
     cover: {
       bytes: cover.bytes,
