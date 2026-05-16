@@ -74,13 +74,6 @@ function levelColor(level) {
   return "var(--text2)";
 }
 
-function statusDotColor(browser) {
-  if (!browser.online) return "var(--text3)";
-  const hasRecentError = browser.logs.some((l) => l.level === "error");
-  if (hasRecentError) return "#ef4444";
-  return "#22c55e";
-}
-
 function shortId(id) {
   return id ? `…${id.slice(-6)}` : "";
 }
@@ -101,7 +94,10 @@ function TaskPanel({ task, processedIds, browsers }) {
 
   const total = task.profiles.length;
   const done = processedIds.length;
-  const inFlight = browsers.filter((b) => b.online).length;
+  const processedSet = new Set(processedIds);
+  const inFlight = browsers.filter(
+    (b) => b.online && b.profileId && !processedSet.has(b.profileId),
+  ).length;
   const pct = total ? Math.round((done / total) * 100) : 0;
 
   return (
@@ -194,17 +190,185 @@ function TaskPanel({ task, processedIds, browsers }) {
   );
 }
 
-function BrowserColumn({ browser, profile, levelFilter, search }) {
+const KIND_BADGE = {
+  active: { label: "active", bg: "#22c55e", fg: "#052e13" },
+  pending: { label: "pending", bg: "#eab308", fg: "#3a2a05" },
+  done: { label: "done", bg: "var(--surface2)", fg: "var(--text2)" },
+};
+
+function StatusBadge({ kind }) {
+  const cfg = KIND_BADGE[kind] || KIND_BADGE.pending;
+  return (
+    <span
+      style={{
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        padding: "2px 6px",
+        borderRadius: 4,
+        background: cfg.bg,
+        color: cfg.fg,
+        border: kind === "done" ? "1px solid var(--border)" : "none",
+      }}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
+function PendingCard({ profileId, profile }) {
+  const fullName = profile
+    ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
+    : "";
+  const displayName = fullName || shortId(profileId);
+  const avatarUrl = resolveAssetUrl(pickProfilePhoto(profile));
+  const fbUrl = profile?.profileUrl || "";
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        background:
+          "repeating-linear-gradient(45deg, var(--surface) 0 10px, var(--surface2) 10px 20px)",
+        border: "1.5px dashed var(--border)",
+        borderRadius: 10,
+        padding: "14px",
+        alignSelf: "start",
+        position: "relative",
+        minHeight: 130,
+      }}
+    >
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: "50%",
+            overflow: "hidden",
+            background: "var(--surface2)",
+            border: "1px solid var(--border)",
+            filter: "grayscale(80%)",
+            flexShrink: 0,
+          }}
+        >
+          <SafeImage
+            src={avatarUrl}
+            alt={displayName}
+            initials={initialsFor(displayName)}
+            initialsSeed={profileId}
+            style={{ width: "100%", height: "100%", objectFit: "cover", fontSize: 14 }}
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            title={displayName}
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: "var(--text)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {displayName}
+          </div>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--text3)",
+              fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+              marginTop: 2,
+            }}
+          >
+            {shortId(profileId)}
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+            {fbUrl ? (
+              <a
+                href={fbUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={linkBtnStyle}
+                title={fbUrl}
+              >
+                Facebook ↗
+              </a>
+            ) : null}
+            {profileId ? (
+              <a
+                href={`/profile/${profileId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={linkBtnStyle}
+                title="Open profile page"
+              >
+                Profile ↗
+              </a>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 14,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          padding: "10px 12px",
+          borderRadius: 8,
+          background: "var(--surface)",
+          border: "1px dashed var(--border)",
+          color: "var(--text3)",
+        }}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+          }}
+        >
+          Queued — waiting for slot
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function BrowserColumn({ kind, profileId, browser, profile, levelFilter, search }) {
   const scrollRef = useRef(null);
   const [paused, setPaused] = useState(false);
+  const [showDoneLogs, setShowDoneLogs] = useState(false);
+
+  const logs = useMemo(() => browser?.logs || [], [browser]);
 
   const filtered = useMemo(() => {
-    return browser.logs.filter((log) => {
+    return logs.filter((log) => {
       if (levelFilter !== "all" && log.level !== levelFilter) return false;
       if (search && !log.msg.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [browser.logs, levelFilter, search]);
+  }, [logs, levelFilter, search]);
 
   useEffect(() => {
     if (paused) return;
@@ -212,14 +376,16 @@ function BrowserColumn({ browser, profile, levelFilter, search }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [filtered, paused]);
 
-  const errorCount = browser.logs.filter((l) => l.level === "error").length;
+  const errorCount = logs.filter((l) => l.level === "error").length;
   const fullName = profile
     ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
     : "";
-  const displayName = fullName || browser.profileName || browser.browserId;
+  const displayName =
+    fullName || browser?.profileName || (profileId ? shortId(profileId) : browser?.browserId);
   const avatarUrl = resolveAssetUrl(pickProfilePhoto(profile));
   const fbUrl = profile?.profileUrl || "";
-  const dotColor = statusDotColor(browser);
+  const dotColor = kind === "active" ? "#22c55e" : "var(--text3)";
+  const logsVisible = kind === "active" || (kind === "done" && showDoneLogs);
 
   return (
     <div
@@ -229,12 +395,17 @@ function BrowserColumn({ browser, profile, levelFilter, search }) {
         background: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: 10,
-        minWidth: 300,
-        flex: "1 1 0",
-        maxHeight: 380,
+        maxHeight: logsVisible ? 380 : 140,
+        opacity: kind === "done" && !showDoneLogs ? 0.78 : 1,
+        alignSelf: "start",
       }}
     >
-      <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
+      <div
+        style={{
+          padding: "10px 12px",
+          borderBottom: logsVisible ? "1px solid var(--border)" : "none",
+        }}
+      >
         <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
           <div
             style={{
@@ -252,11 +423,11 @@ function BrowserColumn({ browser, profile, levelFilter, search }) {
               src={avatarUrl}
               alt={displayName}
               initials={initialsFor(displayName)}
-              initialsSeed={browser.profileId || browser.browserId}
+              initialsSeed={profileId || browser?.browserId}
               style={{ width: "100%", height: "100%", objectFit: "cover", fontSize: 14 }}
             />
             <span
-              title={browser.online ? "online" : "offline"}
+              title={kind === "active" ? "online" : kind}
               style={{
                 position: "absolute",
                 right: 0,
@@ -273,17 +444,29 @@ function BrowserColumn({ browser, profile, levelFilter, search }) {
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
-              title={displayName}
               style={{
-                fontWeight: 700,
-                fontSize: 14,
-                color: "var(--text)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                minWidth: 0,
               }}
             >
-              {displayName}
+              <div
+                title={displayName}
+                style={{
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: "var(--text)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
+                {displayName}
+              </div>
+              <StatusBadge kind={kind} />
             </div>
             <div
               style={{
@@ -295,10 +478,14 @@ function BrowserColumn({ browser, profile, levelFilter, search }) {
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}
-              title={browser.currentStepPath || ""}
+              title={browser?.currentStepPath || ""}
             >
               <span style={{ color: "var(--text3)" }}>step: </span>
-              <span style={{ color: "var(--text2)" }}>{browser.currentStepPath || "—"}</span>
+              <span style={{ color: "var(--text2)" }}>
+                {kind === "pending"
+                  ? "queued — not yet started"
+                  : browser?.currentStepPath || (kind === "done" ? "completed" : "—")}
+              </span>
             </div>
             <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
               {fbUrl ? (
@@ -312,9 +499,9 @@ function BrowserColumn({ browser, profile, levelFilter, search }) {
                   Facebook ↗
                 </a>
               ) : null}
-              {browser.profileId ? (
+              {profileId ? (
                 <a
-                  href={`/profile/${browser.profileId}`}
+                  href={`/profile/${profileId}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={linkBtnStyle}
@@ -326,14 +513,26 @@ function BrowserColumn({ browser, profile, levelFilter, search }) {
             </div>
           </div>
 
-          <button
-            type="button"
-            className="btn-s"
-            style={{ padding: "2px 8px", fontSize: 11, flexShrink: 0 }}
-            onClick={() => setPaused((p) => !p)}
-          >
-            {paused ? "resume" : "pause"}
-          </button>
+          {kind === "active" ? (
+            <button
+              type="button"
+              className="btn-s"
+              style={{ padding: "2px 8px", fontSize: 11, flexShrink: 0 }}
+              onClick={() => setPaused((p) => !p)}
+            >
+              {paused ? "resume" : "pause"}
+            </button>
+          ) : kind === "done" ? (
+            <button
+              type="button"
+              className="btn-s"
+              style={{ padding: "2px 8px", fontSize: 11, flexShrink: 0 }}
+              onClick={() => setShowDoneLogs((v) => !v)}
+              title={showDoneLogs ? "hide log history" : "show log history"}
+            >
+              {showDoneLogs ? "hide logs" : "show logs"}
+            </button>
+          ) : null}
         </div>
 
         <div
@@ -347,58 +546,66 @@ function BrowserColumn({ browser, profile, levelFilter, search }) {
           }}
         >
           <span>
-            {browser.logs.length} events
+            {logs.length} events
             {errorCount > 0 ? ` · ${errorCount} error${errorCount > 1 ? "s" : ""}` : ""}
-            {browser.profileId ? (
+            {profileId ? (
               <span style={{ color: "var(--text3)", marginLeft: 6 }}>
-                {shortId(browser.profileId)}
+                {shortId(profileId)}
               </span>
             ) : null}
           </span>
-          <span
-            style={{
-              fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
-              background: "var(--surface2)",
-              border: "1px solid var(--border)",
-              borderRadius: 4,
-              padding: "1px 6px",
-              color: "var(--text2)",
-            }}
-            title="browser id"
-          >
-            {browser.browserId}
-          </span>
+          {browser?.browserId && browser.browserId !== profileId ? (
+            <span
+              style={{
+                fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+                background: "var(--surface2)",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+                padding: "1px 6px",
+                color: "var(--text2)",
+              }}
+              title="browser id"
+            >
+              {browser.browserId}
+            </span>
+          ) : null}
         </div>
       </div>
-      <div
-        ref={scrollRef}
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "8px 12px",
-          fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
-          fontSize: 12,
-          lineHeight: 1.5,
-          minHeight: 180,
-        }}
-      >
-        {filtered.length === 0 ? (
-          <div style={{ color: "var(--text3)", fontStyle: "italic" }}>No matching logs.</div>
-        ) : (
-          filtered.map((log, idx) => (
-            <div key={idx} style={{ marginBottom: 6 }}>
-              <span style={{ color: "var(--text3)" }}>{log.ts}</span>{" "}
-              <span style={{ color: levelColor(log.level), fontWeight: 600, textTransform: "uppercase" }}>
-                {log.level}
-              </span>{" "}
-              <span style={{ color: "var(--text)" }}>{log.msg}</span>
-            </div>
-          ))
-        )}
-        <div style={{ marginTop: 8, color: "var(--text3)", fontStyle: "italic", fontSize: 11 }}>
-          {paused ? "⏸ paused" : "▼ live tailing…"}
+      {logsVisible ? (
+        <div
+          ref={scrollRef}
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "8px 12px",
+            fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+            fontSize: 12,
+            lineHeight: 1.5,
+            minHeight: 180,
+          }}
+        >
+          {filtered.length === 0 ? (
+            <div style={{ color: "var(--text3)", fontStyle: "italic" }}>No matching logs.</div>
+          ) : (
+            filtered.map((log, idx) => (
+              <div key={idx} style={{ marginBottom: 6 }}>
+                <span style={{ color: "var(--text3)" }}>{log.ts}</span>{" "}
+                <span style={{ color: levelColor(log.level), fontWeight: 600, textTransform: "uppercase" }}>
+                  {log.level}
+                </span>{" "}
+                <span style={{ color: "var(--text)" }}>{log.msg}</span>
+              </div>
+            ))
+          )}
+          <div style={{ marginTop: 8, color: "var(--text3)", fontStyle: "italic", fontSize: 11 }}>
+            {kind === "done"
+              ? "✓ run complete — final log history"
+              : paused
+                ? "⏸ paused"
+                : "▼ live tailing…"}
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -513,23 +720,48 @@ export function LogsPage() {
     };
   }, []);
 
-  const browsers = useMemo(
-    () =>
-      Object.values(browsersMap).sort((a, b) => {
-        // Online (still pushing) first, offline (done) last.
-        if (Boolean(a.online) !== Boolean(b.online)) {
-          return a.online ? -1 : 1;
-        }
-        // Stable secondary sort so cards don't jump around mid-tail.
-        return a.browserId.localeCompare(b.browserId);
-      }),
-    [browsersMap],
-  );
+  const browsers = useMemo(() => Object.values(browsersMap), [browsersMap]);
+
+  const browsersByProfileId = useMemo(() => {
+    const map = new Map();
+    for (const b of browsers) {
+      if (b.profileId) map.set(b.profileId, b);
+    }
+    return map;
+  }, [browsers]);
+
+  // One slot per profile in task.profiles. Each slot is active (currently
+  // working, online), pending (not yet started), or done (processed). Active
+  // takes priority — those are the live concurrency.
+  const slots = useMemo(() => {
+    const processedSet = new Set(processedIds);
+    const profileIds = task?.profiles?.length
+      ? task.profiles
+      : // Fallback for ad-hoc bot runs without a task descriptor: derive from browsers.
+        browsers.map((b) => b.profileId || b.browserId);
+
+    const list = profileIds.map((profileId, index) => {
+      const browser = browsersByProfileId.get(profileId) || null;
+      let kind;
+      if (processedSet.has(profileId)) kind = "done";
+      else if (browser && browser.online) kind = "active";
+      else if (browser) kind = "done"; // pushed events then went offline but not marked processed
+      else kind = "pending";
+      return { profileId, browser, kind, index };
+    });
+
+    const order = { active: 0, pending: 1, done: 2 };
+    list.sort((a, b) => {
+      if (order[a.kind] !== order[b.kind]) return order[a.kind] - order[b.kind];
+      return a.index - b.index;
+    });
+    return list;
+  }, [task, browsers, browsersByProfileId, processedIds]);
 
   useEffect(() => {
     const ids = new Set();
-    for (const b of browsers) {
-      if (b.profileId) ids.add(b.profileId);
+    for (const s of slots) {
+      if (s.profileId) ids.add(s.profileId);
     }
     for (const id of ids) {
       if (fetchedProfileIdsRef.current.has(id)) continue;
@@ -542,7 +774,7 @@ export function LogsPage() {
           fetchedProfileIdsRef.current.delete(id);
         });
     }
-  }, [browsers]);
+  }, [slots]);
 
   async function handleClear() {
     try {
@@ -627,21 +859,38 @@ export function LogsPage() {
         />
       </div>
 
-      <div style={{ display: "flex", gap: 16, alignItems: "stretch", flexWrap: "wrap" }}>
-        {browsers.length === 0 ? (
+      <div
+        style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+          alignItems: "start",
+        }}
+      >
+        {slots.length === 0 ? (
           <div style={{ color: "var(--text3)", fontStyle: "italic", padding: 12 }}>
-            No active browsers yet.
+            No profiles in this task yet.
           </div>
         ) : (
-          browsers.map((browser) => (
-            <BrowserColumn
-              key={browser.browserId}
-              browser={browser}
-              profile={profileCache[browser.profileId]}
-              levelFilter={levelFilter}
-              search={search}
-            />
-          ))
+          slots.map((slot) =>
+            slot.kind === "pending" ? (
+              <PendingCard
+                key={slot.profileId}
+                profileId={slot.profileId}
+                profile={profileCache[slot.profileId]}
+              />
+            ) : (
+              <BrowserColumn
+                key={slot.profileId}
+                kind={slot.kind}
+                profileId={slot.profileId}
+                browser={slot.browser}
+                profile={profileCache[slot.profileId]}
+                levelFilter={levelFilter}
+                search={search}
+              />
+            ),
+          )
         )}
       </div>
     </div>
