@@ -209,17 +209,31 @@ function buildProfileStyle(variation) {
 const COVER_STYLE = `STYLE & CONSTRAINTS:
 - ABSOLUTELY NO rendered text, NO letters, NO words, NO typography, NO captions, NO signage, NO storefront writing
 - Use the brand context ONLY as visual/thematic inspiration; do NOT render the brand name as text in the image
-- Wide cinematic landscape composition with environmental / lifestyle context appropriate to the brand
+- Wide cinematic landscape composition with environmental / lifestyle context appropriate to the brand AND the stated country/market — pick architecture, interiors, light quality, fashion, and street furniture that match that country
 - Photorealistic or editorial commercial style: natural lighting, true-to-life textures, depth of field
 - Leave clean breathing room in the upper third where a headline could later sit, but DO NOT render any words there
 - Avoid poster, advertisement, banner, or flat-graphic aesthetics`;
 
+const COUNTRY_NAMES = {
+  US: "United States",
+  IT: "Italy",
+};
+
+function countryLine(code) {
+  const raw = String(code || "").trim();
+  if (!raw) return "";
+  const name = COUNTRY_NAMES[raw.toUpperCase()] || raw;
+  return `Country / market: ${name} — render this image with cultural and visual cues that fit ${name}.`;
+}
+
 export function buildPrompts(parsed, opts = {}) {
   const cleanBrand = cleanBrandBlock(parsed.brand);
+  const country = countryLine(opts.country);
+  const brandWithCountry = country ? `${cleanBrand}\n${country}` : cleanBrand;
   const variation = opts.profileVariation || pickProfileVariation();
   return {
-    profile: `${cleanBrand}\n\n${cleanProfilePrompt(parsed.profile)}\n\n${buildProfileStyle(variation)}`,
-    cover: `${cleanBrand}\n\n${parsed.cover}\n\n${COVER_STYLE}`,
+    profile: `${brandWithCountry}\n\n${cleanProfilePrompt(parsed.profile)}\n\n${buildProfileStyle(variation)}`,
+    cover: `${brandWithCountry}\n\n${parsed.cover}\n\n${COVER_STYLE}`,
     profileVariation: variation,
   };
 }
@@ -289,6 +303,7 @@ export async function generateBrandImages(brief, opts = {}) {
     profileVariation,
   } = buildPrompts(parsed, {
     profileVariation: opts.profileVariation,
+    country: opts.country,
   });
 
   const profile = await callOpenAI({

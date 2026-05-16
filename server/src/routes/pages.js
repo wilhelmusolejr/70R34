@@ -1081,7 +1081,10 @@ router.post("/:id/generate-images", async (req, res, next) => {
 
     let result;
     try {
-      result = await generateBrandImages(brief, quality ? { quality } : {});
+      result = await generateBrandImages(brief, {
+        ...(quality ? { quality } : {}),
+        country: page.country,
+      });
     } catch (err) {
       return res.status(502).json({
         message: err?.message || "Image generation failed",
