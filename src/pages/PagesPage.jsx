@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchProfiles } from "../api/profiles";
-import { createPage, fetchPages } from "../api/pages";
+import { createPage, fetchPages, updatePage } from "../api/pages";
 import { SafeImage } from "../components/SafeImage";
 import { GeneratePagesModal } from "../components/GeneratePagesModal";
 import { useAuth } from "../context/AuthContext";
@@ -21,6 +21,16 @@ function derivePageStatus(page) {
   if (!page.assets?.length) return "Pending";
   if (!page.linkedIdentity) return "Available";
   return "Claimed";
+}
+
+function isProfileEligibleForAutoAssign(profile) {
+  if (!profile) return false;
+  if (String(profile.status || "").trim() !== "Active") return false;
+  if (String(profile.pageUrl || "").trim().length > 0) return false;
+  const pageRef = profile.pageId;
+  const hasPageRef =
+    pageRef && (typeof pageRef === "string" ? pageRef.length > 0 : true);
+  return !hasPageRef;
 }
 
 function getPagePreviewImage(page) {
@@ -53,7 +63,7 @@ function PageStatusBadge({ status }) {
   );
 }
 
-function PagesTable({ title, rows }) {
+function PagesTable({ title, rows, onAutoAssign, autoAssignBusyId }) {
   if (!rows.length) {
     return (
       <div className="page-section">
@@ -133,9 +143,21 @@ function PagesTable({ title, rows }) {
                   </div>
                 </td>
                 <td>
-                  <Link to={`/pages/${page.id}`} className="vbtn">
-                    View
-                  </Link>
+                  <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                    <Link to={`/pages/${page.id}`} className="vbtn">
+                      View
+                    </Link>
+                    {onAutoAssign && page.status === "Available" ? (
+                      <button
+                        type="button"
+                        className="btn-s"
+                        onClick={() => onAutoAssign(page)}
+                        disabled={autoAssignBusyId === page.id}
+                      >
+                        {autoAssignBusyId === page.id ? "Assigning..." : "Auto Assign"}
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
               );
@@ -161,6 +183,8 @@ export function PagesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [guardMessage, setGuardMessage] = useState("");
+  const [autoAssignBusyId, setAutoAssignBusyId] = useState("");
+  const [isAutoAssignAllBusy, setIsAutoAssignAllBusy] = useState(false);
   const [showAssignedProfileList, setShowAssignedProfileList] = useState(false);
   const [pageForm, setPageForm] = useState({
     pageName: "",
@@ -333,6 +357,113 @@ export function PagesPage() {
     }
   }
 
+  function pickEligibleProfile(excludeIds) {
+    return profiles.find(
+      (profile) =>
+        isProfileEligibleForAutoAssign(profile) &&
+        !excludeIds.has(String(profile._id)),
+    );
+  }
+
+  async function handleAutoAssignPage(page) {
+    if (!ensureAdminAccess()) return;
+    if (autoAssignBusyId) return;
+
+    const claimed = new Set(
+      pages
+        .filter((p) => p.linkedIdentity?._id)
+        .map((p) => String(p.linkedIdentity._id)),
+    );
+    const match = pickEligibleProfile(claimed);
+    if (!match) {
+      setToast("No eligible active profile available.");
+      return;
+    }
+
+    try {
+      setAutoAssignBusyId(page.id);
+      const updatedPage = await updatePage(page.id, {
+        linkedIdentityId: match._id,
+      });
+      setPages((current) =>
+        current.map((p) => (p.id === updatedPage.id ? updatedPage : p)),
+      );
+      const name = [match.firstName, match.lastName].filter(Boolean).join(" ").trim();
+      setToast(`Assigned ${page.pageName} to ${name || "profile"}.`);
+      const profilesData = await fetchProfiles();
+      setProfiles(profilesData);
+    } catch (err) {
+      setToast(err.message || "Failed to auto-assign page.");
+    } finally {
+      setAutoAssignBusyId("");
+    }
+  }
+
+  async function handleAutoAssignAll() {
+    if (!ensureAdminAccess()) return;
+    if (isAutoAssignAllBusy) return;
+
+    const availableNow = pages
+      .map((page) => ({ ...page, status: derivePageStatus(page) }))
+      .filter((page) => page.status === "Available");
+
+    if (!availableNow.length) {
+      setToast("No available pages to assign.");
+      return;
+    }
+
+    const claimed = new Set(
+      pages
+        .filter((p) => p.linkedIdentity?._id)
+        .map((p) => String(p.linkedIdentity._id)),
+    );
+
+    setIsAutoAssignAllBusy(true);
+    let assignedCount = 0;
+    let skipped = 0;
+    let lastError = "";
+
+    for (const page of availableNow) {
+      const match = pickEligibleProfile(claimed);
+      if (!match) {
+        skipped = availableNow.length - assignedCount;
+        break;
+      }
+      try {
+        const updatedPage = await updatePage(page.id, {
+          linkedIdentityId: match._id,
+        });
+        setPages((current) =>
+          current.map((p) => (p.id === updatedPage.id ? updatedPage : p)),
+        );
+        claimed.add(String(match._id));
+        assignedCount += 1;
+      } catch (err) {
+        lastError = err.message || "Failed to assign one or more pages.";
+        break;
+      }
+    }
+
+    try {
+      const profilesData = await fetchProfiles();
+      setProfiles(profilesData);
+    } catch {
+      // best effort refresh
+    }
+
+    setIsAutoAssignAllBusy(false);
+    if (lastError) {
+      setToast(lastError);
+    } else if (assignedCount === 0) {
+      setToast("No eligible active profiles available.");
+    } else {
+      setToast(
+        `Assigned ${assignedCount} page${assignedCount === 1 ? "" : "s"}` +
+          (skipped > 0 ? `, ${skipped} skipped (no eligible profile).` : "."),
+      );
+    }
+  }
+
   const pageRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
@@ -379,6 +510,14 @@ export function PagesPage() {
           <p>Browse page inventory grouped by availability and claim status.</p>
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button
+            type="button"
+            className="btn-s"
+            onClick={handleAutoAssignAll}
+            disabled={isAutoAssignAllBusy}
+          >
+            {isAutoAssignAllBusy ? "Auto Assigning..." : "Auto Assign All"}
+          </button>
           <button
             type="button"
             className="btn-s"
@@ -468,7 +607,12 @@ export function PagesPage() {
         <EmptyState title="Unable to load pages" description={error} />
       ) : (
         <div className="page-sections">
-          <PagesTable title="Available" rows={availablePages} />
+          <PagesTable
+            title="Available"
+            rows={availablePages}
+            onAutoAssign={isAdmin ? handleAutoAssignPage : undefined}
+            autoAssignBusyId={autoAssignBusyId}
+          />
           <PagesTable title="Pending" rows={pendingPages} />
           <PagesTable title="Claimed" rows={claimedPages} />
         </div>
