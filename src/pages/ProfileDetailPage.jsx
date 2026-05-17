@@ -4,6 +4,7 @@ import { updateAssignmentStatus } from "../api/auth";
 import { fetchHumanAssets } from "../api/humanAssets";
 import { fetchPages, updatePage } from "../api/pages";
 import { getProfileImagesDownloadUrl } from "../api/profileDownloads";
+import { getPostImagesDownloadUrl } from "../api/postDownloads";
 import {
   addFriendRequest as apiAddFriendRequest,
   addProxyLogEntry,
@@ -2953,6 +2954,18 @@ export function ProfileDetailPage() {
                             >
                               {images.length} images
                             </span>
+                            {images.length ? (
+                              <a
+                                href={getPostImagesDownloadUrl(postId)}
+                                className="btn-s page-post-download"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Download all images in this post as a ZIP"
+                              >
+                                Download ZIP
+                              </a>
+                            ) : null}
                             <div className="page-post-number">
                               Post {postIndex + 1}
                             </div>

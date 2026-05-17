@@ -6,6 +6,7 @@ import { Router } from "express";
 import { fileURLToPath } from "node:url";
 import { HumanAsset } from "../models/HumanAsset.js";
 import { Image } from "../models/Image.js";
+import "../models/Post.js";
 import {
   Profile,
   PROFILE_STATUSES,
@@ -349,6 +350,11 @@ function getPopulatedProfileQuery(id) {
         { path: "assets.imageId" },
         { path: "posts.images" },
       ],
+    })
+    .populate({
+      path: "posts",
+      populate: { path: "images", select: "filename annotation type" },
+      options: { sort: { createdAt: -1 } },
     })
     .populate("proxyId")
     .populate("proxies.proxyId")

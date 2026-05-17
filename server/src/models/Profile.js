@@ -218,6 +218,10 @@ const ProfileSchema = new Schema(
     websites: { type: [String], default: [] },
     socialLinks: { type: [SocialLinkSchema], default: [] },
     images: { type: [ProfileImageAssignmentSchema], default: [] },
+    posts: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Post" }],
+      default: [],
+    },
     friendRequests: { type: [FriendRequestSchema], default: [] },
     trackerLog: { type: [TrackerLogSchema], default: [] },
     personal: { type: PersonalSchema, default: () => ({}) },

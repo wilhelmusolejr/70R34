@@ -1,3 +1,7 @@
+import archiver from "archiver";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import mongoose from "mongoose";
 import { Router } from "express";
 import { Image } from "../models/Image.js";
@@ -5,6 +9,9 @@ import { Post } from "../models/Post.js";
 import { Profile } from "../models/Profile.js";
 
 const router = Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, "../../..");
 
 function isValidId(value) {
   return mongoose.Types.ObjectId.isValid(value);
@@ -52,6 +59,62 @@ router.get("/", async (_req, res, next) => {
   }
 });
 
+router.get("/:id/images/download", async (req, res, next) => {
+  try {
+    const postId = String(req.params.id || "").trim();
+    if (!isValidId(postId)) {
+      return res.status(400).json({ message: "Invalid post id." });
+    }
+
+    const post = await Post.findById(postId)
+      .populate("images", "filename")
+      .populate("profileId", "firstName lastName")
+      .lean();
+
+    if (!post) return res.status(404).json({ message: "Post not found." });
+
+    const validImages = (post.images || []).filter((img) => img?.filename);
+    if (!validImages.length) {
+      return res.status(404).json({ message: "No images found for this post." });
+    }
+
+    const owner = post.profileId
+      ? `${post.profileId.firstName || ""} ${post.profileId.lastName || ""}`.trim()
+      : "";
+    const baseName = (owner || `post-${post._id}`)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || `post-${post._id}`;
+    const datePart = post.createdAt
+      ? new Date(post.createdAt).toISOString().slice(0, 10)
+      : "post";
+    const zipName = `${baseName}-post-${datePart}.zip`;
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${zipName}"`);
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (error) => {
+      throw error;
+    });
+    archive.pipe(res);
+
+    validImages.forEach((image, index) => {
+      const relativeFile = String(image.filename || "").replace(/^\/+/, "");
+      const absolutePath = path.resolve(projectRoot, "public", relativeFile);
+      if (!absolutePath.startsWith(path.resolve(projectRoot, "public"))) return;
+      if (!fs.existsSync(absolutePath)) return;
+      archive.file(absolutePath, {
+        name: path.basename(relativeFile) || `image-${index + 1}`,
+      });
+    });
+
+    await archive.finalize();
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/:id/assign", async (req, res, next) => {
   try {
     const postId = String(req.params.id || "").trim();
@@ -67,10 +130,21 @@ router.post("/:id/assign", async (req, res, next) => {
     if (!post) return res.status(404).json({ message: "Post not found." });
     if (!profile) return res.status(404).json({ message: "Profile not found." });
 
-    if (String(post.profileId || "") !== profileId) {
+    const oldProfileId = post.profileId ? String(post.profileId) : "";
+    if (oldProfileId !== profileId) {
       post.profileId = profile._id;
       post.assignedAt = new Date();
       await post.save();
+      if (oldProfileId) {
+        await Profile.updateOne(
+          { _id: oldProfileId },
+          { $pull: { posts: post._id } },
+        );
+      }
+      await Profile.updateOne(
+        { _id: profile._id },
+        { $addToSet: { posts: post._id } },
+      );
     }
 
     const populated = await populatePostQuery(Post.findById(post._id)).lean();
@@ -87,12 +161,19 @@ router.delete("/:id/assign", async (req, res, next) => {
       return res.status(400).json({ message: "Invalid post id." });
     }
 
-    const post = await Post.findByIdAndUpdate(
-      postId,
-      { profileId: null, assignedAt: null },
-      { new: true },
-    );
+    const post = await Post.findById(postId);
     if (!post) return res.status(404).json({ message: "Post not found." });
+
+    const oldProfileId = post.profileId ? String(post.profileId) : "";
+    post.profileId = null;
+    post.assignedAt = null;
+    await post.save();
+    if (oldProfileId) {
+      await Profile.updateOne(
+        { _id: oldProfileId },
+        { $pull: { posts: post._id } },
+      );
+    }
 
     const populated = await populatePostQuery(Post.findById(post._id)).lean();
     res.json(formatPost(populated));
@@ -131,6 +212,11 @@ router.post("/:id/auto-assign", async (req, res, next) => {
         return res.json(formatPost(current));
       }
 
+      await Profile.updateOne(
+        { _id: profile._id },
+        { $addToSet: { posts: updated._id } },
+      );
+
       const populated = await populatePostQuery(Post.findById(updated._id)).lean();
       return res.json(formatPost(populated));
     }
@@ -155,7 +241,13 @@ router.post("/auto-assign-all", async (_req, res, next) => {
           { profileId: profiles[index]._id, assignedAt: new Date() },
           { new: true },
         );
-        if (updated) changed.push(updated._id);
+        if (updated) {
+          changed.push(updated._id);
+          await Profile.updateOne(
+            { _id: profiles[index]._id },
+            { $addToSet: { posts: updated._id } },
+          );
+        }
       } catch {
         failedCount += 1;
       }
