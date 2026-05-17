@@ -1057,7 +1057,9 @@ export function ProfilesPage() {
                       </td>
                       <td data-label="Inactive">
                         <div className="dcell">
-                          <div className="dv">{getInactiveDays(profile)}</div>
+                          <div className="dv">
+                            {isAdmin ? getInactiveDays(profile) : mask("")}
+                          </div>
                           <div className="da">Since last tracked</div>
                         </div>
                       </td>
@@ -1137,38 +1139,46 @@ export function ProfilesPage() {
                       </td>
                       <td data-label="Daily Tracker" style={{ maxWidth: "260px" }}>
                         <div className="tracker-cell">
-                          <span
-                            className={`track-badge ${done ? "track-done" : "track-pending"}`}
-                          >
-                            {done ? "Done" : "Pending"}
-                          </span>
-                          {done && lastEntry && (
-                            <span
-                              className="track-time"
-                              title={
-                                (lastEntry.note || "").length > 200
-                                  ? lastEntry.note
-                                  : undefined
-                              }
-                              style={{
-                                display: "inline-block",
-                                maxWidth: "240px",
-                                whiteSpace: "normal",
-                                wordBreak: "break-word",
-                              }}
-                            >
-                              {(lastEntry.note || "").length > 200
-                                ? `${lastEntry.note.slice(0, 200)}...`
-                                : lastEntry.note}
+                          {isAdmin ? (
+                            <>
+                              <span
+                                className={`track-badge ${done ? "track-done" : "track-pending"}`}
+                              >
+                                {done ? "Done" : "Pending"}
+                              </span>
+                              {done && lastEntry && (
+                                <span
+                                  className="track-time"
+                                  title={
+                                    (lastEntry.note || "").length > 200
+                                      ? lastEntry.note
+                                      : undefined
+                                  }
+                                  style={{
+                                    display: "inline-block",
+                                    maxWidth: "240px",
+                                    whiteSpace: "normal",
+                                    wordBreak: "break-word",
+                                  }}
+                                >
+                                  {(lastEntry.note || "").length > 200
+                                    ? `${lastEntry.note.slice(0, 200)}...`
+                                    : lastEntry.note}
+                                </span>
+                              )}
+                              {!done && (
+                                <button
+                                  className="mark-btn"
+                                  onClick={() => openTrackerModal(profile)}
+                                >
+                                  Mark Done
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <span className="track-badge track-pending">
+                              {mask("")}
                             </span>
-                          )}
-                          {!done && isAdmin && (
-                            <button
-                              className="mark-btn"
-                              onClick={() => openTrackerModal(profile)}
-                            >
-                              Mark Done
-                            </button>
                           )}
                         </div>
                       </td>

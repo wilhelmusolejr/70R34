@@ -2455,9 +2455,11 @@ export function ProfileDetailPage() {
                     gap: "8px",
                   }}
                 >
-                  <div className="dl">{entry.date || "No date"}</div>
+                  <div className="dl">
+                    {isAdmin ? (entry.date || "No date") : mask("")}
+                  </div>
                   <div className="dv" style={{ flex: 1 }}>
-                    {entry.note || "—"}
+                    {isAdmin ? (entry.note || "—") : mask("")}
                   </div>
                   {writeable && (
                     <button
