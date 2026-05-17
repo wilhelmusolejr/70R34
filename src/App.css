@@ -2642,6 +2642,7 @@ select.npm-input {
 .post-card {
   display: flex;
   flex-direction: column;
+  height: 520px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -2656,14 +2657,17 @@ select.npm-input {
 .post-card-images {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
   gap: 2px;
   background: var(--border);
-  aspect-ratio: 1 / 1;
+  height: 220px;
+  flex-shrink: 0;
 }
 .post-card-image {
   position: relative;
   background: var(--surface2);
   overflow: hidden;
+  min-height: 0;
 }
 .post-card-image img,
 .post-card-image-img {
@@ -2674,7 +2678,7 @@ select.npm-input {
 }
 .post-card-image-empty {
   grid-column: 1 / -1;
-  aspect-ratio: 2 / 1;
+  grid-row: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2698,6 +2702,8 @@ select.npm-input {
   flex-direction: column;
   gap: 10px;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .post-card-meta {
   display: flex;
