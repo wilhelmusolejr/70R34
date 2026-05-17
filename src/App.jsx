@@ -13,6 +13,7 @@ import { ImageAssetDetailPage } from "./pages/ImageAssetDetailPage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { LogsPage } from "./pages/LogsPage";
 import { PageDetailPage } from "./pages/PageDetailPage";
+import { PostsPage } from "./pages/PostsPage";
 import { ProfilesPage } from "./pages/ProfilesPage";
 import { PagesPage } from "./pages/PagesPage";
 import { ProfileDetailPage } from "./pages/ProfileDetailPage";
@@ -103,6 +104,9 @@ function getDocumentTitle(pathname) {
   }
   if (pathname.startsWith("/pages/")) {
     return "PAGE | 70R34";
+  }
+  if (pathname === "/posts") {
+    return "POSTS | 70R34";
   }
   if (pathname === "/proxies") {
     return "PROXIES | 70R34";
@@ -223,6 +227,7 @@ function Layout({ children }) {
             </NavLink>
             <NavLink to="/images">Images</NavLink>
             <NavLink to="/pages">Pages</NavLink>
+            <NavLink to="/posts">Posts</NavLink>
             <NavLink to="/proxies">Proxy</NavLink>
             <NavLink to="/logs">Logs</NavLink>
             <a href="#" onClick={(e) => showWipModal(e, "Anti-Bot ML")}>
@@ -303,6 +308,9 @@ function Layout({ children }) {
               </NavLink>
               <NavLink to="/pages" onClick={() => setIsMobileNavOpen(false)}>
                 Pages
+              </NavLink>
+              <NavLink to="/posts" onClick={() => setIsMobileNavOpen(false)}>
+                Posts
               </NavLink>
               <NavLink to="/proxies" onClick={() => setIsMobileNavOpen(false)}>
                 Proxy
@@ -516,6 +524,7 @@ function App() {
             <Route path="/images/:id" element={<ImageAssetDetailPage />} />
             <Route path="/pages" element={<PagesPage />} />
             <Route path="/pages/:id" element={<PageDetailPage />} />
+            <Route path="/posts" element={<PostsPage />} />
             <Route path="/proxies" element={<ProxiesPage />} />
             <Route path="/logs" element={<LogsPage />} />
             <Route path="/profile/:id" element={<ProfileDetailPage />} />

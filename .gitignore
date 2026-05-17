@@ -28,6 +28,8 @@ generated-images-openai/
 ready-profiles*.xls
 friendRequest.json
 profile_data.json
+tmp_*
+tmp_*/
 
 # Editor directories and files
 .vscode/*

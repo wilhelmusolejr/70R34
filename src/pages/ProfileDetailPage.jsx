@@ -147,6 +147,7 @@ function getDefaultProfile() {
     websites: [],
     socialLinks: [],
     images: [],
+    posts: [],
     friendRequests: [],
     trackerLog: [],
     avatarUrl: "",
@@ -254,6 +255,7 @@ function normalizeProfile(raw) {
     },
     identityPrompt: raw?.identityPrompt || "",
     images: raw?.images || [],
+    posts: raw?.posts || [],
     travel: raw?.travel || [],
     otherNames: raw?.otherNames || [],
     browsers: raw?.browsers || [],
@@ -1235,6 +1237,7 @@ export function ProfileDetailPage() {
       setRemovingImageId("");
     }
   }
+
 
   async function refreshProfileAndPages() {
     const [nextProfile, nextPages] = await Promise.all([
@@ -2901,6 +2904,140 @@ export function ProfileDetailPage() {
             onSave={(value) => upTopLevel("identityPrompt", value)}
             onRegenerate={() => upTopLevel("identityPrompt", buildIdentityPrompt(profile))}
           />
+          )}
+
+          {!isMaker && (
+          <SectionCard
+            title="Posts"
+            badge={
+              <div className="profile-posts-header-actions">
+                <span className="page-detail-chip">
+                  {(profile.posts || []).length}
+                </span>
+                <a className="btn-s" href="/posts">
+                  Manage on Posts
+                </a>
+              </div>
+            }
+          >
+            {(profile.posts || []).length ? (
+              <div className="page-post-list">
+                {(profile.posts || []).map((post, postIndex) => {
+                  const postId = String(post.id || post._id || postIndex);
+                  const images = Array.isArray(post.images) ? post.images : [];
+                  const hasEnoughImages = images.length >= 4;
+                  return (
+                    <details key={postId} className="page-post-card">
+                      <summary className="page-post-summary">
+                        <div className="page-post-card-head">
+                          <div className="page-post-head-main">
+                            <div className="page-post-card-date">
+                              {fmtDate(post.createdAt)}
+                            </div>
+                            {post.context ? (
+                              <div className="profile-post-context-pill">
+                                {post.context}
+                              </div>
+                            ) : null}
+                            <div
+                              className={`page-post-preview${post.caption || post.post ? "" : " muted"}`}
+                            >
+                              {post.caption || post.post || "No caption."}
+                            </div>
+                          </div>
+                          <div className="page-post-head-side">
+                            <span
+                              className={`page-detail-chip${hasEnoughImages ? "" : " profile-post-chip-warn"}`}
+                            >
+                              {images.length} images
+                            </span>
+                            <div className="page-post-number">
+                              Post {postIndex + 1}
+                            </div>
+                            <span
+                              className="page-post-chevron"
+                              aria-hidden="true"
+                            >
+                              <svg viewBox="0 0 24 24">
+                                <polyline points="6 9 12 15 18 9" />
+                              </svg>
+                            </span>
+                          </div>
+                        </div>
+                      </summary>
+                      <div className="page-post-content">
+                        {post.context ? (
+                          <div className="dr">
+                            <div className="dl">Context</div>
+                            <div className="dv preserve-whitespace">
+                              {post.context}
+                            </div>
+                          </div>
+                        ) : null}
+                        {(post.caption || post.post) ? (
+                          <div className="dr">
+                            <div className="dl">Caption</div>
+                            <div className="dv preserve-whitespace">
+                              {post.caption || post.post}
+                            </div>
+                          </div>
+                        ) : null}
+                        {images.length ? (
+                          <div className="page-post-image-grid profile-post-image-grid">
+                            {images.map((image, index) => {
+                              const filename =
+                                typeof image === "object"
+                                  ? image?.filename
+                                  : null;
+                              const imgKey =
+                                (typeof image === "object" &&
+                                  (image._id || image.id)) ||
+                                index;
+                              return (
+                                <div
+                                  key={`${postId}-${imgKey}`}
+                                  className="profile-image-tile"
+                                >
+                                  <div className="profile-image-frame">
+                                    <SafeImage
+                                      src={filename || ""}
+                                      alt={`${profile.firstName} ${profile.lastName} post ${postIndex + 1} image ${index + 1}`}
+                                      className="profile-image-img"
+                                    />
+                                  </div>
+                                  <div className="profile-image-meta">
+                                    <div className="profile-image-name">
+                                      {(typeof image === "object" &&
+                                        (image.annotation ||
+                                          (filename || "")
+                                            .split("/")
+                                            .pop())) ||
+                                        `Image ${index + 1}`}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="muted">
+                            No images attached to this post.
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="profile-posts-empty">
+                <div className="muted">
+                  No posts assigned yet. Open the Posts page to auto-assign
+                  one.
+                </div>
+              </div>
+            )}
+          </SectionCard>
           )}
 
           {!isMaker && (

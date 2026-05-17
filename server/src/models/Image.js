@@ -49,6 +49,11 @@ const ImageSchema = new Schema(
     },
     aiGenerated: { type: Boolean, default: false },
     generationModel: { type: String, default: null },
+    postId: {
+      type: Schema.Types.ObjectId,
+      ref: "Post",
+      default: null,
+    },
     usedBy: { type: [ImageUsageSchema], default: [] },
     annotations: { type: [ImageAnnotationSchema], default: [] },
   },
@@ -60,6 +65,7 @@ const ImageSchema = new Schema(
 
 ImageSchema.index({ filename: 1 }, { unique: true });
 ImageSchema.index({ type: 1, sourceType: 1 });
+ImageSchema.index({ type: 1, postId: 1 });
 
 export { IMAGE_TYPES, IMAGE_SOURCE_TYPES };
 export const Image = model("Image", ImageSchema);

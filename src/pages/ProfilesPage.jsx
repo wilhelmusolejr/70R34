@@ -1110,6 +1110,10 @@ export function ProfilesPage() {
                                 Number(profile?.friends || 0) >=
                                 FRIENDS_REQUIREMENT,
                             },
+                            {
+                              label: `${(profile.posts || []).length} Post${(profile.posts || []).length === 1 ? "" : "s"}`,
+                              value: (profile.posts || []).length >= 1,
+                            },
                           ].map(({ label, value }) => (
                             <div key={label} className="cki">
                               <div className={`ckbox ${value ? "yes" : "no"}`}>

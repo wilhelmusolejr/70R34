@@ -7,6 +7,7 @@ import authRouter from "./routes/auth.js";
 import humanAssetsRouter from "./routes/humanAssets.js";
 import logsRouter from "./routes/logs.js";
 import pagesRouter from "./routes/pages.js";
+import postsRouter from "./routes/posts.js";
 import profilesRouter from "./routes/profiles.js";
 import proxiesRouter from "./routes/proxies.js";
 
@@ -59,6 +60,7 @@ export function createApp() {
   app.use("/api/human-assets", humanAssetsRouter);
   app.use("/api/logs", logsRouter);
   app.use("/api/pages", pagesRouter);
+  app.use("/api/posts", postsRouter);
   app.use("/api/profiles", profilesRouter);
   app.use("/api/proxies", proxiesRouter);
 
@@ -76,4 +78,3 @@ export function createApp() {
 
   return app;
 }
-
