@@ -1,5 +1,10 @@
 ﻿import { useEffect, useState } from "react";
-import { addTrackerEntry, fetchProfiles } from "../api/profiles";
+import {
+  addTrackerEntry,
+  fetchProfiles,
+  updateProfile,
+} from "../api/profiles";
+import { BulkEditModal } from "../components/BulkEditModal";
 import { GenerateProfilesModal } from "../components/GenerateProfilesModal";
 import { NewProfileModal } from "../components/NewProfileModal";
 import { SafeImage } from "../components/SafeImage";
@@ -191,6 +196,10 @@ export function ProfilesPage() {
   const [trackerTarget, setTrackerTarget] = useState(null);
   const [trackerNote, setTrackerNote] = useState("");
   const [trackerSaving, setTrackerSaving] = useState(false);
+  const [quickEditMode, setQuickEditMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
+  const [isBulkApplying, setIsBulkApplying] = useState(false);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -442,6 +451,94 @@ export function ProfilesPage() {
     });
   }
 
+  function toggleQuickEditMode() {
+    setQuickEditMode((current) => {
+      if (current) {
+        setSelectedIds(new Set());
+      }
+      return !current;
+    });
+  }
+
+  function toggleRowSelected(profileId) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(profileId)) next.delete(profileId);
+      else next.add(profileId);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  async function applyBulkEdits(payload) {
+    if (!writeable || selectedIds.size === 0 || isBulkApplying) return;
+
+    setIsBulkApplying(true);
+    const ids = Array.from(selectedIds);
+    const profilesById = new Map(profiles.map((p) => [p._id, p]));
+
+    const tasks = ids.map(async (id) => {
+      const current = profilesById.get(id);
+      if (!current) return { id, ok: false, error: "Profile not found locally" };
+
+      const patch = {};
+      if (payload.status) patch.status = payload.status.value;
+      if (payload.tags) {
+        const currentTags = Array.isArray(current.tags) ? current.tags : [];
+        patch.tags =
+          payload.tags.action === "remove"
+            ? currentTags.filter((t) => t !== payload.tags.value)
+            : Array.from(new Set([...currentTags, payload.tags.value]));
+      }
+      if (payload.flags) Object.assign(patch, payload.flags);
+
+      try {
+        let updated = current;
+        if (Object.keys(patch).length > 0) {
+          updated = await updateProfile(id, patch);
+        }
+        if (payload.tracker && !isProcessedToday(updated)) {
+          updated = await addTrackerEntry(id, {
+            date: TODAY,
+            note: payload.tracker.note,
+          });
+        }
+        return { id, ok: true, profile: updated };
+      } catch (err) {
+        return { id, ok: false, error: err.message || "Update failed" };
+      }
+    });
+
+    const results = await Promise.all(tasks);
+    const successByid = new Map();
+    let failed = 0;
+    for (const r of results) {
+      if (r.ok && r.profile) successByid.set(r.id, r.profile);
+      else if (!r.ok) failed += 1;
+    }
+
+    if (successByid.size > 0) {
+      setProfiles((current) =>
+        current.map((p) =>
+          successByid.has(p._id) ? { ...p, ...successByid.get(p._id) } : p,
+        ),
+      );
+    }
+
+    setIsBulkApplying(false);
+    setIsBulkEditOpen(false);
+    setSelectedIds(new Set());
+    const succeeded = successByid.size;
+    setToast(
+      failed > 0
+        ? `Updated ${succeeded}, ${failed} failed.`
+        : `Updated ${succeeded} profile${succeeded === 1 ? "" : "s"}.`,
+    );
+  }
+
   return (
     <div>
       {toast ? <div className="toast-notice">{toast}</div> : null}
@@ -462,6 +559,13 @@ export function ProfilesPage() {
         onClose={() => setIsModalOpen(false)}
         onCreated={handleProfileCreated}
         onToast={setToast}
+      />
+      <BulkEditModal
+        isOpen={isBulkEditOpen}
+        onClose={() => (isBulkApplying ? null : setIsBulkEditOpen(false))}
+        selectedCount={selectedIds.size}
+        onApply={applyBulkEdits}
+        isApplying={isBulkApplying}
       />
       {trackerTarget && (
         <div className="npm-backdrop" onClick={closeTrackerModal}>
@@ -542,6 +646,16 @@ export function ProfilesPage() {
             >
               Copy IDs
             </button>
+            {writeable && (
+              <button
+                type="button"
+                className={quickEditMode ? "btn-p" : "btn-s"}
+                onClick={toggleQuickEditMode}
+                title="Toggle bulk-select mode"
+              >
+                {quickEditMode ? "Exit Quick Edit" : "Quick Edit"}
+              </button>
+            )}
             {isAdmin && (
               <button
                 className="mark-all-btn"
@@ -757,6 +871,55 @@ export function ProfilesPage() {
           <span className="rc">{sorted.length} profiles</span>
         </div>
 
+        {quickEditMode ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "10px 14px",
+              marginBottom: 12,
+              borderRadius: 10,
+              background:
+                selectedIds.size > 0
+                  ? `${STATUS_COLORS.Ready}1a`
+                  : "var(--surface2)",
+              border: `1px solid ${
+                selectedIds.size > 0 ? STATUS_COLORS.Ready : "var(--border)"
+              }`,
+              fontSize: 13,
+              position: "sticky",
+              top: 0,
+              zIndex: 5,
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>
+              {selectedIds.size} selected
+            </span>
+            <span style={{ color: "var(--text2)" }}>
+              of {sorted.length} visible
+            </span>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                className="btn-s"
+                onClick={clearSelection}
+                disabled={selectedIds.size === 0}
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                className="btn-p"
+                onClick={() => setIsBulkEditOpen(true)}
+                disabled={selectedIds.size === 0}
+              >
+                Bulk Edit
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {loading ? (
           <div className="empty-st">
             <div className="et">Loading profiles</div>
@@ -772,6 +935,43 @@ export function ProfilesPage() {
             <table className="tbl profiles-table">
               <thead>
                 <tr>
+                  {quickEditMode ? (
+                    <th style={{ width: 36 }}>
+                      <input
+                        type="checkbox"
+                        checked={
+                          sorted.length > 0 &&
+                          sorted.every((p) => selectedIds.has(p._id))
+                        }
+                        ref={(node) => {
+                          if (!node) return;
+                          const some = sorted.some((p) =>
+                            selectedIds.has(p._id),
+                          );
+                          const all =
+                            sorted.length > 0 &&
+                            sorted.every((p) => selectedIds.has(p._id));
+                          node.indeterminate = some && !all;
+                        }}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedIds((current) => {
+                              const next = new Set(current);
+                              sorted.forEach((p) => next.add(p._id));
+                              return next;
+                            });
+                          } else {
+                            setSelectedIds((current) => {
+                              const next = new Set(current);
+                              sorted.forEach((p) => next.delete(p._id));
+                              return next;
+                            });
+                          }
+                        }}
+                        title="Select all visible"
+                      />
+                    </th>
+                  ) : null}
                   <th>Profile</th>
                   <th>Status</th>
                   <th>Profile Created</th>
@@ -788,11 +988,28 @@ export function ProfilesPage() {
                   const lastEntry = getLatestTrackerEntry(profile);
                   const userAvatar = getUserAvatarFilename(profile);
 
+                  const isSelected = selectedIds.has(profile._id);
+
                   return (
                     <tr
                       key={profile._id}
                       className={done ? "processed-today" : ""}
+                      style={
+                        isSelected
+                          ? { background: `${STATUS_COLORS.Ready}1a` }
+                          : undefined
+                      }
                     >
+                      {quickEditMode ? (
+                        <td style={{ width: 36 }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleRowSelected(profile._id)}
+                            style={{ accentColor: STATUS_COLORS.Ready }}
+                          />
+                        </td>
+                      ) : null}
                       <td data-label="Profile">
                         <div className="pcell">
                           <div
