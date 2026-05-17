@@ -3,22 +3,14 @@
 const API_BASE = process.env.API_BASE || "https://7or34.space";
 
 const updates = [
-  { email: "janice89nelson@outlook.com",      profileUrl: "https://www.facebook.com/profile.php?id=61589330083232" },
-  { email: "mary87nelson@outlook.com",        profileUrl: "https://www.facebook.com/profile.php?id=61589820352290" },
-  { email: "lawrence81jenkins@outlook.com",   profileUrl: "https://www.facebook.com/profile.php?id=61589772474171" },
-  { email: "beverly85evans@outlook.com",      profileUrl: "https://www.facebook.com/profile.php?id=61589453108146" },
-  { email: "amy98nguyen@outlook.com",         profileUrl: "https://www.facebook.com/profile.php?id=61589325553899" },
-  { email: "randy93edwards@outlook.com",      profileUrl: "https://www.facebook.com/profile.php?id=61589828571858" },
-  { email: "anna84martinez@outlook.com",      profileUrl: "https://www.facebook.com/profile.php?id=61589465227575" },
-  { email: "alice94sullivan@outlook.com",     profileUrl: "https://www.facebook.com/profile.php?id=61589346582747" },
-  { email: "linda94baker@outlook.com",        profileUrl: "https://www.facebook.com/profile.php?id=61589456407951" },
-  { email: "matthew.howard1989@outlook.com",  profileUrl: "https://www.facebook.com/profile.php?id=61589330773439" },
-  { email: "rebecca91sanders@outlook.com",    profileUrl: "https://www.facebook.com/profile.php?id=61589738815793" },
-  { email: "elizabeth95patel@outlook.com",    profileUrl: "https://www.facebook.com/profile.php?id=61589553542751" },
-  { email: "charles82edwards@outlook.com",    profileUrl: "https://www.facebook.com/profile.php?id=61589479715883" },
-  { email: "patrick1981jimenez@outlook.com",  profileUrl: "https://www.facebook.com/profile.php?id=61589248096136" },
-  { email: "dennis98hall@outlook.com",        profileUrl: "https://www.facebook.com/profile.php?id=61589453256958" },
-  { email: "edward96carter@outlook.com",      profileUrl: "https://www.facebook.com/profile.php?id=61589325852664" },
+  { email: "jonathan92reed@outlook.com",       profileUrl: "https://www.facebook.com/profile.php?id=61589672670706" },
+  { email: "steven88sullivan@outlook.com",     profileUrl: "https://www.facebook.com/profile.php?id=61589667691160" },
+  { email: "carol97brown@outlook.com",         profileUrl: "https://www.facebook.com/profile.php?id=61589440210921" },
+  { email: "nicholas2000thompson@outlook.com", profileUrl: "https://www.facebook.com/profile.php?id=61589264927885" },
+  { email: "abigail92rivera@outlook.com",      profileUrl: "https://www.facebook.com/profile.php?id=61589715119075" },
+  { email: "anthony83mitchell@outlook.com",    profileUrl: "https://www.facebook.com/profile.php?id=61589308756694" },
+  { email: "natalie92gray@outlook.com",        profileUrl: "https://www.facebook.com/profile.php?id=61589771340793" },
+  { email: "juan95stewart@outlook.com",        profileUrl: "https://www.facebook.com/profile.php?id=61589813909087" },
 ];
 
 const norm = (value) => String(value || "").trim().toLowerCase();
