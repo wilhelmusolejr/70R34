@@ -35,6 +35,18 @@ export const STATUS_OPTIONS = [
   "Delivered",
 ];
 
+export const STATUS_COLORS = {
+  "Need Setup": "#94A3B8",
+  "Need Checking": "#F59E0B",
+  "Pending Profile": "#A855F7",
+  Active: "#10B981",
+  Flagged: "#F97316",
+  Banned: "#EF4444",
+  Ready: "#3B82F6",
+  Delivered: "#64748B",
+  Available: "#64748B",
+};
+
 export const SC = {
   Available: { bg: "bg-cyan-bg", text: "text-cyan-t", dot: "bg-cyan" },
   "Need Setup": {

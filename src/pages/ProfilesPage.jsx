@@ -3,7 +3,12 @@ import { addTrackerEntry, fetchProfiles } from "../api/profiles";
 import { GenerateProfilesModal } from "../components/GenerateProfilesModal";
 import { NewProfileModal } from "../components/NewProfileModal";
 import { SafeImage } from "../components/SafeImage";
-import { AVC, STATUS_CLASS, STATUS_OPTIONS } from "../constants/profileUi";
+import {
+  AVC,
+  STATUS_CLASS,
+  STATUS_COLORS,
+  STATUS_OPTIONS,
+} from "../constants/profileUi";
 import { useAuth } from "../context/AuthContext";
 import { COUNTRY_OPTIONS } from "../generator/countries/index.js";
 import {
@@ -102,6 +107,37 @@ function getAvatarColor(id) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
   return AVC[hash % AVC.length];
+}
+
+function StatCard({ active, onClick, accentColor, children }) {
+  const interactive = typeof onClick === "function";
+  const handleKey = (event) => {
+    if (!interactive) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick();
+    }
+  };
+  const outlineColor = accentColor || "var(--accent)";
+  return (
+    <div
+      className="sc"
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={interactive ? onClick : undefined}
+      onKeyDown={interactive ? handleKey : undefined}
+      style={{
+        cursor: interactive ? "pointer" : undefined,
+        outline: active ? `2px solid ${outlineColor}` : undefined,
+        outlineOffset: active ? "2px" : undefined,
+        background:
+          active && accentColor ? `${accentColor}1a` : undefined,
+        userSelect: interactive ? "none" : undefined,
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 function getUserAvatarFilename(profile) {
@@ -293,8 +329,8 @@ export function ProfilesPage() {
   const flaggedProfiles = visibleProfiles.filter(
     (p) => p.status === "Flagged",
   ).length;
-  const bannedProfiles = visibleProfiles.filter(
-    (p) => p.status === "Banned",
+  const needCheckingProfiles = visibleProfiles.filter(
+    (p) => p.status === "Need Checking",
   ).length;
   const readyProfiles = visibleProfiles.filter(
     (p) => p.status === "Ready",
@@ -387,6 +423,16 @@ export function ProfilesPage() {
 
   function clearStatusFilter() {
     setStatusFilter([]);
+  }
+
+  function toggleSingleStatus(status) {
+    setStatusFilter((current) =>
+      current.length === 1 && current[0] === status ? [] : [status],
+    );
+  }
+
+  function isOnlyStatus(status) {
+    return statusFilter.length === 1 && statusFilter[0] === status;
   }
 
   function cycleTrackerFilter() {
@@ -522,47 +568,81 @@ export function ProfilesPage() {
         </div>
 
         <div className="stats-row">
-          <div className="sc">
+          <StatCard
+            active={statusFilter.length === 0}
+            onClick={clearStatusFilter}
+          >
             <div className="snum">{totalProfiles}</div>
             <div className="slabel">Fake Profile</div>
-          </div>
-          <div className="sc">
-            <div className="snum" style={{ color: "var(--green)" }}>
+          </StatCard>
+          <StatCard
+            active={isOnlyStatus("Active")}
+            onClick={() => toggleSingleStatus("Active")}
+            accentColor={STATUS_COLORS.Active}
+          >
+            <div className="snum" style={{ color: STATUS_COLORS.Active }}>
               {activeProfiles}
             </div>
             <div className="slabel">
-              <span className="sdot" style={{ background: "var(--green)" }} />
+              <span
+                className="sdot"
+                style={{ background: STATUS_COLORS.Active }}
+              />
               Active
             </div>
-          </div>
-          <div className="sc">
-            <div className="snum" style={{ color: "var(--amber)" }}>
+          </StatCard>
+          <StatCard
+            active={isOnlyStatus("Flagged")}
+            onClick={() => toggleSingleStatus("Flagged")}
+            accentColor={STATUS_COLORS.Flagged}
+          >
+            <div className="snum" style={{ color: STATUS_COLORS.Flagged }}>
               {flaggedProfiles}
             </div>
             <div className="slabel">
-              <span className="sdot" style={{ background: "var(--amber)" }} />
+              <span
+                className="sdot"
+                style={{ background: STATUS_COLORS.Flagged }}
+              />
               Flagged
             </div>
-          </div>
-          <div className="sc">
-            <div className="snum" style={{ color: "var(--red)" }}>
-              {bannedProfiles}
+          </StatCard>
+          <StatCard
+            active={isOnlyStatus("Need Checking")}
+            onClick={() => toggleSingleStatus("Need Checking")}
+            accentColor={STATUS_COLORS["Need Checking"]}
+          >
+            <div
+              className="snum"
+              style={{ color: STATUS_COLORS["Need Checking"] }}
+            >
+              {needCheckingProfiles}
             </div>
             <div className="slabel">
-              <span className="sdot" style={{ background: "var(--red)" }} />
-              Banned
+              <span
+                className="sdot"
+                style={{ background: STATUS_COLORS["Need Checking"] }}
+              />
+              Need Checking
             </div>
-          </div>
-          <div className="sc">
-            <div className="snum" style={{ color: "var(--accent)" }}>
+          </StatCard>
+          <StatCard
+            active={isOnlyStatus("Ready")}
+            onClick={() => toggleSingleStatus("Ready")}
+            accentColor={STATUS_COLORS.Ready}
+          >
+            <div className="snum" style={{ color: STATUS_COLORS.Ready }}>
               {readyProfiles}
             </div>
             <div className="slabel">
-              <span className="sdot" style={{ background: "var(--accent)" }} />
+              <span
+                className="sdot"
+                style={{ background: STATUS_COLORS.Ready }}
+              />
               Ready
             </div>
-          </div>
-          <div className="sc">
+          </StatCard>
+          <StatCard>
             <div className="snum" style={{ color: "var(--purple)" }}>
               {doneTodayCount} / {trackableProfiles}
             </div>
@@ -570,7 +650,7 @@ export function ProfilesPage() {
               <span className="sdot" style={{ background: "var(--purple)" }} />
               Done Today
             </div>
-          </div>
+          </StatCard>
         </div>
 
         <div className="filters">
@@ -626,16 +706,31 @@ export function ProfilesPage() {
                       <span>All</span>
                     </label>
                   )}
-                  {allowedStatuses.map((status) => (
-                    <label key={status} className="status-filter-item">
-                      <input
-                        type="checkbox"
-                        checked={statusFilter.includes(status)}
-                        onChange={() => toggleStatusFilter(status)}
-                      />
-                      <span>{status}</span>
-                    </label>
-                  ))}
+                  {allowedStatuses.map((status) => {
+                    const color = STATUS_COLORS[status] || "#64748B";
+                    const isSelected = statusFilter.includes(status);
+                    return (
+                      <label
+                        key={status}
+                        className="status-filter-item"
+                        style={{
+                          background: isSelected ? `${color}26` : undefined,
+                          borderLeft: `3px solid ${
+                            isSelected ? color : "transparent"
+                          }`,
+                          paddingLeft: 8,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleStatusFilter(status)}
+                          style={{ accentColor: color }}
+                        />
+                        <span style={{ color }}>{status}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             )}
