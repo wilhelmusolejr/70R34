@@ -95,21 +95,29 @@ function formatPost(doc) {
 
 ### Profile-side mirror
 
-When `GET /api/profiles` / `GET /api/profiles/:id` runs, include a `posts` array on each Profile so the read-only Posts section on the profile detail and the "N Posts" requirement on the profiles list keep working:
+The link is stored on **both sides** to avoid reverse queries on the hot read path. Profile gets a `posts` array of Post refs:
 
-```jsonc
-profile.posts = [
-  {
-    _id: "<post id>",
-    caption: "...",
-    context: "...",
-    images: [{ _id, filename, annotation }],
-    createdAt: "..."
-  }
-]
+```js
+// server/src/models/Profile.js (excerpt)
+posts: {
+  type: [{ type: Schema.Types.ObjectId, ref: "Post" }],
+  default: [],
+},
 ```
 
-This is just `Post.find({ profileId: profile._id })` mapped through `formatPost`.
+`GET /api/profiles/:id` populates this directly inside `getPopulatedProfileQuery`:
+
+```js
+.populate({
+  path: "posts",
+  populate: { path: "images", select: "filename annotation type" },
+  options: { sort: { createdAt: -1 } },
+})
+```
+
+The frontend reads `profile.posts` as an array of fully-populated Post objects (with their images already populated).
+
+`Post.profileId` remains the source of truth — `Profile.posts` mirrors it. Every assignment route writes both sides in the same handler; see §5 for the patch flow.
 
 ---
 
@@ -187,6 +195,36 @@ Bulk version of the above.
   }
   ```
 
+### `DELETE /api/posts/:id`
+
+Permanently delete a single Post.
+
+- No body.
+- Cleanup performed in the same handler:
+  - If `post.profileId` is set → `$pull` `post._id` from that Profile's `posts` array.
+  - For every image in `post.images` whose `postId` still points at this post → set `postId = null` so the image can be reclaimed by a future grouping job.
+  - Delete the Post document itself.
+- Response: `{ ok: true, _id: "<post id>" }`.
+
+### `POST /api/posts/bulk-delete`
+
+Permanently delete many Posts in one request.
+
+- Body: `{ ids: ["<postId>", "<postId>", ...] }`
+- Same cleanup as the single-delete route, batched:
+  - One `Post.deleteMany`.
+  - One `Profile.updateOne` per affected profile with `$pull: { posts: { $in: <ids> } }`.
+  - One `Image.updateMany` to clear `postId` on the involved images.
+- Response: `{ deletedCount: <n>, _ids: ["<postId>", ...] }`.
+
+### `GET /api/posts/:id/images/download`
+
+Streams a ZIP of all images attached to the post.
+
+- Filename pattern: `{firstname-lastname}-post-{YYYY-MM-DD}.zip` when assigned; `post-{id}-{date}.zip` when not.
+- Same `archiver` + path-traversal-guard logic as `/api/profiles/:id/images/download` and `/api/pages/:id/images/download`.
+- Missing image files on disk are silently skipped (the zip still streams).
+
 ### Failure semantics
 
 All endpoints return `{ message: "..." }` on error with an appropriate 4xx/5xx status. The frontend `apiFetch` reads `body.message` and surfaces it as a toast.
@@ -218,6 +256,16 @@ What it **must** remember is whether an image has already been consumed by an ex
 Once a set of images is bundled into a Post, set each selected image's `postId` to the new Post's `_id` so those files are never reconsidered for future Posts even though they remain in `public/images`.
 
 Use a guarded update such as `postId: null` when claiming images so a parallel grouping job can't claim the same image twice. If the guard fails, swap in another candidate.
+
+**Hard rule — every image ID must exist in the database before you emit it.**
+
+This site renders images straight off the `Image` collection: if an `_id` in a Post's `images` array doesn't resolve to a real `Image` document, the frontend shows a broken-image placeholder. A broken image on this site **means the image is not in the database** — not that the file is missing from disk, not that it's slow to load. Non-existent → broken.
+
+Concretely:
+
+- Only emit `_id`s that came back from the **live `Image.find({ type: "post", postId: null })` query at the top of this section**. Do not hallucinate IDs, do not paste IDs from prompts or previous runs, do not compose IDs from filenames.
+- If your worker holds image candidates across multiple steps (analysis → grouping → emit), **re-verify each `_id` exists right before writing the Post** — e.g. `Image.find({ _id: { $in: candidateIds } }, "_id").lean()` and use only what comes back. Records can be deleted between the start of the run and the emit step.
+- If the verification trims your set below 4 images, **do not emit the Post**. Leave the remaining images unclaimed for the next run. Fewer-than-4 violates the §1 invariant and there is no legitimate reason to ship a partial Post.
 
 ### 4.2 What makes a valid group
 
@@ -293,7 +341,8 @@ In rough priority order:
 - Don't bundle **a profile shot + a cover photo + random posts**. Profile/cover images are reserved for identity, not feed posts. Only `type: "post"` images are eligible.
 - Don't bundle **images of obviously different people** unless the theme is `family` or `wedding` and the people recur across frames.
 - Don't bundle **mixed themes** (a beach shot + a birthday cake + a memorial photo) just to reach 4 images. Better to leave images unbundled than to ship an incoherent post.
-- Don't reuse an image. The `usedBy` guard enforces this — failing the guard means another job already claimed it; pick a different one.
+- Don't reuse an image. The `postId` guard enforces this — failing the guard means another job already claimed it; pick a different one.
+- Don't reference an image `_id` that isn't in the `Image` collection. See §4.1's hard rule — the frontend treats missing-from-DB images as broken, and a Post that ships broken images is worse than no Post at all.
 
 ### 4.7 When the pool is thin
 
@@ -301,18 +350,195 @@ If fewer than 4 unused images share a coherent theme, **don't create a Post**. W
 
 ---
 
-## 5. Atomicity & concurrency
+## 5. Atomicity, concurrency, and how the link is patched
 
-Two invariants the backend must protect:
+### Invariants the backend must protect
 
 1. **An image belongs to at most one Post.** Enforce via guarded update on `Image.postId` (`postId: null` precondition).
 2. **A Post's `profileId` only transitions `null → <id>` or `<id> → null`.** Never overwrite an existing assignment without an explicit unassign step.
+3. **`Profile.posts` and `Post.profileId` always agree.** Both sides must be updated in the same handler — never one without the other.
 
-Both can race: two clients calling `auto-assign` simultaneously, two bots grouping the same image pool, etc. Use `findOneAndUpdate` with explicit guard predicates as shown in §3 and §4.1 — do not read-then-write without a guard.
+Reads off either entity are cheap (no reverse query, no double-fetch). The cost is that every assignment-mutating route writes to **two collections** in a specific order.
+
+### Patch flow per route
+
+Each route below mutates `Post.profileId` and synchronises the corresponding `Profile.posts` entry. `$addToSet` and `$pull` are idempotent, so a retried request converges rather than producing duplicates.
+
+```text
+POST /api/posts/:id/assign        (assign to Profile P)
+  1. load post, load Profile P (404 if either missing)
+  2. capture oldProfileId from post (may be "")
+  3. if oldProfileId !== P._id:
+       post.profileId = P._id; post.assignedAt = now; post.save()
+       if oldProfileId: Profile.updateOne(oldProfileId, $pull  posts: post._id)
+                          Profile.updateOne(P._id,      $addToSet posts: post._id)
+
+DELETE /api/posts/:id/assign      (unassign)
+  1. load post (404 if missing)
+  2. capture oldProfileId
+  3. post.profileId = null; post.assignedAt = null; post.save()
+  4. if oldProfileId: Profile.updateOne(oldProfileId, $pull posts: post._id)
+
+POST /api/posts/:id/auto-assign   (server picks an eligible profile)
+  1. for candidate P in unassigned-profiles:
+       updated = Post.findOneAndUpdate(
+         { _id: postId, profileId: null },         // guard
+         { profileId: P._id, assignedAt: now }
+       )
+       if updated:
+         Profile.updateOne(P._id, $addToSet posts: updated._id)
+         return formatPost(updated)
+  2. else 409 — no eligible profile
+
+POST /api/posts/auto-assign-all   (bulk variant)
+  for each (post, profile) pair, run the auto-assign step above
+
+DELETE /api/posts/:id             (delete one)
+  1. load post (404 if missing)
+  2. Post.deleteOne(post._id)
+  3. if post.profileId: Profile.updateOne(profileId, $pull posts: post._id)
+  4. Image.updateMany({ _id ∈ post.images, postId: post._id }, $set postId: null)
+
+POST /api/posts/bulk-delete       (delete many)
+  same cleanup, batched in one deleteMany + per-profile $pull + one updateMany
+```
+
+### Concurrency
+
+Two clients calling `auto-assign` simultaneously, two bots grouping the same image pool, etc. — use `findOneAndUpdate` with explicit guard predicates (`profileId: null` for assign, `postId: null` for image claims). Do not read-then-write without a guard.
+
+The dual-write pattern is **not transactional** by default. If the Post update succeeds but the Profile update fails (very rare on a single-node Mongo), you can end up with a Post pointing at a profile whose `posts` array doesn't list it. The backfill query below converges this state. If split-state becomes a real concern, wrap each handler in a Mongoose `startSession()` transaction.
+
+### Backfill (one-time)
+
+If you add `Profile.posts` to a database where `Post.profileId` is already populated, run once in `mongosh` against your DB:
+
+```js
+db.posts.find({ profileId: { $ne: null } }, { _id: 1, profileId: 1 }).forEach(p =>
+  db.profiles.updateOne({ _id: p.profileId }, { $addToSet: { posts: p._id } })
+);
+```
+
+Idempotent — safe to re-run any time.
 
 ---
 
-## 6. Frontend ↔ Backend handshake summary
+## 6. JSON samples
+
+The shapes the frontend sees on the wire, including populated subdocuments.
+
+### Post — populated, as returned by `GET /api/posts` / assign endpoints
+
+```jsonc
+{
+  "_id": "672f1a2b3c4d5e6f7a8b9c01",
+  "images": [
+    {
+      "_id": "672f1a2b3c4d5e6f7a8b9d11",
+      "filename": "image_post_a1b2c3d4-e5f6-4789-9012-3456789abcde.jpg",
+      "annotation": "Beach at sunset, Bali",
+      "type": "post"
+    },
+    {
+      "_id": "672f1a2b3c4d5e6f7a8b9d12",
+      "filename": "image_post_b2c3d4e5-f6a7-489b-9c12-3456789abcde.jpg",
+      "annotation": "Rice paddy at golden hour",
+      "type": "post"
+    }
+    // ...4-10 images total
+  ],
+  "caption": "Five days in Bali and I'm already plotting the next trip. 🌴",
+  "context": "Bali vacation — beach and food shots, same trip",
+  "theme": "vacation",
+  "profileId": "672f1a2b3c4d5e6f7a8b9c02",          // stringified ObjectId, null when unassigned
+  "profile": {                                       // null when unassigned
+    "_id": "672f1a2b3c4d5e6f7a8b9c02",
+    "firstName": "Jane",
+    "lastName": "Doe"
+  },
+  "assignedAt": "2026-05-17T10:30:00.000Z",          // null when unassigned
+  "createdAt": "2026-05-15T08:00:00.000Z",
+  "updatedAt": "2026-05-17T10:30:00.000Z"
+}
+```
+
+Notable on-the-wire shape: `profile` is a populated mini-doc for display; `profileId` is the stringified id so the frontend can route to `/profile/:id` without unwrapping the populated object. Both are emitted by `formatPost` in `server/src/routes/posts.js`.
+
+### Profile — post-relevant slice of `GET /api/profiles/:id`
+
+A full Profile carries many fields (see `CLAUDE.md` §Profile shape for the complete schema). Posts integration touches the slice below:
+
+```jsonc
+{
+  "_id": "672f1a2b3c4d5e6f7a8b9c02",
+  "firstName": "Jane",
+  "lastName": "Doe",
+  // ...all other profile fields
+  "posts": [                                         // populated when fetched via GET /api/profiles/:id
+    {
+      "_id": "672f1a2b3c4d5e6f7a8b9c01",
+      "caption": "Five days in Bali and I'm already plotting the next trip. 🌴",
+      "context": "Bali vacation — beach and food shots, same trip",
+      "theme": "vacation",
+      "images": [
+        {
+          "_id": "672f1a2b3c4d5e6f7a8b9d11",
+          "filename": "image_post_a1b2c3d4-e5f6-4789-9012-3456789abcde.jpg",
+          "annotation": "Beach at sunset, Bali",
+          "type": "post"
+        }
+        // ...
+      ],
+      "profileId": "672f1a2b3c4d5e6f7a8b9c02",
+      "assignedAt": "2026-05-17T10:30:00.000Z",
+      "createdAt": "2026-05-15T08:00:00.000Z",
+      "updatedAt": "2026-05-17T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+### Profile — what's stored in MongoDB
+
+The raw document only contains Post ObjectIds. Population happens at read time:
+
+```jsonc
+{
+  "_id": "672f1a2b3c4d5e6f7a8b9c02",
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "posts": [
+    "672f1a2b3c4d5e6f7a8b9c01"                       // raw ObjectId ref
+  ]
+  // ...
+}
+```
+
+### Post — what's stored in MongoDB
+
+```jsonc
+{
+  "_id": "672f1a2b3c4d5e6f7a8b9c01",
+  "images": [
+    "672f1a2b3c4d5e6f7a8b9d11",
+    "672f1a2b3c4d5e6f7a8b9d12"
+    // ...
+  ],
+  "caption": "Five days in Bali and I'm already plotting the next trip. 🌴",
+  "context": "Bali vacation — beach and food shots, same trip",
+  "theme": "vacation",
+  "profileId": "672f1a2b3c4d5e6f7a8b9c02",           // null when unassigned
+  "assignedAt": "2026-05-17T10:30:00.000Z",
+  "generatedBy": "codex-vision-2026-05",
+  "generationModel": "openai/gpt-4.1",
+  "createdAt": "2026-05-15T08:00:00.000Z",
+  "updatedAt": "2026-05-17T10:30:00.000Z"
+}
+```
+
+---
+
+## 7. Frontend ↔ Backend handshake summary
 
 | Action | Frontend file | Frontend function | Backend route | Returns |
 | --- | --- | --- | --- | --- |
@@ -321,14 +547,18 @@ Both can race: two clients calling `auto-assign` simultaneously, two bots groupi
 | Unassign | `src/api/posts.js` | `unassignPost(id)` | `DELETE /api/posts/:id/assign` | `Post` |
 | Auto-assign one | `src/api/posts.js` | `autoAssignPost(id)` | `POST /api/posts/:id/auto-assign` | `Post` |
 | Auto-assign all | `src/api/posts.js` | `autoAssignAllPosts()` | `POST /api/posts/auto-assign-all` | `{ posts, assignedCount, skippedCount, failedCount }` |
+| Delete one | `src/api/posts.js` | `deletePost(id)` | `DELETE /api/posts/:id` | `{ ok, _id }` |
+| Bulk delete | `src/api/posts.js` | `bulkDeletePosts(ids)` | `POST /api/posts/bulk-delete` | `{ deletedCount, _ids }` |
+| Per-post ZIP | `src/api/postDownloads.js` | `getPostImagesDownloadUrl(id)` | `GET /api/posts/:id/images/download` | ZIP stream |
 
-The image-grouping job is **out of band** — it runs as a worker, not via the HTTP API. Once it writes `Post` documents (and updates `Image.usedBy`), the frontend sees them on the next `GET /api/posts`.
+The image-grouping job is **out of band** — it runs as a worker, not via the HTTP API. Once it writes `Post` documents (and updates `Image.postId`), the frontend sees them on the next `GET /api/posts`.
 
 ---
 
-## 7. Things deliberately out of scope (for now)
+## 8. Things deliberately out of scope (for now)
 
-- Editing a Post's caption / context from the UI. Today, Posts are read-only on the frontend except for assignment. Add an edit endpoint later if needed.
-- Deleting a Post. If a Post is "wrong," unassign it first, then the worker can rebundle. Hard-delete should also clear the relevant `Image.usedBy` entries — keep the delete path lean rather than implementing it now.
+- Editing a Post's caption / context from the UI. Today, Posts are read-only on the frontend except for assignment and deletion. Add an edit endpoint later if needed.
 - Image-level analytics (engagement, reach). Posts only track ownership at this stage.
 - Multi-language captions. Default to English; revisit when L0r3a starts targeting non-English markets.
+- Soft-delete / undo. `DELETE /api/posts/:id` and `POST /api/posts/bulk-delete` are permanent — the Image documents stay (with `postId` cleared so they can be regrouped) but the Post is gone.
+- Transactional dual-write. The Post↔Profile sync is two sequential writes, not a Mongo transaction. See §5 for the failure mode and the `$addToSet`-based recovery query.

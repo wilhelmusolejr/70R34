@@ -227,6 +227,93 @@ router.post("/:id/auto-assign", async (req, res, next) => {
   }
 });
 
+router.delete("/:id", async (req, res, next) => {
+  try {
+    const postId = String(req.params.id || "").trim();
+    if (!isValidId(postId)) {
+      return res.status(400).json({ message: "Invalid post id." });
+    }
+
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: "Post not found." });
+
+    const profileId = post.profileId ? String(post.profileId) : "";
+    const imageIds = Array.isArray(post.images) ? post.images : [];
+
+    await Post.deleteOne({ _id: post._id });
+
+    if (profileId) {
+      await Profile.updateOne(
+        { _id: profileId },
+        { $pull: { posts: post._id } },
+      );
+    }
+    if (imageIds.length) {
+      await Image.updateMany(
+        { _id: { $in: imageIds }, postId: post._id },
+        { $set: { postId: null } },
+      );
+    }
+
+    res.json({ ok: true, _id: postId });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/bulk-delete", async (req, res, next) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const valid = ids
+      .map((value) => String(value || "").trim())
+      .filter((value) => isValidId(value));
+    if (!valid.length) {
+      return res.status(400).json({ message: "No valid post ids provided." });
+    }
+
+    const posts = await Post.find({ _id: { $in: valid } })
+      .select("_id profileId images")
+      .lean();
+    if (!posts.length) {
+      return res.status(404).json({ message: "No matching posts found." });
+    }
+
+    const postIds = posts.map((p) => p._id);
+    const byProfile = new Map();
+    const imageIds = [];
+    for (const post of posts) {
+      if (post.profileId) {
+        const key = String(post.profileId);
+        const bucket = byProfile.get(key) || [];
+        bucket.push(post._id);
+        byProfile.set(key, bucket);
+      }
+      if (Array.isArray(post.images)) {
+        imageIds.push(...post.images);
+      }
+    }
+
+    await Post.deleteMany({ _id: { $in: postIds } });
+
+    for (const [profileId, ids] of byProfile.entries()) {
+      await Profile.updateOne(
+        { _id: profileId },
+        { $pull: { posts: { $in: ids } } },
+      );
+    }
+    if (imageIds.length) {
+      await Image.updateMany(
+        { _id: { $in: imageIds }, postId: { $in: postIds } },
+        { $set: { postId: null } },
+      );
+    }
+
+    res.json({ deletedCount: posts.length, _ids: postIds.map(String) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/auto-assign-all", async (_req, res, next) => {
   try {
     const posts = await Post.find({ profileId: null }).sort({ createdAt: 1, _id: 1 }).lean();

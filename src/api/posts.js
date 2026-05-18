@@ -76,3 +76,16 @@ export function autoAssignAllPosts() {
     body: JSON.stringify({}),
   });
 }
+
+export function deletePost(postId) {
+  return apiFetch(`/api/posts/${postId}`, {
+    method: "DELETE",
+  });
+}
+
+export function bulkDeletePosts(ids) {
+  return apiFetch(`/api/posts/bulk-delete`, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+}

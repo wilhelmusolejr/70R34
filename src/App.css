@@ -2655,6 +2655,7 @@ select.npm-input {
   transform: translateY(-1px);
 }
 .post-card-images {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: repeat(2, 1fr);
@@ -2662,6 +2663,83 @@ select.npm-input {
   background: var(--border);
   height: 220px;
   flex-shrink: 0;
+}
+.post-card-select {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+.post-card-select input {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.post-card-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--t), background var(--t);
+}
+.post-card:hover .post-card-delete {
+  opacity: 1;
+}
+.post-card-delete:hover {
+  background: #dc2626;
+}
+.post-card-delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.post-card-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.posts-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.post-bulk-delete {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #fff !important;
+}
+.post-bulk-delete:hover:not(:disabled) {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
 }
 .post-card-image {
   position: relative;

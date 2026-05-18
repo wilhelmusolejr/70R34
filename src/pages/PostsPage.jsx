@@ -4,6 +4,8 @@ import {
   assignPostToProfile,
   autoAssignAllPosts,
   autoAssignPost,
+  bulkDeletePosts,
+  deletePost,
   fetchPosts,
   unassignPost,
 } from "../api/posts";
@@ -63,6 +65,9 @@ export function PostsPage() {
   const [busyPostId, setBusyPostId] = useState("");
   const [assignDrafts, setAssignDrafts] = useState({});
   const [isAutoAssigningAll, setIsAutoAssigningAll] = useState(false);
+  const [quickEditMode, setQuickEditMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -236,6 +241,80 @@ export function PostsPage() {
     }
   }
 
+  function toggleSelected(postId) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(postId)) next.delete(postId);
+      else next.add(postId);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function toggleQuickEditMode() {
+    setQuickEditMode((prev) => {
+      if (prev) setSelectedIds(new Set());
+      return !prev;
+    });
+  }
+
+  async function handleDelete(post) {
+    if (!writeable) return;
+    const label = (post.caption || post.context || "this post").slice(0, 60);
+    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) {
+      return;
+    }
+    try {
+      setBusyPostId(post._id);
+      setError("");
+      await deletePost(post._id);
+      setPosts((current) => current.filter((p) => p._id !== post._id));
+      setSelectedIds((current) => {
+        if (!current.has(post._id)) return current;
+        const next = new Set(current);
+        next.delete(post._id);
+        return next;
+      });
+      setToast("Post deleted.");
+    } catch (err) {
+      setError(err.message || "Failed to delete post.");
+    } finally {
+      setBusyPostId("");
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (!writeable || isBulkDeleting) return;
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    if (
+      !window.confirm(
+        `Delete ${ids.length} post${ids.length === 1 ? "" : "s"}? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      setIsBulkDeleting(true);
+      setError("");
+      const result = await bulkDeletePosts(ids);
+      const deletedIds = new Set(
+        Array.isArray(result?._ids) && result._ids.length ? result._ids : ids,
+      );
+      setPosts((current) => current.filter((p) => !deletedIds.has(p._id)));
+      setSelectedIds(new Set());
+      const count = Number(result?.deletedCount ?? deletedIds.size);
+      setToast(`Deleted ${count} post${count === 1 ? "" : "s"}.`);
+    } catch (err) {
+      setError(err.message || "Failed to delete posts.");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }
+
   async function handleAutoAssignAll() {
     if (!writeable || isAutoAssigningAll) return;
     if (unassignedCount === 0) {
@@ -292,22 +371,63 @@ export function PostsPage() {
         </div>
         <div className="hdr-acts">
           {writeable ? (
-            <button
-              type="button"
-              className="btn-p"
-              onClick={handleAutoAssignAll}
-              disabled={
-                isAutoAssigningAll || loading || unassignedCount === 0
-              }
-              title="Assigns every unassigned post to a profile without a post"
-            >
-              {isAutoAssigningAll
-                ? "Auto-assigning..."
-                : `Auto-assign All (${unassignedCount})`}
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn-s"
+                onClick={toggleQuickEditMode}
+                title="Toggle multi-select mode"
+              >
+                {quickEditMode ? "Done Selecting" : "Select"}
+              </button>
+              <button
+                type="button"
+                className="btn-p"
+                onClick={handleAutoAssignAll}
+                disabled={
+                  isAutoAssigningAll || loading || unassignedCount === 0
+                }
+                title="Assigns every unassigned post to a profile without a post"
+              >
+                {isAutoAssigningAll
+                  ? "Auto-assigning..."
+                  : `Auto-assign All (${unassignedCount})`}
+              </button>
+            </>
           ) : null}
         </div>
       </div>
+
+      {quickEditMode ? (
+        <div className="posts-bulk-bar">
+          <span>
+            <strong>{selectedIds.size}</strong> selected
+          </span>
+          <span style={{ color: "var(--text2)" }}>
+            of {filteredPosts.length} visible
+          </span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              className="btn-s"
+              onClick={clearSelection}
+              disabled={selectedIds.size === 0}
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              className="btn-p post-bulk-delete"
+              onClick={handleBulkDelete}
+              disabled={selectedIds.size === 0 || isBulkDeleting}
+            >
+              {isBulkDeleting
+                ? "Deleting..."
+                : `Delete Selected (${selectedIds.size})`}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="stats-row">
         <div className="sc">
@@ -396,9 +516,48 @@ export function PostsPage() {
             const isBusy = busyPostId === post._id;
             const draftValue = assignDrafts[post._id] || "";
 
+            const isSelected = selectedIds.has(post._id);
+
             return (
-              <div className="post-card" key={post._id}>
+              <div
+                className={`post-card${isSelected ? " post-card-selected" : ""}`}
+                key={post._id}
+              >
                 <div className="post-card-images">
+                  {quickEditMode ? (
+                    <label className="post-card-select">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelected(post._id)}
+                      />
+                    </label>
+                  ) : writeable ? (
+                    <button
+                      type="button"
+                      className="post-card-delete"
+                      onClick={() => handleDelete(post)}
+                      disabled={isBusy}
+                      title="Delete this post"
+                      aria-label="Delete post"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="16"
+                        height="16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        <line x1="10" y1="11" x2="10" y2="17" />
+                        <line x1="14" y1="11" x2="14" y2="17" />
+                      </svg>
+                    </button>
+                  ) : null}
                   {previewImages.length ? (
                     previewImages.map((image, index) => {
                       const filename =
