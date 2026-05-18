@@ -10,6 +10,7 @@ import {
   unassignPost,
 } from "../api/posts";
 import { fetchProfiles } from "../api/profiles";
+import { PostEditModal } from "../components/PostEditModal";
 import { SafeImage } from "../components/SafeImage";
 import { useAuth } from "../context/AuthContext";
 import { canWrite } from "../utils/access";
@@ -68,6 +69,7 @@ export function PostsPage() {
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -518,14 +520,36 @@ export function PostsPage() {
 
             const isSelected = selectedIds.has(post._id);
 
+            const handleImageAreaClick = () => {
+              if (quickEditMode) {
+                toggleSelected(post._id);
+              } else {
+                setEditingPost(post);
+              }
+            };
+
             return (
               <div
                 className={`post-card${isSelected ? " post-card-selected" : ""}`}
                 key={post._id}
               >
-                <div className="post-card-images">
+                <div
+                  className="post-card-images post-card-images-clickable"
+                  onClick={handleImageAreaClick}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleImageAreaClick();
+                    }
+                  }}
+                >
                   {quickEditMode ? (
-                    <label className="post-card-select">
+                    <label
+                      className="post-card-select"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <input
                         type="checkbox"
                         checked={isSelected}
@@ -536,7 +560,10 @@ export function PostsPage() {
                     <button
                       type="button"
                       className="post-card-delete"
-                      onClick={() => handleDelete(post)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(post);
+                      }}
                       disabled={isBusy}
                       title="Delete this post"
                       aria-label="Delete post"
@@ -713,6 +740,20 @@ export function PostsPage() {
           })}
         </div>
       )}
+
+      {editingPost ? (
+        <PostEditModal
+          post={editingPost}
+          onClose={() => setEditingPost(null)}
+          onUpdate={(updated) => {
+            if (!updated || !updated._id) return;
+            setPosts((current) =>
+              current.map((p) => (p._id === updated._id ? updated : p)),
+            );
+            setEditingPost(updated);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

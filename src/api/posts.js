@@ -89,3 +89,31 @@ export function bulkDeletePosts(ids) {
     body: JSON.stringify({ ids }),
   });
 }
+
+export function updatePost(postId, fields) {
+  return apiFetch(`/api/posts/${postId}`, {
+    method: "PATCH",
+    body: JSON.stringify(fields || {}),
+  });
+}
+
+export function addPostImage(postId, imageId) {
+  return apiFetch(`/api/posts/${postId}/images`, {
+    method: "POST",
+    body: JSON.stringify({ imageId }),
+  });
+}
+
+export function removePostImage(postId, imageId) {
+  return apiFetch(`/api/posts/${postId}/images/${imageId}`, {
+    method: "DELETE",
+  });
+}
+
+export function fetchAvailableImagesForPost({ page = 1, limit = 30 } = {}) {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+  return apiFetch(`/api/posts/available-images?${params.toString()}`);
+}

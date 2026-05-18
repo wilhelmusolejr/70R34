@@ -59,6 +59,153 @@ router.get("/", async (_req, res, next) => {
   }
 });
 
+router.get("/available-images", async (req, res, next) => {
+  try {
+    const pageInput = Number.parseInt(req.query.page, 10);
+    const limitInput = Number.parseInt(req.query.limit, 10);
+    const page = Number.isInteger(pageInput) && pageInput > 0 ? pageInput : 1;
+    const limit =
+      Number.isInteger(limitInput) && limitInput > 0 && limitInput <= 100
+        ? limitInput
+        : 30;
+    const skip = (page - 1) * limit;
+
+    const filter = { type: "post", postId: null };
+    const [items, total] = await Promise.all([
+      Image.find(filter)
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select("_id filename annotation type createdAt")
+        .lean(),
+      Image.countDocuments(filter),
+    ]);
+
+    const images = items.map((img) => ({
+      _id: String(img._id),
+      filename: img.filename || "",
+      annotation: img.annotation || "",
+      type: img.type || "post",
+      createdAt: img.createdAt || null,
+    }));
+    const totalPages = limit > 0 ? Math.ceil(total / limit) : 1;
+    res.json({
+      images,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasMore: page < totalPages,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/:id", async (req, res, next) => {
+  try {
+    const postId = String(req.params.id || "").trim();
+    if (!isValidId(postId)) {
+      return res.status(400).json({ message: "Invalid post id." });
+    }
+
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: "Post not found." });
+
+    const body = req.body || {};
+    if (typeof body.caption === "string") post.caption = body.caption;
+    if (typeof body.context === "string") post.context = body.context;
+    if (typeof body.theme === "string") post.theme = body.theme;
+    await post.save();
+
+    const populated = await populatePostQuery(Post.findById(post._id)).lean();
+    res.json(formatPost(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:id/images", async (req, res, next) => {
+  try {
+    const postId = String(req.params.id || "").trim();
+    const imageId = String(req.body?.imageId || "").trim();
+    if (!isValidId(postId) || !isValidId(imageId)) {
+      return res.status(400).json({ message: "Invalid post or image id." });
+    }
+
+    const [post, image] = await Promise.all([
+      Post.findById(postId).select("_id images"),
+      Image.findById(imageId).select("_id postId type"),
+    ]);
+    if (!post) return res.status(404).json({ message: "Post not found." });
+    if (!image) return res.status(404).json({ message: "Image not found." });
+
+    const currentPostId = image.postId ? String(image.postId) : "";
+    if (currentPostId && currentPostId !== postId) {
+      return res.status(409).json({
+        message: "Image is already attached to another post.",
+      });
+    }
+
+    const claimed = await Image.findOneAndUpdate(
+      { _id: image._id, $or: [{ postId: null }, { postId: post._id }] },
+      { $set: { postId: post._id } },
+      { new: true },
+    );
+    if (!claimed) {
+      return res.status(409).json({
+        message: "Image was just claimed by another post.",
+      });
+    }
+
+    await Post.updateOne(
+      { _id: post._id },
+      { $addToSet: { images: image._id } },
+    );
+
+    const populated = await populatePostQuery(Post.findById(post._id)).lean();
+    res.json(formatPost(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/:id/images/:imageId", async (req, res, next) => {
+  try {
+    const postId = String(req.params.id || "").trim();
+    const imageId = String(req.params.imageId || "").trim();
+    if (!isValidId(postId) || !isValidId(imageId)) {
+      return res.status(400).json({ message: "Invalid post or image id." });
+    }
+
+    const post = await Post.findById(postId).select("_id images");
+    if (!post) return res.status(404).json({ message: "Post not found." });
+
+    const has = (post.images || []).some(
+      (id) => String(id) === imageId,
+    );
+    if (!has) {
+      return res.status(404).json({
+        message: "Image is not attached to this post.",
+      });
+    }
+
+    await Post.updateOne(
+      { _id: post._id },
+      { $pull: { images: imageId } },
+    );
+    await Image.updateOne(
+      { _id: imageId, postId: post._id },
+      { $set: { postId: null } },
+    );
+
+    const populated = await populatePostQuery(Post.findById(post._id)).lean();
+    res.json(formatPost(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/:id/images/download", async (req, res, next) => {
   try {
     const postId = String(req.params.id || "").trim();
