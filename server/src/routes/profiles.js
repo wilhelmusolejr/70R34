@@ -932,6 +932,7 @@ router.post("/:id/run", async (req, res, next) => {
           profiles: [id],
           concurrency: 1,
           steps: [
+            { type: "setup_privacy" },
             { type: "setup_about" },
             {
               type: "homepage_interaction",
