@@ -646,7 +646,7 @@ export function ProfilesPage() {
             >
               Copy IDs
             </button>
-            {writeable && (
+            {writeable && !isMaker && (
               <button
                 type="button"
                 className={quickEditMode ? "btn-p" : "btn-s"}
@@ -974,11 +974,13 @@ export function ProfilesPage() {
                   ) : null}
                   <th>Profile</th>
                   <th>Status</th>
-                  <th>Profile Created</th>
-                  <th>Inactive</th>
+                  {!isMaker && <th>Profile Created</th>}
+                  {!isMaker && <th>Inactive</th>}
                   <th>Links</th>
-                  <th>Requirements</th>
-                  <th style={{ textAlign: "center" }}>Daily Tracker</th>
+                  {!isMaker && <th>Requirements</th>}
+                  {!isMaker && (
+                    <th style={{ textAlign: "center" }}>Daily Tracker</th>
+                  )}
                   <th></th>
                 </tr>
               </thead>
@@ -1045,6 +1047,7 @@ export function ProfilesPage() {
                           {profile.status}
                         </span>
                       </td>
+                      {!isMaker && (
                       <td data-label="Profile Created">
                         <div className="dcell">
                           <div className="dv">
@@ -1055,6 +1058,8 @@ export function ProfilesPage() {
                           </div>
                         </div>
                       </td>
+                      )}
+                      {!isMaker && (
                       <td data-label="Inactive">
                         <div className="dcell">
                           <div className="dv">
@@ -1063,6 +1068,7 @@ export function ProfilesPage() {
                           <div className="da">Since last tracked</div>
                         </div>
                       </td>
+                      )}
                       <td data-label="Links">
                         <div className="lcell">
                           {profile.profileUrl ? (
@@ -1101,6 +1107,7 @@ export function ProfilesPage() {
                           )}
                         </div>
                       </td>
+                      {!isMaker && (
                       <td data-label="Requirements">
                         <div className="cklist">
                           {[
@@ -1137,6 +1144,8 @@ export function ProfilesPage() {
                           ))}
                         </div>
                       </td>
+                      )}
+                      {!isMaker && (
                       <td data-label="Daily Tracker" style={{ maxWidth: "260px" }}>
                         <div className="tracker-cell">
                           {isAdmin ? (
@@ -1182,6 +1191,7 @@ export function ProfilesPage() {
                           )}
                         </div>
                       </td>
+                      )}
                       <td data-label="Action">
                         <a
                           className="vbtn"

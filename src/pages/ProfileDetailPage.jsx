@@ -883,14 +883,20 @@ function ProxyCard({ item, onUpdate, onRemove, editable = true, canCopy = true }
   );
 }
 
-function SectionCard({ title, badge, children }) {
+function SectionCard({ title, badge, children, scrollMaxHeight }) {
   return (
     <div className="dc">
       <div className="dct">
         {title}
         {badge}
       </div>
-      {children}
+      {scrollMaxHeight ? (
+        <div style={{ maxHeight: scrollMaxHeight, overflowY: "auto" }}>
+          {children}
+        </div>
+      ) : (
+        children
+      )}
     </div>
   );
 }
@@ -2452,6 +2458,7 @@ export function ProfileDetailPage() {
           {!isMaker && (
           <SectionCard
             title="Tracker Log"
+            scrollMaxHeight={360}
             badge={
               writeable ? (
                 <button
@@ -2675,6 +2682,7 @@ export function ProfileDetailPage() {
           {!isMaker && (
             <SectionCard
               title="Friend Requests"
+              scrollMaxHeight={360}
               badge={
                 <span style={{ fontSize: "11px", color: "var(--text3)" }}>
                   {(profile.friendRequests || []).length} received
