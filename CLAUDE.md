@@ -183,6 +183,8 @@ IMAGE_MODEL=black-forest-labs/FLUX.1-schnell
 
 In production, the server (`server/`) serves the built `dist/` and the API on the same port. Leave `VITE_API_URL` empty so API calls use relative paths. The `server/.env` only needs `MONGODB_URI` and `PORT`.
 
+Optional server env: `BOT_API_URL` — base URL of the automation bot that `POST /api/profiles/:id/run` forwards onboarding tasks to (defaults to `http://localhost:3000`, i.e. the bot running on the same host as the API server).
+
 ## CSS Conventions
 
 - Modal classes prefixed `npm-` (New Profile Modal origin, used app-wide now)

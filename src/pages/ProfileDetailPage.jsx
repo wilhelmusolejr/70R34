@@ -12,6 +12,7 @@ import {
   fetchProfile,
   fetchProfiles,
   removeFriendRequest as apiRemoveFriendRequest,
+  runProfile,
   unassignProfileImage,
   updateFriendRequestStatus as apiUpdateFriendRequestStatus,
   updateProfile,
@@ -1687,6 +1688,11 @@ export function ProfileDetailPage() {
       return;
     }
 
+    if (!String(profile.profileUrl || "").trim()) {
+      setSubmitError("Add a profile URL before submitting this profile.");
+      return;
+    }
+
     setSubmittingProfile(true);
     setSubmitError("");
 
@@ -1704,8 +1710,24 @@ export function ProfileDetailPage() {
         profile._id,
         "completed",
       );
+
+      // Refresh the session first so the maker gets instant feedback (the
+      // Submit block unmounts as the assignment flips to "completed").
       if (result.user) {
         login(result.user);
+      }
+
+      // Then kick off the onboarding bot. Non-fatal: the profile is already
+      // submitted, so a bot/server hiccup shouldn't undo that. A slow bot
+      // can't leave the button stuck, and failures surface on the page banner.
+      try {
+        await runProfile(profile._id);
+      } catch (runErr) {
+        setError(
+          `Profile submitted, but the onboarding bot did not start: ${
+            runErr.message || "unknown error"
+          }`,
+        );
       }
     } catch (err) {
       setProfile(previousProfile);
@@ -2522,7 +2544,10 @@ export function ProfileDetailPage() {
                 />
               </div>
             </div>
-            <div className="dr">
+            <div
+              className="dr"
+              style={isMaker ? { borderBottom: "none" } : undefined}
+            >
               <div className="dl">Facebook Password</div>
               <div className="dv">
                 <EditableText
@@ -2538,100 +2563,60 @@ export function ProfileDetailPage() {
                 />
               </div>
             </div>
-            <div className="dr">
-              <div className="dl">Proxy</div>
-              <div className="dv">
-                <EditableText
-                  value={reveal(profile.proxy, canViewProxy)}
-                  onSave={(v) => upTopLevel("proxy", v)}
-                  placeholder="Proxy"
-                  mono
-                  copyable={canViewProxy}
-                  editable={canEditField("proxy")}
-                />
-              </div>
-            </div>
-            <div className="dr">
-              <div className="dl">Proxy Location</div>
-              <div className="dv">
-                <EditableText
-                  value={reveal(profile.proxyLocation, confidential)}
-                  onSave={(v) => upTopLevel("proxyLocation", v)}
-                  placeholder="Proxy location"
-                  copyable={confidential}
-                  editable={canEditField("proxyLocation")}
-                />
-              </div>
-            </div>
-            <div className="dr">
-              <div className="dl">Phone</div>
-              <div className="dv">
-                <EditableText
-                  value={reveal(profile.phone, confidential)}
-                  onSave={(v) => upTopLevel("phone", v)}
-                  placeholder="Phone"
-                  copyable={confidential}
-                  editable={canEditField("phone")}
-                />
-              </div>
-            </div>
-            <div className="dr" style={{ borderBottom: "none" }}>
-              <div className="dl">Recovery Email</div>
-              <div className="dv">
-                <EditableText
-                  value={reveal(profile.recoveryEmail, confidential)}
-                  onSave={(v) => upTopLevel("recoveryEmail", v)}
-                  placeholder="Recovery email"
-                  copyable={confidential}
-                  editable={canEditField("recoveryEmail")}
-                />
-              </div>
-            </div>
+            {!isMaker && (
+              <>
+                <div className="dr">
+                  <div className="dl">Proxy</div>
+                  <div className="dv">
+                    <EditableText
+                      value={reveal(profile.proxy, canViewProxy)}
+                      onSave={(v) => upTopLevel("proxy", v)}
+                      placeholder="Proxy"
+                      mono
+                      copyable={canViewProxy}
+                      editable={canEditField("proxy")}
+                    />
+                  </div>
+                </div>
+                <div className="dr">
+                  <div className="dl">Proxy Location</div>
+                  <div className="dv">
+                    <EditableText
+                      value={reveal(profile.proxyLocation, confidential)}
+                      onSave={(v) => upTopLevel("proxyLocation", v)}
+                      placeholder="Proxy location"
+                      copyable={confidential}
+                      editable={canEditField("proxyLocation")}
+                    />
+                  </div>
+                </div>
+                <div className="dr">
+                  <div className="dl">Phone</div>
+                  <div className="dv">
+                    <EditableText
+                      value={reveal(profile.phone, confidential)}
+                      onSave={(v) => upTopLevel("phone", v)}
+                      placeholder="Phone"
+                      copyable={confidential}
+                      editable={canEditField("phone")}
+                    />
+                  </div>
+                </div>
+                <div className="dr" style={{ borderBottom: "none" }}>
+                  <div className="dl">Recovery Email</div>
+                  <div className="dv">
+                    <EditableText
+                      value={reveal(profile.recoveryEmail, confidential)}
+                      onSave={(v) => upTopLevel("recoveryEmail", v)}
+                      placeholder="Recovery email"
+                      copyable={confidential}
+                      editable={canEditField("recoveryEmail")}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </SectionCard>
-
-          {showMakerSubmit && (
-            <SectionCard title="Submit Profile">
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                  padding: "4px 2px",
-                }}
-              >
-                <div style={{ fontSize: "13px", color: "var(--text2)" }}>
-                  Once you've filled in the credentials and links, submit this
-                  profile so an admin can finish setup.
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <button
-                    type="button"
-                    className="btn-p"
-                    onClick={handleSubmitProfile}
-                    disabled={submittingProfile}
-                  >
-                    {submittingProfile ? "Submitting..." : "Submit Profile"}
-                  </button>
-                  {submitError ? (
-                    <span style={{ color: "var(--red)", fontSize: "12px" }}>
-                      {submitError}
-                    </span>
-                  ) : (
-                    <span style={{ color: "var(--text3)", fontSize: "12px" }}>
-                      Requires a selected email before submission.
-                    </span>
-                  )}
-                </div>
-              </div>
-            </SectionCard>
-          )}
 
           <SectionCard title="Account & Links">
             <InfoRow
@@ -2654,7 +2639,10 @@ export function ProfileDetailPage() {
                 />
               </div>
             </div>
-            <div className="dr">
+            <div
+              className="dr"
+              style={isMaker ? { borderBottom: "none" } : undefined}
+            >
               <div className="dl">Profile URL</div>
               <div className="dv mono">
                 <EditableText
@@ -2667,6 +2655,7 @@ export function ProfileDetailPage() {
                 />
               </div>
             </div>
+            {!isMaker && (
             <div className="dr" style={{ borderBottom: "none" }}>
               <div className="dl">Page URL</div>
               <div className="dv mono">
@@ -2680,6 +2669,7 @@ export function ProfileDetailPage() {
                 />
               </div>
             </div>
+            )}
           </SectionCard>
 
           {!isMaker && (
@@ -3291,6 +3281,51 @@ export function ProfileDetailPage() {
               )}
             </>
           </SectionCard>
+          )}
+
+          {showMakerSubmit && (
+            <SectionCard title="Submit Profile">
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  padding: "4px 2px",
+                }}
+              >
+                <div style={{ fontSize: "13px", color: "var(--text2)" }}>
+                  Once you've filled in the credentials and links, submit this
+                  profile so an admin can finish setup.
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="btn-p"
+                    onClick={handleSubmitProfile}
+                    disabled={submittingProfile}
+                  >
+                    {submittingProfile ? "Submitting..." : "Submit Profile"}
+                  </button>
+                  {submitError ? (
+                    <span style={{ color: "var(--red)", fontSize: "12px" }}>
+                      {submitError}
+                    </span>
+                  ) : (
+                    <span style={{ color: "var(--text3)", fontSize: "12px" }}>
+                      Requires a selected email and profile URL before
+                      submission.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </SectionCard>
           )}
         </div>
       </div>

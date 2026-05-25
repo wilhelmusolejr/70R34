@@ -1,3 +1,4 @@
+/* global process */
 import archiver from "archiver";
 import fs from "node:fs";
 import path from "node:path";
@@ -26,6 +27,13 @@ const router = Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "../../..");
+
+// Base URL of the automation bot that runs onboarding steps. Override with the
+// BOT_API_URL env var; defaults to the bot listening locally on :3000.
+const BOT_API_URL = (process.env.BOT_API_URL || "http://localhost:3000").replace(
+  /\/+$/,
+  "",
+);
 
 function isValidId(value) {
   return mongoose.Types.ObjectId.isValid(value);
@@ -897,6 +905,67 @@ router.post("/:id/proxy-log", async (req, res, next) => {
 
     const populated = await getPopulatedProfileQuery(id).lean();
     res.status(201).json(formatProfile(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/:id/run", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+
+    const exists = await Profile.exists({ _id: id });
+    if (!exists) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    let botResponse;
+    try {
+      botResponse = await fetch(`${BOT_API_URL}/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: `onboard-${id}-${Date.now()}`,
+          profiles: [id],
+          concurrency: 1,
+          steps: [
+            { type: "setup_about" },
+            {
+              type: "homepage_interaction",
+              steps: [
+                { type: "wait", params: { min: 8, max: 15 } },
+                { type: "like_posts", params: { count: 2 } },
+                { type: "share_posts", params: { count: 1 } },
+                { type: "wait", params: { min: 30, max: 50 } },
+              ],
+            },
+            {
+              type: "connect_loop",
+              params: { count: 5, skipIfFriendsAbove: 30 },
+            },
+            { type: "wait", params: { min: 10, max: 15 } },
+          ],
+        }),
+      });
+    } catch {
+      return res.status(502).json({
+        message: "Bot server not reachable",
+        error: "Bot server not reachable",
+      });
+    }
+
+    const text = await botResponse.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { raw: text };
+    }
+
+    return res.status(botResponse.ok ? 200 : botResponse.status).json(data);
   } catch (error) {
     next(error);
   }

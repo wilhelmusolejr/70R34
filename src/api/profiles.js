@@ -61,6 +61,13 @@ export function updateProfile(id, payload) {
   });
 }
 
+// Trigger the onboarding bot run for a profile (server forwards to the bot).
+export function runProfile(id) {
+  return apiFetch(`/api/profiles/${id}/run`, {
+    method: "POST",
+  });
+}
+
 export function createProfile(payload, userId) {
   return apiFetch("/api/profiles", {
     method: "POST",
