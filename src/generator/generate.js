@@ -72,10 +72,50 @@ function generateEmails(firstName, lastName, birthYear, emailDomains) {
 
 // ─── Password generator ──────────────────────────────────────────────────────
 
-function generatePassword() {
-  const words = ["Blue", "Star", "Rocky", "Happy", "Tiger", "Delta", "Nova", "River", "Eagle", "Solar"];
+// Simple, human-style pattern derived from the first name: leetspeak(name) +
+// number + special, e.g. "L4ur4" -> "L4ur457@2". Leetifying the letters means
+// the literal name never appears as a contiguous substring, which dodges the
+// Outlook/Microsoft "password can't contain your name" rule. We leet vowels
+// plus s/t so the result is several edits away from the name (clears Microsoft's
+// fuzzy similarity check too) while staying recognizable. Every result has an
+// uppercase letter (the leading initial), a digit and a symbol, and is at least
+// MIN_PASSWORD_LENGTH characters — comfortably above both services' 8-char floor.
+const LEET_MAP = { a: "4", e: "3", i: "1", o: "0", s: "5", t: "7" };
+const MIN_PASSWORD_LENGTH = 10;
+
+function leetifyName(firstName) {
+  const cleaned = String(firstName || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (!cleaned) return "User";
+
+  // Keep the leading initial as a readable uppercase letter; leet the rest.
+  const first = cleaned.charAt(0).toUpperCase();
+  let changed = false;
+  const rest = cleaned.slice(1).replace(/[aeiost]/g, (ch) => {
+    changed = true;
+    return LEET_MAP[ch];
+  });
+
+  // Names with no leetable letter after the first (e.g. "Bryn") keep the literal
+  // name intact, so break it with a digit instead.
+  if (!changed && rest) {
+    return first + randInt(0, 9) + rest;
+  }
+  return first + rest;
+}
+
+function generatePassword(firstName) {
   const specials = ["!", "@", "#", "$", "!1", "@2", "#3"];
-  return pick(words) + randInt(10, 99) + pick(specials);
+  const name = leetifyName(firstName);
+  const special = pick(specials);
+
+  // Start with a 2-digit number, then add digits until the whole password
+  // reaches the minimum length.
+  let digits = String(randInt(10, 99));
+  while (name.length + digits.length + special.length < MIN_PASSWORD_LENGTH) {
+    digits += String(randInt(0, 9));
+  }
+
+  return name + digits + special;
 }
 
 // ─── Work experience ─────────────────────────────────────────────────────────
@@ -407,8 +447,8 @@ export function generateProfile(params = {}) {
     }
     return e;
   });
-  const emailPassword = generatePassword();
-  const facebookPassword = generatePassword();
+  const emailPassword = generatePassword(firstName);
+  const facebookPassword = generatePassword(firstName);
 
   // Other names
   const otherNames = generateOtherNames(country);
