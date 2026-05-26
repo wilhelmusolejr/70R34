@@ -772,7 +772,10 @@ export function ImageAssetDetailPage() {
                       className="image-asset-img"
                     />
                   </button>
-                  <div className="image-asset-caption">
+                  <div
+                    className="image-asset-caption"
+                    title={image.annotation || `Image ${index + 1}`}
+                  >
                     {image.annotation || `Image ${index + 1}`}
                   </div>
                   {imageTags.length ? (
@@ -1324,7 +1327,7 @@ export function ImageAssetDetailPage() {
                                   ),
                                 }))}
                             />
-                            <span>{entry.file.name}</span>
+                            <span title={entry.file.name}>{entry.file.name}</span>
                           </label>
                           <select
                             className="npm-input"

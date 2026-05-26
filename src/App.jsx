@@ -18,6 +18,7 @@ import { ProfilesPage } from "./pages/ProfilesPage";
 import { PagesPage } from "./pages/PagesPage";
 import { ProfileDetailPage } from "./pages/ProfileDetailPage";
 import { ProxiesPage } from "./pages/ProxiesPage";
+import { SharersPage } from "./pages/SharersPage";
 import "./App.css";
 
 function AuthField({ label, value, onChange, type = "text" }) {
@@ -110,6 +111,9 @@ function getDocumentTitle(pathname) {
   }
   if (pathname === "/proxies") {
     return "PROXIES | 70R34";
+  }
+  if (pathname === "/sharers") {
+    return "SHARERS | 70R34";
   }
   if (pathname === "/logs") {
     return "LOGS | 70R34";
@@ -229,6 +233,7 @@ function Layout({ children }) {
             <NavLink to="/pages">Pages</NavLink>
             <NavLink to="/posts">Posts</NavLink>
             <NavLink to="/proxies">Proxy</NavLink>
+            <NavLink to="/sharers">Sharers</NavLink>
             <NavLink to="/logs">Logs</NavLink>
             <a href="#" onClick={(e) => showWipModal(e, "Anti-Bot ML")}>
               Anti-Bot ML
@@ -314,6 +319,9 @@ function Layout({ children }) {
               </NavLink>
               <NavLink to="/proxies" onClick={() => setIsMobileNavOpen(false)}>
                 Proxy
+              </NavLink>
+              <NavLink to="/sharers" onClick={() => setIsMobileNavOpen(false)}>
+                Sharers
               </NavLink>
               <NavLink to="/logs" onClick={() => setIsMobileNavOpen(false)}>
                 Logs
@@ -526,6 +534,7 @@ function App() {
             <Route path="/pages/:id" element={<PageDetailPage />} />
             <Route path="/posts" element={<PostsPage />} />
             <Route path="/proxies" element={<ProxiesPage />} />
+            <Route path="/sharers" element={<SharersPage />} />
             <Route path="/logs" element={<LogsPage />} />
             <Route path="/profile/:id" element={<ProfileDetailPage />} />
           </Routes>

@@ -10,6 +10,7 @@ import pagesRouter from "./routes/pages.js";
 import postsRouter from "./routes/posts.js";
 import profilesRouter from "./routes/profiles.js";
 import proxiesRouter from "./routes/proxies.js";
+import sharersRouter from "./routes/sharers.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,6 +64,7 @@ export function createApp() {
   app.use("/api/posts", postsRouter);
   app.use("/api/profiles", profilesRouter);
   app.use("/api/proxies", proxiesRouter);
+  app.use("/api/sharers", sharersRouter);
 
   app.use("/api", (_req, res) => {
     res.status(404).json({ message: "API route not found" });

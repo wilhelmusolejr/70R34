@@ -612,15 +612,20 @@ nav {
 }
 .image-upload-file-check {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   color: var(--text2);
   font-size: 13px;
   font-weight: 600;
   min-height: 36px;
   min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+}
+.image-upload-file-check > span {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .image-upload-profile-option {
   display: flex;
@@ -707,9 +712,11 @@ nav {
   font-weight: 600;
   color: var(--text2);
   min-width: 0;
+  max-width: 100%;
   line-height: 1.4;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .image-asset-tag-row {
   display: flex;
