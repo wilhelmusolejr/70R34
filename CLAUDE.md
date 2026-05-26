@@ -146,6 +146,24 @@ Pool of network proxies. Each Proxy doc has `host`, `port`, optional `username`/
 - API: `/api/proxies` (list + `/bulk` create + GET/PATCH by id) and `/api/profiles/:id/proxies` (create-and-attach to a specific Profile).
 - Profile → Proxy link lives in two places: singular `profile.proxyId` (primary) and array `profile.proxies[]` (all assignments, same pattern as `images`).
 
+### 5. Sharers (`/sharers`)
+Pool of Facebook URLs (profiles, pages, groups) the automation bot uses for engagement actions (sharer/visit/like pools). Each Sharer doc has:
+- `url` — Facebook URL, **unique** (duplicates return 409). Must be `http(s)`.
+- `country` — required 2-letter uppercase code (`US`, `IT`, ...) — the primary grouping key.
+- `type` — `profile` (default) | `page` | `group` | `unknown`.
+- `status` — `active` (default) | `inactive` | `dead`.
+- `label`, `notes`, `tags[]`, `lastUsedAt`, `createdAt`, `updatedAt`.
+- Source: `server/src/models/Sharer.js`, `server/src/routes/sharers.js`.
+
+**API: `/api/sharers`**
+- `GET /` — list. Query params: `country` (2-letter), `type`, `status`, `limit` (≤500), `skip`.
+- `GET /by-country/:country` — bot-friendly fetch by country code. Returns `{ country, count, urls: ["...", ...] }`. Optional `?status=active`, `?type=profile`, and `?full=true` (returns `sharers: [<full doc>, ...]` instead of just `urls`).
+- `POST /` — create one `{ url, country, type?, status?, label?, notes?, tags? }`.
+- `POST /bulk` — create many `{ entries: [url, ...], country, type?, status?, tags? }`. Invalid/duplicate URLs are reported in `invalid[]`, not fatal.
+- `GET /:id`, `PATCH /:id`, `DELETE /:id`.
+
+**Page (`/sharers`):** lists all sharers grouped into one table per country, with search, country filter, add modal, and per-row delete. Add/Delete gated by `canWrite` (admin/maker); guests see a guard modal.
+
 ## Project Structure
 
 ```

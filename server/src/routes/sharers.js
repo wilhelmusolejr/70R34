@@ -94,6 +94,59 @@ router.get("/", async (req, res, next) => {
   }
 });
 
+router.get("/by-country/:country", async (req, res, next) => {
+  try {
+    const country = normalizeCountry(req.params.country);
+    if (!country) {
+      return res
+        .status(400)
+        .json({ message: "country must be a 2-letter code (e.g. US, IT)" });
+    }
+
+    const filter = { country };
+
+    const statusInput = String(req.query.status || "").trim();
+    if (statusInput) {
+      if (!SHARER_STATUSES.includes(statusInput)) {
+        return res.status(400).json({
+          message: `status must be one of: ${SHARER_STATUSES.join(", ")}`,
+        });
+      }
+      filter.status = statusInput;
+    }
+
+    const typeInput = String(req.query.type || "").trim();
+    if (typeInput) {
+      if (!SHARER_TYPES.includes(typeInput)) {
+        return res.status(400).json({
+          message: `type must be one of: ${SHARER_TYPES.join(", ")}`,
+        });
+      }
+      filter.type = typeInput;
+    }
+
+    const sharers = await Sharer.find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (String(req.query.full || "").trim() === "true") {
+      return res.json({
+        country,
+        count: sharers.length,
+        sharers: sharers.map(formatSharer),
+      });
+    }
+
+    res.json({
+      country,
+      count: sharers.length,
+      urls: sharers.map((sharer) => sharer.url),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/", async (req, res, next) => {
   try {
     const url = normalizeUrl(req.body?.url);
