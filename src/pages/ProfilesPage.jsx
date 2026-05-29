@@ -88,6 +88,17 @@ function hasPageUrl(profile) {
 
 const FRIENDS_REQUIREMENT = 30;
 
+const REQUIREMENT_OPTIONS = [
+  { key: "page", label: "Page", check: (p) => hasPageUrl(p) },
+  {
+    key: "friends",
+    label: "Friends",
+    check: (p) => Number(p?.friends || 0) >= FRIENDS_REQUIREMENT,
+  },
+  { key: "setUp", label: "Set Up", check: (p) => !!p.profileSetup },
+  { key: "images", label: "Images", check: (p) => !!p.hasGoodImages },
+];
+
 const TRACKER_FILTER_CYCLE = ["", "done", "pending"];
 const TRACKER_FILTER_LABELS = {
   "": "All Tracker",
@@ -180,9 +191,11 @@ export function ProfilesPage() {
     return defaultStatusFilterFor(currentUser);
   });
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
-  const [sortOrder, setSortOrder] = useState(
-    () => loadStoredFilters()?.sortOrder || "id",
-  );
+  const [requirementsFilter, setRequirementsFilter] = useState(() => {
+    const stored = loadStoredFilters()?.requirementsFilter;
+    return Array.isArray(stored) ? stored : [];
+  });
+  const [isReqFilterOpen, setIsReqFilterOpen] = useState(false);
   const [trackerFilter, setTrackerFilter] = useState(() => {
     const stored = loadStoredFilters()?.trackerFilter;
     return TRACKER_FILTER_CYCLE.includes(stored) ? stored : "";
@@ -215,7 +228,7 @@ export function ProfilesPage() {
         JSON.stringify({
           search,
           statusFilter,
-          sortOrder,
+          requirementsFilter,
           trackerFilter,
           countryFilter,
         }),
@@ -223,7 +236,7 @@ export function ProfilesPage() {
     } catch {
       // ignore quota / unavailable
     }
-  }, [search, statusFilter, sortOrder, trackerFilter, countryFilter]);
+  }, [search, statusFilter, requirementsFilter, trackerFilter, countryFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -373,24 +386,24 @@ export function ProfilesPage() {
     const matchesCountry =
       !countryFilter || (profile.country || "US") === countryFilter;
 
-    return matchesSearch && matchesStatus && matchesTracker && matchesCountry;
+    const matchesRequirements =
+      requirementsFilter.length === 0 ||
+      REQUIREMENT_OPTIONS.every(
+        (opt) => !requirementsFilter.includes(opt.key) || opt.check(profile),
+      );
+
+    return (
+      matchesSearch &&
+      matchesStatus &&
+      matchesTracker &&
+      matchesCountry &&
+      matchesRequirements
+    );
   });
 
-  const sorted = [...filtered].sort((a, b) => {
-    if (sortOrder === "name") {
-      return `${a.firstName} ${a.lastName}`.localeCompare(
-        `${b.firstName} ${b.lastName}`,
-      );
-    }
-    if (sortOrder === "status") return a.status.localeCompare(b.status);
-    if (sortOrder === "unprocessed") {
-      return Number(isProcessedToday(a)) - Number(isProcessedToday(b));
-    }
-    if (sortOrder === "ready") {
-      return Number(b.profileSetup) - Number(a.profileSetup);
-    }
-    return String(a._id || "").localeCompare(String(b._id || ""));
-  });
+  const sorted = [...filtered].sort((a, b) =>
+    String(a._id || "").localeCompare(String(b._id || "")),
+  );
 
   async function copyFilteredIds() {
     const ids = sorted.map((profile) => profile._id);
@@ -849,17 +862,45 @@ export function ProfilesPage() {
               </div>
             )}
           </div>
-          <select
-            className="fsel"
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-          >
-            <option value="id">Sort: ID</option>
-            <option value="name">Sort: Name</option>
-            <option value="status">Sort: Status</option>
-            <option value="unprocessed">Unprocessed First</option>
-            <option value="ready">Ready First</option>
-          </select>
+          <div className="status-filter-wrap">
+            <button
+              type="button"
+              className={`fsel status-filter-trigger${isReqFilterOpen ? " open" : ""}`}
+              onClick={() => setIsReqFilterOpen((current) => !current)}
+            >
+              <span>Requirements</span>
+              <span className="status-filter-count">
+                {requirementsFilter.length === 0
+                  ? "Any"
+                  : `${requirementsFilter.length} selected`}
+              </span>
+            </button>
+            {isReqFilterOpen && (
+              <div className="status-filter-box">
+                <div className="status-filter-list">
+                  {REQUIREMENT_OPTIONS.map((opt) => {
+                    const isSelected = requirementsFilter.includes(opt.key);
+                    return (
+                      <label key={opt.key} className="status-filter-item">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() =>
+                            setRequirementsFilter((prev) =>
+                              prev.includes(opt.key)
+                                ? prev.filter((k) => k !== opt.key)
+                                : [...prev, opt.key],
+                            )
+                          }
+                        />
+                        <span>{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
           <button
             type="button"
             className="fsel"
@@ -1111,7 +1152,6 @@ export function ProfilesPage() {
                       <td data-label="Requirements">
                         <div className="cklist">
                           {[
-                            { label: "2FA", value: !!profile.has2FA },
                             { label: "Page", value: hasPageUrl(profile) },
                             {
                               label: getFriendsDisplay(profile),
@@ -1119,10 +1159,8 @@ export function ProfilesPage() {
                                 Number(profile?.friends || 0) >=
                                 FRIENDS_REQUIREMENT,
                             },
-                            {
-                              label: `${(profile.posts || []).length} Post${(profile.posts || []).length === 1 ? "" : "s"}`,
-                              value: (profile.posts || []).length >= 1,
-                            },
+                            { label: "Set Up", value: !!profile.profileSetup },
+                            { label: "Images", value: !!profile.hasGoodImages },
                           ].map(({ label, value }) => (
                             <div key={label} className="cki">
                               <div className={`ckbox ${value ? "yes" : "no"}`}>

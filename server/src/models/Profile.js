@@ -152,6 +152,27 @@ const FriendRequestSchema = new Schema(
   { _id: false },
 );
 
+const ONBOARDING_KEYS = [
+  "privacyPublicAt",
+  "profileImageSetAt",
+  "coverImageSetAt",
+  "aboutSetAt",
+  "marketplaceSetAt",
+  "groupJoinedAt",
+  "highlightsSetAt",
+  "publishPostAt",
+  "recoveryEmailSetAt",
+  "lastSharedAt",
+];
+
+const OnboardingSchema = new Schema(
+  ONBOARDING_KEYS.reduce((acc, key) => {
+    acc[key] = { type: Date, default: null };
+    return acc;
+  }, {}),
+  { _id: false },
+);
+
 const PersonalSchema = new Schema(
   {
     relationshipStatus: {
@@ -209,6 +230,7 @@ const ProfileSchema = new Schema(
     friends: { type: Number, default: 0 },
     has2FA: { type: Boolean, default: false },
     hasPage: { type: Boolean, default: false },
+    hasGoodImages: { type: Boolean, default: false },
     profileSetup: { type: Boolean, default: false },
     recoveryEmail: { type: String, default: "" },
     phone: { type: String, default: "" },
@@ -242,6 +264,7 @@ const ProfileSchema = new Schema(
     otherNames: { type: [String], default: [] },
     browsers: { type: [BrowserSchema], default: [] },
     identityPrompt: { type: String, default: "" },
+    onboarding: { type: OnboardingSchema, default: () => ({}) },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -257,5 +280,5 @@ const ProfileSchema = new Schema(
 ProfileSchema.index({ status: 1 });
 ProfileSchema.index({ profileCreated: 1 });
 
-export { PROFILE_STATUSES, RELATIONSHIP_STATUSES, FRIEND_REQUEST_STATUSES, PROFILE_COUNTRIES };
+export { PROFILE_STATUSES, RELATIONSHIP_STATUSES, FRIEND_REQUEST_STATUSES, PROFILE_COUNTRIES, ONBOARDING_KEYS };
 export const Profile = model("Profile", ProfileSchema);

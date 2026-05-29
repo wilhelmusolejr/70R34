@@ -15,6 +15,7 @@ import {
   runProfile,
   unassignProfileImage,
   updateFriendRequestStatus as apiUpdateFriendRequestStatus,
+  updateOnboardingStamp,
   updateProfile,
 } from "../api/profiles";
 import { updateProxy } from "../api/proxies";
@@ -107,10 +108,62 @@ const TODAY = new Date().toLocaleDateString("en-CA", {
   timeZone: "Asia/Manila",
 });
 
+const ONBOARDING_SECTIONS = [
+  {
+    name: "Facebook",
+    items: [
+      { key: "privacyPublicAt", label: "Set Privacy to Public" },
+      { key: "profileImageSetAt", label: "Set Profile Picture" },
+      { key: "coverImageSetAt", label: "Set Cover Picture" },
+      { key: "aboutSetAt", label: "Set About" },
+      { key: "highlightsSetAt", label: "Set Highlights" },
+      { key: "marketplaceSetAt", label: "Set Marketplace" },
+      { key: "groupJoinedAt", label: "Join Group" },
+      { key: "publishPostAt", label: "Publish Post" },
+      { key: "lastSharedAt", label: "Daily Share", isDailyShare: true },
+    ],
+  },
+  {
+    name: "Outlook",
+    items: [{ key: "recoveryEmailSetAt", label: "Set Recovery Email" }],
+  },
+];
+
+const ONBOARDING_ITEMS = ONBOARDING_SECTIONS.flatMap((section) => section.items);
+
+function emptyOnboarding() {
+  return ONBOARDING_ITEMS.reduce((acc, item) => {
+    acc[item.key] = null;
+    return acc;
+  }, {});
+}
+
+function fmtDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function isSharedToday(lastSharedAt) {
+  if (!lastSharedAt) return false;
+  const d = new Date(lastSharedAt);
+  if (Number.isNaN(d.getTime())) return false;
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }) === TODAY;
+}
+
 function score(p) {
-  return [p.has2FA, hasPageUrl(p), p.friends >= 30, p.profileSetup].filter(
-    Boolean,
-  ).length;
+  return [
+    hasPageUrl(p),
+    p.friends >= 30,
+    p.profileSetup,
+    p.hasGoodImages,
+  ].filter(Boolean).length;
 }
 
 function getDefaultProfile() {
@@ -141,6 +194,7 @@ function getDefaultProfile() {
     friends: 0,
     has2FA: false,
     hasPage: false,
+    hasGoodImages: false,
     profileSetup: false,
     phone: "",
     recoveryEmail: "",
@@ -154,6 +208,7 @@ function getDefaultProfile() {
     trackerLog: [],
     avatarUrl: "",
     coverPhotoUrl: "",
+    onboarding: emptyOnboarding(),
     personal: {
       relationshipStatus: "",
       relationshipStatusSince: "",
@@ -264,6 +319,10 @@ function normalizeProfile(raw) {
     proxies: raw?.proxies || [],
     proxyLog: raw?.proxyLog || [],
     friendRequests: raw?.friendRequests || [],
+    onboarding: {
+      ...emptyOnboarding(),
+      ...(raw?.onboarding || {}),
+    },
   };
 }
 
@@ -1743,6 +1802,22 @@ export function ProfileDetailPage() {
     }
   }
 
+  async function handleSetOnboarding(key, nextValue) {
+    if (!profile?._id || !canPersist) return;
+    const previous = profile;
+    setProfile((prev) => ({
+      ...prev,
+      onboarding: { ...(prev?.onboarding || emptyOnboarding()), [key]: nextValue },
+    }));
+    try {
+      const updated = await updateOnboardingStamp(profile._id, key, nextValue);
+      setProfile(normalizeProfile(updated));
+    } catch (err) {
+      setProfile(previous);
+      setError(err.message || "Failed to update checklist.");
+    }
+  }
+
   if (loading) {
     return (
       <div className="page">
@@ -1970,19 +2045,6 @@ export function ProfileDetailPage() {
               </div>
               <div className="hero-req-list">
                 <label
-                  className={`req-item req-compact ${profile.has2FA ? "ryes" : "rno"}`}
-                >
-                  <div className="req-icon">
-                    <input
-                      type="checkbox"
-                      checked={!!profile.has2FA}
-                      onChange={(e) => upTopLevel("has2FA", e.target.checked)}
-                      disabled={!writeable}
-                    />
-                  </div>
-                  <span className="req-name">2FA Enabled</span>
-                </label>
-                <label
                   className={`req-item req-compact ${hasPageUrl(profile) ? "ryes" : "rno"}`}
                 >
                   <div className="req-icon">
@@ -2030,6 +2092,21 @@ export function ProfileDetailPage() {
                     />
                   </div>
                   <span className="req-name">Profile Set Up</span>
+                </label>
+                <label
+                  className={`req-item req-compact ${profile.hasGoodImages ? "ryes" : "rno"}`}
+                >
+                  <div className="req-icon">
+                    <input
+                      type="checkbox"
+                      checked={!!profile.hasGoodImages}
+                      onChange={(e) =>
+                        upTopLevel("hasGoodImages", e.target.checked)
+                      }
+                      disabled={!writeable}
+                    />
+                  </div>
+                  <span className="req-name">Good Images</span>
                 </label>
               </div>
             </div>
@@ -2513,6 +2590,124 @@ export function ProfileDetailPage() {
             )}
           </SectionCard>
           )}
+
+          <SectionCard title="Onboarding Checklist">
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "14px",
+                padding: "4px 2px",
+              }}
+            >
+              {ONBOARDING_SECTIONS.map((section) => (
+                <div
+                  key={section.name}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      color: "var(--text3)",
+                      paddingBottom: "2px",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    {section.name}
+                  </div>
+                  {section.items.map((item) => {
+                    const at = profile.onboarding?.[item.key] || null;
+                    const done = !!at;
+                    const isShare = !!item.isDailyShare;
+                    const showSharedTodayBadge = isShare && isSharedToday(at);
+                    return (
+                      <div
+                        key={item.key}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          padding: "6px 8px",
+                          border: "1px solid var(--border)",
+                          borderRadius: "6px",
+                          background: done ? "var(--surface2)" : "transparent",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            minWidth: 0,
+                          }}
+                        >
+                          <span
+                            aria-hidden="true"
+                            style={{
+                              width: "10px",
+                              height: "10px",
+                              borderRadius: "50%",
+                              background: done ? "var(--green)" : "var(--text3)",
+                              flex: "0 0 auto",
+                            }}
+                          />
+                          <span style={{ fontSize: "13px" }}>{item.label}</span>
+                          {showSharedTodayBadge && (
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                padding: "1px 6px",
+                                borderRadius: "999px",
+                                background: "var(--green)",
+                                color: "white",
+                              }}
+                            >
+                              Shared today
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            flex: "0 0 auto",
+                          }}
+                        >
+                          <span style={{ fontSize: "12px", color: "var(--text3)" }}>
+                            {done ? fmtDateTime(at) : "Not yet"}
+                          </span>
+                          {canPersist && (
+                            <button
+                              type="button"
+                              className="btn-s"
+                              onClick={() =>
+                                handleSetOnboarding(
+                                  item.key,
+                                  done ? null : new Date().toISOString(),
+                                )
+                              }
+                              style={{ fontSize: "12px" }}
+                            >
+                              {done ? "Reset" : "Mark done"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </SectionCard>
 
           <SectionCard title="Notes">
             <EditableText

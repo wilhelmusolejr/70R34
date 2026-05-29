@@ -12,6 +12,7 @@ import {
   Profile,
   PROFILE_STATUSES,
   FRIEND_REQUEST_STATUSES,
+  ONBOARDING_KEYS,
 } from "../models/Profile.js";
 import { User } from "../models/User.js";
 import "../models/Page.js";
@@ -699,6 +700,47 @@ router.patch("/:id", async (req, res, next) => {
     );
 
     if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    const populatedProfile = await getPopulatedProfileQuery(id).lean();
+    res.json(formatProfile(populatedProfile));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Atomic stamp/clear for a single onboarding key — avoids replacing the whole
+// subdoc on partial PATCHes.
+router.patch("/:id/onboarding/:key", async (req, res, next) => {
+  try {
+    const { id, key } = req.params;
+    if (!isValidId(id)) {
+      return res.status(400).json({ message: "Invalid profile id" });
+    }
+    if (!ONBOARDING_KEYS.includes(key)) {
+      return res.status(400).json({
+        message: `Unknown onboarding key. Must be one of: ${ONBOARDING_KEYS.join(", ")}`,
+      });
+    }
+
+    const rawValue = req.body?.value;
+    let value;
+    if (rawValue === null || rawValue === undefined || rawValue === "") {
+      value = null;
+    } else {
+      const parsed = new Date(rawValue);
+      if (Number.isNaN(parsed.getTime())) {
+        return res.status(400).json({ message: "Invalid timestamp value" });
+      }
+      value = parsed;
+    }
+
+    const result = await Profile.updateOne(
+      { _id: id },
+      { $set: { [`onboarding.${key}`]: value } },
+    );
+    if (!result.matchedCount) {
       return res.status(404).json({ message: "Profile not found" });
     }
 

@@ -68,6 +68,14 @@ export function runProfile(id) {
   });
 }
 
+// Stamp (Date | now) or clear (null) a single onboarding checklist key.
+export function updateOnboardingStamp(id, key, value) {
+  return apiFetch(`/api/profiles/${id}/onboarding/${key}`, {
+    method: "PATCH",
+    body: JSON.stringify({ value }),
+  });
+}
+
 export function createProfile(payload, userId) {
   return apiFetch("/api/profiles", {
     method: "POST",
