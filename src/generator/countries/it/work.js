@@ -14,8 +14,9 @@ export const INDUSTRIES = {
   },
   food_service: {
     companies: [
-      "Eataly", "Autogrill", "Old Wild West", "Vapiano Italia", "Roadhouse Restaurant",
-      "McDonald's Italia", "Burger King Italia", "Spizzico", "Wagamama Italia", "La Piadineria",
+      "Eataly", "Autogrill", "Old Wild West", "Rossopomodoro", "Roadhouse Restaurant",
+      "McDonald's Italia", "Burger King Italia", "Spizzico", "Alice Pizza", "La Piadineria",
+      "Signorvino", "Fratelli La Bufala", "Antico Forno Roscioli", "Venchi", "Grom",
     ],
     titles: [
       "Barista", "Cameriere", "Cuoco", "Aiuto Cuoco", "Pizzaiolo",
@@ -41,6 +42,7 @@ export const INDUSTRIES = {
       "TIM", "Vodafone Italia", "Olivetti", "Engineering Ingegneria Informatica",
       "Reply", "Accenture Italia", "Microsoft Italia",
       "Sky Italia", "Almaviva", "Nexi",
+      "Leonardo", "Fastweb", "Iliad Italia", "WindTre", "Lutech",
     ],
     titles: [
       "Sviluppatore Software", "Consulente IT", "Sistemista",
@@ -63,9 +65,10 @@ export const INDUSTRIES = {
   },
   logistics: {
     companies: [
-      "BRT - Bartolini", "GLS Italia", "SDA Express", "TNT Italia",
+      "BRT - Bartolini", "GLS Italia", "SDA Express", "Mercitalia Rail",
       "Poste Italiane", "Geodis Italia", "Maersk Italia",
-      "Trenitalia Cargo", "DHL Italia", "FedEx Italia",
+      "Arcese", "DHL Italia", "FedEx Italia",
+      "FERCAM", "Number 1 Logistics Group", "Gruppo Bertani Trasporti",
     ],
     titles: [
       "Autista", "Magazziniere", "Carrellista", "Coordinatore Logistico",
@@ -89,9 +92,10 @@ export const INDUSTRIES = {
   },
   real_estate: {
     companies: [
-      "Tecnocasa", "Gabetti", "Immobiliare.it", "Idealista",
-      "Engel & Völkers Italia", "Pirelli RE", "Coldwell Banker Italia",
+      "Tecnocasa", "Gabetti", "Immobiliare.it", "Idealista Italia",
+      "Engel & Völkers Italia", "Prelios", "Coldwell Banker Italia",
       "RE/MAX Italia", "Casavo", "Grimaldi Immobiliare",
+      "Solo Affitti", "Frimm", "Toscano Immobiliare",
     ],
     titles: [
       "Agente Immobiliare", "Property Manager", "Consulente Immobiliare",
@@ -115,9 +119,10 @@ export const INDUSTRIES = {
   },
   construction: {
     companies: [
-      "Webuild (Salini Impregilo)", "Astaldi", "Pizzarotti", "CMC Ravenna",
+      "Webuild", "Cimolai", "Pizzarotti", "CMC Ravenna",
       "Trevi Group", "Maire Tecnimont", "Italferr",
       "Rizzani de Eccher", "Saipem", "Bonatti",
+      "Ghella", "Vianini Lavori", "Fincantieri Infrastructure",
     ],
     titles: [
       "Operaio Edile", "Project Manager", "Capocantiere",

@@ -25,7 +25,7 @@ export const FEMALE_FIRST_NAMES = [
 ];
 
 export const LAST_NAMES = [
-  "Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci", "Marino", "Greco",
+  "Rossi", "Russo", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci", "Marino", "Greco",
   "Bruno", "Gallo", "Conti", "De Luca", "Mancini", "Costa", "Giordano", "Rizzo", "Lombardi", "Moretti",
   "Barbieri", "Fontana", "Santoro", "Mariani", "Rinaldi", "Caruso", "Ferrara", "Galli", "Martini", "Leone",
   "Longo", "Gentile", "Martinelli", "Vitale", "Lombardo", "Serra", "Coppola", "De Santis", "D'Angelo", "Marchetti",
