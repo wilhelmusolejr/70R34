@@ -26,6 +26,7 @@ generated-images-openai/
 *.xls
 *.xlsx
 ready-profiles*.xls
+ready-profiles*.csv
 friendRequest.json
 profile_data.json
 tmp_*
