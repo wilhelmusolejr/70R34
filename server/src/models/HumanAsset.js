@@ -2,22 +2,16 @@ import mongoose from "mongoose";
 
 const { Schema, model } = mongoose;
 
+const HUMAN_ASSET_COUNTRIES = ["US", "IT"];
+
 const HumanAssetSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
-    numberPossibleProfile: { type: Number, default: 0, min: 0 },
-    numberProfileUsing: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Profile",
-      },
-    ],
-    images: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Image",
-      },
-    ],
+    country: {
+      type: String,
+      enum: HUMAN_ASSET_COUNTRIES,
+      default: "US",
+    },
   },
   {
     timestamps: true,
@@ -26,5 +20,7 @@ const HumanAssetSchema = new Schema(
 );
 
 HumanAssetSchema.index({ name: 1 });
+HumanAssetSchema.index({ country: 1 });
 
+export { HUMAN_ASSET_COUNTRIES };
 export const HumanAsset = model("HumanAsset", HumanAssetSchema);
