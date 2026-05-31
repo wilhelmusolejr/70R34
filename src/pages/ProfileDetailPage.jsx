@@ -1,7 +1,7 @@
 ﻿import { useEffect, useId, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { updateAssignmentStatus } from "../api/auth";
-import { fetchHumanAssets } from "../api/humanAssets";
+import { fetchHumanAssets, updateHumanAssetImage } from "../api/humanAssets";
 import { fetchPages, updatePage } from "../api/pages";
 import { getProfileImagesDownloadUrl } from "../api/profileDownloads";
 import { getPostImagesDownloadUrl } from "../api/postDownloads";
@@ -1126,6 +1126,17 @@ export function ProfileDetailPage() {
   const [submitError, setSubmitError] = useState("");
   const [submittingProfile, setSubmittingProfile] = useState(false);
   const [removingImageId, setRemovingImageId] = useState("");
+  const [imageEditModal, setImageEditModal] = useState(null);
+  const [imageEditForm, setImageEditForm] = useState({
+    altText: "",
+    originalCaption: "",
+    tags: [],
+    imageTags: [],
+    postCaption: "",
+  });
+  const [imageTagDraft, setImageTagDraft] = useState("");
+  const [savingImageEdit, setSavingImageEdit] = useState(false);
+  const [imageEditError, setImageEditError] = useState("");
   const [pages, setPages] = useState([]);
   const [imageIdToAssetId, setImageIdToAssetId] = useState({});
   const [pageDatasetInput, setPageDatasetInput] = useState("");
@@ -1305,6 +1316,135 @@ export function ProfileDetailPage() {
     }
   }
 
+  function openImageEditModal(
+    image,
+    humanAssetId,
+    assignmentPostCaption = "",
+    assignmentTags = [],
+  ) {
+    if (!image) return;
+    setImageEditModal({
+      humanAssetId: humanAssetId || image.humanAssetId || "",
+      imageId: image._id || image.id || "",
+      filename: image.filename || "",
+    });
+    setImageEditForm({
+      altText: image.altText || "",
+      originalCaption: image.originalCaption || "",
+      tags: Array.isArray(assignmentTags) ? [...assignmentTags] : [],
+      imageTags: Array.isArray(image.tags) ? [...image.tags] : [],
+      postCaption: assignmentPostCaption || "",
+    });
+    setImageTagDraft("");
+    setImageEditError("");
+  }
+
+  function closeImageEditModal() {
+    setImageEditModal(null);
+    setImageTagDraft("");
+    setImageEditError("");
+  }
+
+  function addImageTag(rawTag) {
+    const value = String(rawTag || "").trim();
+    if (!value) return;
+    setImageEditForm((current) => {
+      const exists = current.tags.some(
+        (tag) => tag.toLowerCase() === value.toLowerCase(),
+      );
+      return exists ? current : { ...current, tags: [...current.tags, value] };
+    });
+    setImageTagDraft("");
+  }
+
+  function removeImageTag(tagToRemove) {
+    setImageEditForm((current) => ({
+      ...current,
+      tags: current.tags.filter((tag) => tag !== tagToRemove),
+    }));
+  }
+
+  function handleImageTagInputKeyDown(event) {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      addImageTag(imageTagDraft);
+    } else if (
+      event.key === "Backspace" &&
+      !imageTagDraft &&
+      imageEditForm.tags.length
+    ) {
+      removeImageTag(imageEditForm.tags[imageEditForm.tags.length - 1]);
+    }
+  }
+
+  async function handleSaveImageEdit(event) {
+    event?.preventDefault?.();
+    if (!imageEditModal?.humanAssetId || !imageEditModal?.imageId) {
+      setImageEditError(
+        "This image isn't linked to a human asset, so it can't be edited from here.",
+      );
+      return;
+    }
+    try {
+      setSavingImageEdit(true);
+      setImageEditError("");
+      // If user typed a tag but didn't press Enter, include it.
+      const trailing = imageTagDraft.trim();
+      const tags = trailing
+        ? [...imageEditForm.tags, trailing].filter(
+            (tag, index, arr) =>
+              arr.findIndex((t) => t.toLowerCase() === tag.toLowerCase()) ===
+              index,
+          )
+        : imageEditForm.tags;
+      await updateHumanAssetImage(
+        imageEditModal.humanAssetId,
+        imageEditModal.imageId,
+        {
+          altText: imageEditForm.altText,
+          originalCaption: imageEditForm.originalCaption,
+        },
+      );
+      const targetImageId = String(imageEditModal.imageId);
+      const nextCaption = imageEditForm.postCaption || "";
+      const currentImages = Array.isArray(profile?.images) ? profile.images : [];
+      const currentEntry = currentImages.find((entry) => {
+        const entryId = String(
+          (entry?.imageId && (entry.imageId._id || entry.imageId.id)) ||
+            entry?.imageId ||
+            "",
+        );
+        return entryId === targetImageId;
+      });
+      const previousCaption = currentEntry?.postCaption || "";
+      const previousTags = Array.isArray(currentEntry?.tags)
+        ? currentEntry.tags
+        : [];
+      const tagsChanged =
+        tags.length !== previousTags.length ||
+        tags.some((tag, index) => tag !== previousTags[index]);
+      if (nextCaption !== previousCaption || tagsChanged) {
+        const nextImages = currentImages.map((entry) => {
+          const entryId = String(
+            (entry?.imageId && (entry.imageId._id || entry.imageId.id)) ||
+              entry?.imageId ||
+              "",
+          );
+          return entryId === targetImageId
+            ? { ...entry, postCaption: nextCaption, tags }
+            : entry;
+        });
+        await updateProfile(id, serializeProfile({ ...profile, images: nextImages }));
+      }
+      const nextProfile = await fetchProfile(id);
+      setProfile(normalizeProfile(nextProfile));
+      closeImageEditModal();
+    } catch (err) {
+      setImageEditError(err.message || "Failed to save image changes.");
+    } finally {
+      setSavingImageEdit(false);
+    }
+  }
 
   async function refreshProfileAndPages() {
     const [nextProfile, nextPages] = await Promise.all([
@@ -1839,7 +1979,7 @@ export function ProfileDetailPage() {
           <button
             className="btn-p"
             style={{ marginTop: "12px" }}
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/profiles")}
           >
             Back to Profiles
           </button>
@@ -1870,7 +2010,7 @@ export function ProfileDetailPage() {
           profile.linkedPage?.updatedAt ||
           profile.linkedPage?.createdAt ||
           null,
-        imageType: image.type || "post",
+        imageType: (image.tags && image.tags[0]) || "post",
         source: "page",
         pageName: profile.linkedPage?.pageName || "",
         pageLink: profile.linkedPage?.id
@@ -1883,7 +2023,10 @@ export function ProfileDetailPage() {
     ...(profile.images || []).map((entry) => ({
       ...entry,
       image: entry.imageId,
-      imageType: entry.imageId?.type || "other",
+      imageType:
+        (entry.tags && entry.tags[0]) ||
+        (entry.imageId?.tags && entry.imageId.tags[0]) ||
+        "other",
       source: "human-asset",
       pageName: profile.linkedPage?.pageName || "",
       pageLink: profile.linkedPage?.id ? `/pages/${profile.linkedPage.id}` : "",
@@ -1930,7 +2073,7 @@ export function ProfileDetailPage() {
 
   return (
     <div className="page">
-      <button className="back-btn" onClick={() => navigate("/")}>
+      <button className="back-btn" onClick={() => navigate("/profiles")}>
         <svg viewBox="0 0 24 24">
           <polyline points="15 18 9 12 15 6" />
         </svg>
@@ -3216,7 +3359,7 @@ export function ProfileDetailPage() {
                                   <div className="profile-image-meta">
                                     <div className="profile-image-name">
                                       {(typeof image === "object" &&
-                                        (image.annotation ||
+                                        (image.altText ||
                                           (filename || "")
                                             .split("/")
                                             .pop())) ||
@@ -3409,13 +3552,37 @@ export function ProfileDetailPage() {
                                   key={`${entry.image?._id || index}`}
                                   className="profile-image-tile"
                                 >
-                                  <div className="profile-image-frame">
+                                  <button
+                                    type="button"
+                                    className="profile-image-frame"
+                                    onClick={() =>
+                                      openImageEditModal(
+                                        entry.image,
+                                        entry.humanAssetId ||
+                                          imageIdToAssetId[
+                                            String(entry.image?._id || "")
+                                          ] ||
+                                          "",
+                                        entry.postCaption || "",
+                                        Array.isArray(entry.tags)
+                                          ? entry.tags
+                                          : [],
+                                      )
+                                    }
+                                    style={{
+                                      padding: 0,
+                                      border: "none",
+                                      background: "transparent",
+                                      cursor: "pointer",
+                                    }}
+                                    aria-label="View and edit image"
+                                  >
                                     <SafeImage
                                       src={entry.image.filename}
                                       alt={`${profile.firstName} ${profile.lastName} ${index + 1}`}
                                       className="profile-image-img"
                                     />
-                                  </div>
+                                  </button>
                                   <div className="profile-image-meta">
                                     <div className="profile-image-meta-top">
                                       <span
@@ -3759,6 +3926,309 @@ export function ProfileDetailPage() {
                   </div>
                 </div>
               </fieldset>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {imageEditModal && (
+        <div
+          className="npm-backdrop"
+          onClick={savingImageEdit ? undefined : closeImageEditModal}
+        >
+          <div
+            className="npm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="npm-header">
+              <div>
+                <div className="npm-kicker">Image</div>
+                <h2 className="npm-title">View &amp; Edit Image</h2>
+              </div>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={closeImageEditModal}
+                disabled={savingImageEdit}
+              >
+                x
+              </button>
+            </div>
+            <form
+              className="npm-body npm-form"
+              onSubmit={handleSaveImageEdit}
+              aria-busy={savingImageEdit}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                  gap: 16,
+                }}
+              >
+                <div
+                  style={{
+                    background: "var(--bg2)",
+                    borderRadius: 8,
+                    overflow: "hidden",
+                    minHeight: 240,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <SafeImage
+                    src={imageEditModal.filename}
+                    alt={imageEditForm.altText || "Image preview"}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      maxHeight: 380,
+                      objectFit: "contain",
+                    }}
+                  />
+                </div>
+                <fieldset
+                  className="npm-form-fieldset"
+                  disabled={savingImageEdit || !imageEditModal.humanAssetId}
+                  style={{ border: "none", padding: 0, margin: 0 }}
+                >
+                  <label className="npm-field">
+                    <span className="npm-label">Alt Text</span>
+                    <input
+                      className="npm-input"
+                      value={imageEditForm.altText}
+                      onChange={(e) =>
+                        setImageEditForm((current) => ({
+                          ...current,
+                          altText: e.target.value,
+                        }))
+                      }
+                      placeholder="Describe what's in the image"
+                    />
+                  </label>
+                  <label className="npm-field">
+                    <span className="npm-label">Original Caption</span>
+                    <textarea
+                      className="npm-input npm-textarea"
+                      value={imageEditForm.originalCaption}
+                      onChange={(e) =>
+                        setImageEditForm((current) => ({
+                          ...current,
+                          originalCaption: e.target.value,
+                        }))
+                      }
+                      placeholder="Caption from the source it was downloaded from"
+                      rows={3}
+                    />
+                  </label>
+                  <label className="npm-field">
+                    <span className="npm-label">
+                      Post Caption{" "}
+                      <span style={{ color: "var(--text2)", fontWeight: 400 }}>
+                        (used when this profile posts the image on Facebook)
+                      </span>
+                    </span>
+                    <textarea
+                      className="npm-input npm-textarea"
+                      value={imageEditForm.postCaption}
+                      onChange={(e) =>
+                        setImageEditForm((current) => ({
+                          ...current,
+                          postCaption: e.target.value,
+                        }))
+                      }
+                      placeholder="Caption this profile will use for the Facebook post"
+                      rows={3}
+                    />
+                  </label>
+                  <div className="npm-field">
+                    <span className="npm-label">
+                      Image Tags{" "}
+                      <span style={{ color: "var(--text2)", fontWeight: 400 }}>
+                        (read-only — from the image itself)
+                      </span>
+                    </span>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: 6,
+                        border: "1px dashed var(--border)",
+                        borderRadius: 10,
+                        background: "var(--surface2, var(--bg2))",
+                        color: "var(--text2)",
+                        minHeight: 36,
+                      }}
+                    >
+                      {imageEditForm.imageTags.length ? (
+                        imageEditForm.imageTags.map((tag) => (
+                          <span
+                            key={`image-tag-${tag}`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "3px 8px",
+                              background: "var(--surface)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 999,
+                              fontSize: 12,
+                              color: "var(--text2)",
+                            }}
+                          >
+                            {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ fontSize: 12, color: "var(--text2)" }}>
+                          No tags on the image.
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 4,
+                        fontSize: 11,
+                        color: "var(--text2)",
+                      }}
+                    >
+                      Edit these from the image asset page if needed.
+                    </div>
+                  </div>
+                  <div className="npm-field">
+                    <span className="npm-label">
+                      Profile Tags{" "}
+                      <span style={{ color: "var(--text2)", fontWeight: 400 }}>
+                        (saved on this profile&apos;s assignment)
+                      </span>
+                    </span>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: 6,
+                        border: "1px solid var(--border)",
+                        borderRadius: 10,
+                        background: "var(--surface)",
+                        color: "var(--text)",
+                        minHeight: 36,
+                      }}
+                    >
+                      {imageEditForm.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            padding: "3px 8px",
+                            background: "var(--surface2)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 999,
+                            fontSize: 12,
+                            color: "var(--text)",
+                          }}
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => removeImageTag(tag)}
+                            disabled={savingImageEdit}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              cursor: "pointer",
+                              padding: 0,
+                              fontSize: 14,
+                              lineHeight: 1,
+                              color: "var(--text2)",
+                            }}
+                            aria-label={`Remove tag ${tag}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        list="profile-image-tag-suggestions"
+                        value={imageTagDraft}
+                        onChange={(e) => setImageTagDraft(e.target.value)}
+                        onKeyDown={handleImageTagInputKeyDown}
+                        onBlur={() => addImageTag(imageTagDraft)}
+                        placeholder={
+                          imageEditForm.tags.length
+                            ? "Add another..."
+                            : "profile, cover, post, or anything"
+                        }
+                        style={{
+                          flex: 1,
+                          minWidth: 120,
+                          border: "none",
+                          outline: "none",
+                          background: "transparent",
+                          fontSize: 13,
+                          fontFamily: "var(--font)",
+                          padding: "2px 4px",
+                          color: "var(--text)",
+                        }}
+                      />
+                      <datalist id="profile-image-tag-suggestions">
+                        <option value="profile" />
+                        <option value="cover" />
+                        <option value="post" />
+                      </datalist>
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 4,
+                        fontSize: 11,
+                        color: "var(--text2)",
+                      }}
+                    >
+                      Press Enter or comma to add. Click × to remove.
+                    </div>
+                  </div>
+                  {!imageEditModal.humanAssetId && (
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      This image isn't owned by a human asset, so editing is
+                      disabled here. Edit it from the Page that owns it.
+                    </div>
+                  )}
+                  {imageEditError && (
+                    <div
+                      style={{ color: "var(--red, #e55)", fontSize: 12 }}
+                    >
+                      {imageEditError}
+                    </div>
+                  )}
+                </fieldset>
+              </div>
+              <div className="npm-footer">
+                <button
+                  type="button"
+                  className="btn-s"
+                  onClick={closeImageEditModal}
+                  disabled={savingImageEdit}
+                >
+                  Cancel
+                </button>
+                <div className="npm-footer-actions">
+                  <button
+                    type="submit"
+                    className="btn-p"
+                    disabled={
+                      savingImageEdit || !imageEditModal.humanAssetId
+                    }
+                  >
+                    {savingImageEdit ? "Saving..." : "Save changes"}
+                  </button>
+                </div>
+              </div>
             </form>
           </div>
         </div>
