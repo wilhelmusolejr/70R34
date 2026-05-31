@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { assignImageToProfile } from "../api/imageAssignments";
 import { getHumanAssetImagesDownloadUrl } from "../api/imageDownloads";
-import { fetchHumanAsset } from "../api/humanAssets";
+import { fetchHumanAsset, updateHumanAssetImage } from "../api/humanAssets";
 import { createImageAnnotation } from "../api/imageAnnotations";
 import {
   addImagesToHumanAsset,
@@ -71,8 +71,10 @@ function getAnnotationColor(label) {
 function getImageTags(image) {
   const tags = [];
 
-  if (image?.type) {
-    tags.push(String(image.type));
+  if (Array.isArray(image?.tags)) {
+    for (const tag of image.tags) {
+      if (tag) tags.push(String(tag));
+    }
   }
   if (image?.sourceType) {
     tags.push(String(image.sourceType));
@@ -111,7 +113,6 @@ export function ImageAssetDetailPage() {
   const [pendingAnnotation, setPendingAnnotation] = useState(null);
   const [selectedProfileName, setSelectedProfileName] = useState("");
   const [assignProfileName, setAssignProfileName] = useState("");
-  const [showAssignImageForm, setShowAssignImageForm] = useState(false);
   const [draftBox, setDraftBox] = useState(null);
   const [saveError, setSaveError] = useState("");
   const [isSavingAnnotation, setIsSavingAnnotation] = useState(false);
@@ -127,6 +128,21 @@ export function ImageAssetDetailPage() {
   const [guardMessage, setGuardMessage] = useState("");
   const [showProfileAssignmentList, setShowProfileAssignmentList] =
     useState(false);
+  const [imageModalTab, setImageModalTab] = useState("assign");
+  const [addImageTab, setAddImageTab] = useState("image");
+  const [showAssignImageForm, setShowAssignImageForm] = useState(false);
+  const [imageEditForm, setImageEditForm] = useState({
+    altText: "",
+    originalCaption: "",
+    tags: [],
+    sourceType: "scraped",
+    aiGenerated: false,
+    generationModel: "",
+  });
+  const [imageTagDraft, setImageTagDraft] = useState("");
+  const [savingImageEdit, setSavingImageEdit] = useState(false);
+  const [imageEditError, setImageEditError] = useState("");
+  const [imageEditSavedAt, setImageEditSavedAt] = useState(0);
   const [addImagesForm, setAddImagesForm] = useState({
     imageAnnotation: "",
     imageSourceType: "scraped",
@@ -211,7 +227,90 @@ export function ImageAssetDetailPage() {
     setShowAssignImageForm(false);
     setSaveError("");
     setAssignError("");
+    setImageModalTab("assign");
+    setImageEditForm({
+      altText: selectedImage?.altText || "",
+      originalCaption: selectedImage?.originalCaption || "",
+      tags: Array.isArray(selectedImage?.tags) ? [...selectedImage.tags] : [],
+      sourceType: selectedImage?.sourceType || "scraped",
+      aiGenerated: Boolean(selectedImage?.aiGenerated),
+      generationModel: selectedImage?.generationModel || "",
+    });
+    setImageTagDraft("");
+    setImageEditError("");
+    setImageEditSavedAt(0);
   }, [selectedImage]);
+
+  function addImageEditTag(rawTag) {
+    const value = String(rawTag || "").trim();
+    if (!value) return;
+    setImageEditForm((current) => {
+      const exists = current.tags.some(
+        (tag) => tag.toLowerCase() === value.toLowerCase(),
+      );
+      return exists ? current : { ...current, tags: [...current.tags, value] };
+    });
+    setImageTagDraft("");
+  }
+
+  function removeImageEditTag(tagToRemove) {
+    setImageEditForm((current) => ({
+      ...current,
+      tags: current.tags.filter((tag) => tag !== tagToRemove),
+    }));
+  }
+
+  function handleImageEditTagKeyDown(event) {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      addImageEditTag(imageTagDraft);
+    } else if (
+      event.key === "Backspace" &&
+      !imageTagDraft &&
+      imageEditForm.tags.length
+    ) {
+      removeImageEditTag(imageEditForm.tags[imageEditForm.tags.length - 1]);
+    }
+  }
+
+  async function handleSaveImageEdit(event) {
+    event?.preventDefault?.();
+    if (!ensureAdminAccess()) return;
+    if (!asset?.id || !selectedImage?._id) {
+      setImageEditError("No image selected.");
+      return;
+    }
+    try {
+      setSavingImageEdit(true);
+      setImageEditError("");
+      const trailing = imageTagDraft.trim();
+      const tags = trailing
+        ? [...imageEditForm.tags, trailing].filter(
+            (tag, index, arr) =>
+              arr.findIndex((t) => t.toLowerCase() === tag.toLowerCase()) ===
+              index,
+          )
+        : imageEditForm.tags;
+      await updateHumanAssetImage(asset.id, selectedImage._id, {
+        altText: imageEditForm.altText,
+        originalCaption: imageEditForm.originalCaption,
+        tags,
+        sourceType: imageEditForm.sourceType,
+        aiGenerated: imageEditForm.aiGenerated,
+        generationModel: imageEditForm.generationModel,
+      });
+      const nextAsset = await fetchHumanAsset(id);
+      setAsset(nextAsset);
+      const nextImage =
+        nextAsset?.images?.find((img) => img._id === selectedImage._id) || null;
+      setSelectedImage(nextImage);
+      setImageEditSavedAt(Date.now());
+    } catch (err) {
+      setImageEditError(err.message || "Failed to save image changes.");
+    } finally {
+      setSavingImageEdit(false);
+    }
+  }
 
   useEffect(
     () => () => {
@@ -236,6 +335,7 @@ export function ImageAssetDetailPage() {
     });
     setShowProfileAssignmentList(false);
     setAddImagesError("");
+    setAddImageTab("image");
   }
 
   function ensureAdminAccess() {
@@ -528,7 +628,6 @@ export function ImageAssetDetailPage() {
           null,
       );
       setAssignProfileName("");
-      setShowAssignImageForm(false);
     } catch (error) {
       setAssignError(error.message || "Failed to assign image.");
     } finally {
@@ -612,8 +711,8 @@ export function ImageAssetDetailPage() {
             <div className="image-asset-value">{asset.images.length}</div>
           </div>
           <div className="sc">
-            <div className="slabel">Possible Profile</div>
-            <div className="image-asset-value">{asset.possibleProfiles}</div>
+            <div className="slabel">Country</div>
+            <div className="image-asset-value">{asset.country || "US"}</div>
           </div>
           <div className="sc">
             <div className="slabel">Profiles Using</div>
@@ -774,9 +873,9 @@ export function ImageAssetDetailPage() {
                   </button>
                   <div
                     className="image-asset-caption"
-                    title={image.annotation || `Image ${index + 1}`}
+                    title={image.altText || `Image ${index + 1}`}
                   >
-                    {image.annotation || `Image ${index + 1}`}
+                    {image.altText || `Image ${index + 1}`}
                   </div>
                   {imageTags.length ? (
                     <div className="image-asset-tag-row">
@@ -891,28 +990,38 @@ export function ImageAssetDetailPage() {
                 </div>
 
                 <div className="image-asset-modal-settings">
-                  <div className="image-asset-settings-card">
-                    <div className="image-asset-card-head">
-                      <div className="npm-label">Image Tags</div>
-                    </div>
-                    <div className="image-asset-tag-row">
-                      {getImageTags(selectedImage).length ? (
-                        getImageTags(selectedImage).map((tag) => (
-                          <span
-                            key={`${selectedImageId}-${tag}`}
-                            className="image-asset-tag"
-                          >
-                            {tag}
-                          </span>
-                        ))
-                      ) : (
-                        <div className="image-asset-helper">
-                          No tags available for this image.
-                        </div>
-                      )}
-                    </div>
+                  <div
+                    className="npm-tabs"
+                    role="tablist"
+                    aria-label="Image modal tabs"
+                    style={{
+                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      padding: 0,
+                      marginBottom: 4,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={imageModalTab === "assign"}
+                      className={`npm-tab ${imageModalTab === "assign" ? "active" : ""}`}
+                      onClick={() => setImageModalTab("assign")}
+                    >
+                      Assign to Profile
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={imageModalTab === "details"}
+                      className={`npm-tab ${imageModalTab === "details" ? "active" : ""}`}
+                      onClick={() => setImageModalTab("details")}
+                    >
+                      Image Details
+                    </button>
                   </div>
 
+                  {imageModalTab === "assign" ? (
+                  <>
                   <div className="image-asset-settings-card">
                     <div className="npm-label">Tools</div>
                     <button
@@ -943,55 +1052,62 @@ export function ImageAssetDetailPage() {
                         ? "Cancel Assign Image"
                         : "Assign Image To Profile"}
                     </button>
-                    {showAssignImageForm ? (
-                      <>
-                        <div className="npm-label">Assign Image To Profile</div>
-                        <input
-                          type="text"
-                          list="image-asset-assign-profile-options"
-                          className="fsearch image-asset-input"
-                          value={assignProfileName}
-                          onChange={(e) => setAssignProfileName(e.target.value)}
-                          placeholder={
-                            profileOptions.length
-                              ? "Choose a profile to assign this image"
-                              : "No profiles available"
-                          }
-                        />
-                        <datalist id="image-asset-assign-profile-options">
-                          {profileOptions.map((profileName) => (
-                            <option
-                              key={`assign-${profileName}`}
-                              value={profileName}
-                            />
-                          ))}
-                        </datalist>
-                        <button
-                          type="button"
-                          className="image-asset-action-btn is-primary"
-                          onClick={handleAssignImage}
-                          disabled={
-                            isAssigningImage ||
-                            !selectedImage ||
-                            !assignProfileName.trim() ||
-                            !profileOptions.includes(assignProfileName.trim())
-                          }
-                        >
-                          {isAssigningImage
-                            ? "Assigning..."
-                            : "Confirm Assign Image"}
-                        </button>
-                        {assignError ? (
-                          <div
-                            className="image-asset-helper"
-                            style={{ color: "#b42318" }}
-                          >
-                            {assignError}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : null}
                   </div>
+
+                  {showAssignImageForm ? (
+                    <div className="image-asset-settings-card">
+                      <div className="image-asset-card-head">
+                        <div className="npm-label">Assign Image To Profile</div>
+                      </div>
+                      <div className="image-asset-helper">
+                        Pick a profile to attach this image to. The image will
+                        appear in that profile&apos;s image list.
+                      </div>
+                      <input
+                        type="text"
+                        list="image-asset-assign-profile-options"
+                        className="fsearch image-asset-input"
+                        value={assignProfileName}
+                        onChange={(e) => setAssignProfileName(e.target.value)}
+                        placeholder={
+                          profileOptions.length
+                            ? "Choose a profile to assign this image"
+                            : "No profiles available"
+                        }
+                      />
+                      <datalist id="image-asset-assign-profile-options">
+                        {profileOptions.map((profileName) => (
+                          <option
+                            key={`assign-${profileName}`}
+                            value={profileName}
+                          />
+                        ))}
+                      </datalist>
+                      <button
+                        type="button"
+                        className="image-asset-action-btn is-primary"
+                        onClick={handleAssignImage}
+                        disabled={
+                          isAssigningImage ||
+                          !selectedImage ||
+                          !assignProfileName.trim() ||
+                          !profileOptions.includes(assignProfileName.trim())
+                        }
+                      >
+                        {isAssigningImage
+                          ? "Assigning..."
+                          : "Confirm Assign Image"}
+                      </button>
+                      {assignError ? (
+                        <div
+                          className="image-asset-helper"
+                          style={{ color: "#b42318" }}
+                        >
+                          {assignError}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   {annotationMode ? (
                     <div className="image-asset-settings-card">
@@ -1119,6 +1235,233 @@ export function ImageAssetDetailPage() {
                       )}
                     </div>
                   </div>
+                  </>
+                  ) : (
+                  <form
+                    className="image-asset-settings-card"
+                    onSubmit={handleSaveImageEdit}
+                    aria-busy={savingImageEdit}
+                  >
+                    <div className="image-asset-card-head">
+                      <div className="npm-label">Edit Image</div>
+                    </div>
+
+                    <label className="npm-field">
+                      <span className="npm-label">Alt Text</span>
+                      <input
+                        className="npm-input"
+                        value={imageEditForm.altText}
+                        onChange={(e) =>
+                          setImageEditForm((current) => ({
+                            ...current,
+                            altText: e.target.value,
+                          }))
+                        }
+                        placeholder="Describe what's in the image"
+                        disabled={savingImageEdit}
+                      />
+                    </label>
+
+                    <label className="npm-field">
+                      <span className="npm-label">Original Caption</span>
+                      <textarea
+                        className="npm-input npm-textarea"
+                        rows={2}
+                        value={imageEditForm.originalCaption}
+                        onChange={(e) =>
+                          setImageEditForm((current) => ({
+                            ...current,
+                            originalCaption: e.target.value,
+                          }))
+                        }
+                        placeholder="Caption from the source it was downloaded from"
+                        disabled={savingImageEdit}
+                      />
+                    </label>
+
+                    <div className="npm-field">
+                      <span className="npm-label">
+                        Tags{" "}
+                        <span
+                          style={{
+                            color: "var(--text2)",
+                            fontWeight: 400,
+                          }}
+                        >
+                          (pick a suggestion or type your own)
+                        </span>
+                      </span>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: 6,
+                          border: "1px solid var(--border)",
+                          borderRadius: 10,
+                          background: "var(--surface)",
+                          color: "var(--text)",
+                          minHeight: 36,
+                        }}
+                      >
+                        {imageEditForm.tags.map((tag) => (
+                          <span
+                            key={`${selectedImageId}-edit-${tag}`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              padding: "3px 8px",
+                              background: "var(--surface2)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 999,
+                              fontSize: 12,
+                              color: "var(--text)",
+                            }}
+                          >
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() => removeImageEditTag(tag)}
+                              disabled={savingImageEdit}
+                              style={{
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                                padding: 0,
+                                fontSize: 14,
+                                lineHeight: 1,
+                                color: "var(--text2)",
+                              }}
+                              aria-label={`Remove tag ${tag}`}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        <input
+                          type="text"
+                          list="image-asset-edit-tag-suggestions"
+                          value={imageTagDraft}
+                          onChange={(e) => setImageTagDraft(e.target.value)}
+                          onKeyDown={handleImageEditTagKeyDown}
+                          onBlur={() => addImageEditTag(imageTagDraft)}
+                          placeholder={
+                            imageEditForm.tags.length
+                              ? "Add another..."
+                              : "profile, cover, post, or anything"
+                          }
+                          disabled={savingImageEdit}
+                          style={{
+                            flex: 1,
+                            minWidth: 120,
+                            border: "none",
+                            outline: "none",
+                            background: "transparent",
+                            fontSize: 13,
+                            fontFamily: "var(--font)",
+                            padding: "2px 4px",
+                            color: "var(--text)",
+                          }}
+                        />
+                        <datalist id="image-asset-edit-tag-suggestions">
+                          <option value="profile" />
+                          <option value="cover" />
+                          <option value="post" />
+                        </datalist>
+                      </div>
+                      <div className="image-asset-helper">
+                        Press Enter or comma to add. Click × to remove.
+                      </div>
+                    </div>
+
+                    <label className="npm-field">
+                      <span className="npm-label">Source Type</span>
+                      <select
+                        className="npm-input"
+                        value={imageEditForm.sourceType}
+                        onChange={(e) =>
+                          setImageEditForm((current) => ({
+                            ...current,
+                            sourceType: e.target.value,
+                          }))
+                        }
+                        disabled={savingImageEdit}
+                      >
+                        <option value="generated">generated</option>
+                        <option value="scraped">scraped</option>
+                        <option value="stock">stock</option>
+                        <option value="real">real</option>
+                      </select>
+                    </label>
+
+                    <label
+                      className="npm-field"
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={imageEditForm.aiGenerated}
+                        onChange={(e) =>
+                          setImageEditForm((current) => ({
+                            ...current,
+                            aiGenerated: e.target.checked,
+                          }))
+                        }
+                        disabled={savingImageEdit}
+                      />
+                      <span className="npm-label" style={{ margin: 0 }}>
+                        AI Generated
+                      </span>
+                    </label>
+
+                    <label className="npm-field">
+                      <span className="npm-label">Generation Model</span>
+                      <input
+                        className="npm-input"
+                        value={imageEditForm.generationModel}
+                        onChange={(e) =>
+                          setImageEditForm((current) => ({
+                            ...current,
+                            generationModel: e.target.value,
+                          }))
+                        }
+                        placeholder="stable-diffusion-3, flux, etc."
+                        disabled={savingImageEdit}
+                      />
+                    </label>
+
+                    {imageEditError ? (
+                      <div
+                        className="image-asset-helper"
+                        style={{ color: "var(--red-t)" }}
+                      >
+                        {imageEditError}
+                      </div>
+                    ) : null}
+                    {imageEditSavedAt ? (
+                      <div
+                        className="image-asset-helper"
+                        style={{ color: "var(--green-t)" }}
+                      >
+                        Saved.
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="submit"
+                      className="image-asset-action-btn is-primary"
+                      disabled={savingImageEdit}
+                    >
+                      {savingImageEdit ? "Saving..." : "Save Changes"}
+                    </button>
+                  </form>
+                  )}
                 </div>
               </div>
             </div>
@@ -1195,6 +1538,36 @@ export function ImageAssetDetailPage() {
               aria-busy={isAddAssetImagesBusy}
             >
               <fieldset className="npm-form-fieldset" disabled={isAddAssetImagesBusy}>
+              <div
+                className="npm-tabs"
+                role="tablist"
+                aria-label="Add image tabs"
+                style={{
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  padding: 0,
+                  marginBottom: 12,
+                }}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={addImageTab === "image"}
+                  className={`npm-tab ${addImageTab === "image" ? "active" : ""}`}
+                  onClick={() => setAddImageTab("image")}
+                >
+                  Image
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={addImageTab === "assign"}
+                  className={`npm-tab ${addImageTab === "assign" ? "active" : ""}`}
+                  onClick={() => setAddImageTab("assign")}
+                >
+                  Assign to Profile
+                </button>
+              </div>
+              {addImageTab === "image" ? (
               <div className="npm-grid">
                 <label className="npm-field">
                   <span className="npm-label">Image Annotation</span>
@@ -1353,6 +1726,9 @@ export function ImageAssetDetailPage() {
                     </div>
                   </div>
                 ) : null}
+              </div>
+              ) : (
+              <div className="npm-grid">
                 <div className="npm-field" style={{ gridColumn: "1 / -1" }}>
                   <span className="npm-label">
                     Profiles Using This Human Asset
@@ -1420,6 +1796,7 @@ export function ImageAssetDetailPage() {
                   )}
                 </div>
               </div>
+              )}
               {addImagesError ? (
                 <div className="npm-submit-error">{addImagesError}</div>
               ) : null}
