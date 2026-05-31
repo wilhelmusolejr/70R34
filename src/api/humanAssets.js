@@ -44,3 +44,13 @@ export function fetchHumanAssets() {
 export function fetchHumanAsset(id) {
   return apiFetch(`/api/human-assets/${id}`);
 }
+
+export function updateHumanAssetImage(humanAssetId, imageId, payload) {
+  return apiFetch(
+    `/api/human-assets/${humanAssetId}/images/${imageId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
