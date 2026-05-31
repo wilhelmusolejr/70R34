@@ -19,11 +19,8 @@ function EmptyState({ title, description }) {
 function getHumanAssetPreview(asset) {
   const images = asset?.images || [];
   const preferred =
-    images.find(
-      (image) =>
-        String(image?.type || "")
-          .trim()
-          .toLowerCase() === "profile",
+    images.find((image) =>
+      (image?.tags || []).some((tag) => String(tag).toLowerCase() === "profile"),
     ) || images[0];
 
   return preferred?.filename || "";
@@ -34,6 +31,7 @@ export function ImagesPage() {
   const isAdmin = currentUser?.role === "admin";
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
   const [assets, setAssets] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +43,7 @@ export function ImagesPage() {
   const [showProfileAssignmentList, setShowProfileAssignmentList] = useState(false);
   const [uploadForm, setUploadForm] = useState({
     name: "",
-    numberPossibleProfile: "0",
+    country: "US",
     numberProfileUsing: [],
     imageAnnotation: "",
     imageSourceType: "scraped",
@@ -58,7 +56,7 @@ export function ImagesPage() {
   function resetUploadForm() {
     setUploadForm({
       name: "",
-      numberPossibleProfile: "0",
+      country: "US",
       numberProfileUsing: [],
       imageAnnotation: "",
       imageSourceType: "scraped",
@@ -196,7 +194,7 @@ export function ImagesPage() {
 
       const formData = new FormData();
       formData.append("name", uploadForm.name.trim());
-      formData.append("numberPossibleProfile", uploadForm.numberPossibleProfile);
+      formData.append("country", uploadForm.country || "US");
       formData.append("imageAnnotation", uploadForm.imageAnnotation.trim());
       formData.append("imageSourceType", uploadForm.imageSourceType);
       formData.append("aiGenerated", String(uploadForm.aiGenerated));
@@ -225,8 +223,12 @@ export function ImagesPage() {
 
   const filteredAssets = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
+    const normalizedCountry = countryFilter.trim().toUpperCase();
 
     return assets.filter((asset) => {
+      if (normalizedCountry && String(asset.country || "").toUpperCase() !== normalizedCountry) {
+        return false;
+      }
       if (!normalizedSearch) return true;
 
       const imageNames = (asset.images || []).map((image) => image.filename).join(" ");
@@ -236,13 +238,9 @@ export function ImagesPage() {
         .toLowerCase()
         .includes(normalizedSearch);
     });
-  }, [assets, search]);
+  }, [assets, search, countryFilter]);
 
   const totalImages = filteredAssets.reduce((sum, asset) => sum + (asset.images?.length || 0), 0);
-  const totalPossibleProfiles = filteredAssets.reduce(
-    (sum, asset) => sum + asset.possibleProfiles,
-    0,
-  );
   const totalUses = filteredAssets.reduce((sum, asset) => sum + asset.usedBy, 0);
   const isUploadBusy = isSubmitting;
 
@@ -294,15 +292,6 @@ export function ImagesPage() {
           </div>
         </div>
         <div className="sc">
-          <div className="snum" style={{ color: "var(--amber)" }}>
-            {totalPossibleProfiles}
-          </div>
-          <div className="slabel">
-            <span className="sdot" style={{ background: "var(--amber)" }} />
-            Possible Profile
-          </div>
-        </div>
-        <div className="sc">
           <div className="snum" style={{ color: "var(--green)" }}>
             {totalUses}
           </div>
@@ -328,6 +317,16 @@ export function ImagesPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <select
+          className="fsearch"
+          value={countryFilter}
+          onChange={(e) => setCountryFilter(e.target.value)}
+          style={{ maxWidth: 160 }}
+        >
+          <option value="">All countries</option>
+          <option value="US">US</option>
+          <option value="IT">IT</option>
+        </select>
         <span className="rc">{filteredAssets.length} human assets</span>
       </div>
 
@@ -344,8 +343,8 @@ export function ImagesPage() {
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Country</th>
                 <th>Images Inside</th>
-                <th>Possible Profile</th>
                 <th>Profiles Using</th>
                 <th>Visit</th>
               </tr>
@@ -375,14 +374,14 @@ export function ImagesPage() {
                   </td>
                   <td>
                     <div className="dcell">
-                      <div className="dv">{asset.images.length}</div>
-                      <div className="da">Files linked to this human asset</div>
+                      <div className="dv">{asset.country || "US"}</div>
+                      <div className="da">Country</div>
                     </div>
                   </td>
                   <td>
                     <div className="dcell">
-                      <div className="dv">{asset.possibleProfiles}</div>
-                      <div className="da">Profiles supported</div>
+                      <div className="dv">{asset.images.length}</div>
+                      <div className="da">Files linked to this human asset</div>
                     </div>
                   </td>
                   <td>
@@ -484,14 +483,15 @@ export function ImagesPage() {
                   />
                 </label>
                 <label className="npm-field">
-                  <span className="npm-label">Number Possible Profile</span>
-                  <input
-                    type="number"
-                    min="0"
+                  <span className="npm-label">Country</span>
+                  <select
                     className="npm-input"
-                    value={uploadForm.numberPossibleProfile}
-                    onChange={(e) => setUploadForm((current) => ({ ...current, numberPossibleProfile: e.target.value }))}
-                  />
+                    value={uploadForm.country}
+                    onChange={(e) => setUploadForm((current) => ({ ...current, country: e.target.value }))}
+                  >
+                    <option value="US">US</option>
+                    <option value="IT">IT</option>
+                  </select>
                 </label>
                 <label className="npm-field">
                   <span className="npm-label">Image Annotation</span>
