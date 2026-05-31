@@ -10,6 +10,7 @@ import {
   unassignPost,
 } from "../api/posts";
 import { fetchProfiles } from "../api/profiles";
+import { CreatePostModal } from "../components/CreatePostModal";
 import { PostEditModal } from "../components/PostEditModal";
 import { SafeImage } from "../components/SafeImage";
 import { useAuth } from "../context/AuthContext";
@@ -70,6 +71,7 @@ export function PostsPage() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -114,27 +116,44 @@ export function PostsPage() {
     return map;
   }, [profiles]);
 
-  const profileIdsWithPost = useMemo(() => {
-    const set = new Set();
+  const postCountByProfileId = useMemo(() => {
+    const map = new Map();
     posts.forEach((post) => {
       const id =
         typeof post.profileId === "object" && post.profileId
           ? post.profileId.id || post.profileId._id
           : post.profileId;
-      if (id) set.add(String(id));
+      if (!id) return;
+      const key = String(id);
+      map.set(key, (map.get(key) || 0) + 1);
     });
-    return set;
+    return map;
   }, [posts]);
 
-  const assignableProfileOptions = useMemo(() => {
+  const allProfileOptions = useMemo(() => {
     return profiles
-      .filter((profile) => !profileIdsWithPost.has(String(profile._id)))
-      .map((profile) => ({
-        id: profile._id,
-        label: getProfileLabel(profile),
-      }))
-      .filter((entry) => entry.label);
-  }, [profiles, profileIdsWithPost]);
+      .map((profile) => {
+        const id = String(profile._id || "");
+        const baseLabel = getProfileLabel(profile);
+        const count = postCountByProfileId.get(id) || 0;
+        return {
+          id: profile._id,
+          baseLabel,
+          label:
+            count > 0
+              ? `${baseLabel} (has ${count} post${count === 1 ? "" : "s"})`
+              : baseLabel,
+          postCount: count,
+        };
+      })
+      .filter((entry) => entry.baseLabel)
+      .sort((a, b) => a.postCount - b.postCount || a.baseLabel.localeCompare(b.baseLabel));
+  }, [profiles, postCountByProfileId]);
+
+  const unclaimedProfileOptions = useMemo(
+    () => allProfileOptions.filter((entry) => entry.postCount === 0),
+    [allProfileOptions],
+  );
 
   const filteredPosts = useMemo(() => {
     const text = search.trim().toLowerCase();
@@ -196,11 +215,14 @@ export function PostsPage() {
     if (!writeable) return;
     const draft = String(assignDrafts[post._id] || "").trim();
     if (!draft) return;
-    const match = assignableProfileOptions.find(
-      (entry) => entry.label.toLowerCase() === draft.toLowerCase(),
+    const lower = draft.toLowerCase();
+    const match = allProfileOptions.find(
+      (entry) =>
+        entry.label.toLowerCase() === lower ||
+        entry.baseLabel.toLowerCase() === lower,
     );
     if (!match) {
-      setError("Type a valid profile name from the unassigned list.");
+      setError("Type a valid profile name from the suggestions.");
       return;
     }
     try {
@@ -213,7 +235,7 @@ export function PostsPage() {
         delete next[post._id];
         return next;
       });
-      setToast(`Assigned to ${match.label}.`);
+      setToast(`Assigned to ${match.baseLabel}.`);
     } catch (err) {
       setError(err.message || "Failed to assign post.");
     } finally {
@@ -385,6 +407,14 @@ export function PostsPage() {
               <button
                 type="button"
                 className="btn-p"
+                onClick={() => setIsCreateModalOpen(true)}
+                title="Create a new post by picking images"
+              >
+                Create Post
+              </button>
+              <button
+                type="button"
+                className="btn-p"
                 onClick={handleAutoAssignAll}
                 disabled={
                   isAutoAssigningAll || loading || unassignedCount === 0
@@ -450,7 +480,7 @@ export function PostsPage() {
         </div>
         <div className="sc">
           <div className="snum" style={{ color: "var(--purple)" }}>
-            {assignableProfileOptions.length}
+            {unclaimedProfileOptions.length}
           </div>
           <div className="slabel">Profiles Without Post</div>
         </div>
@@ -598,7 +628,7 @@ export function PostsPage() {
                           <SafeImage
                             src={filename || ""}
                             alt={
-                              (typeof image === "object" && image.annotation) ||
+                              (typeof image === "object" && image.altText) ||
                               `Post image ${index + 1}`
                             }
                             className="post-card-image-img"
@@ -701,7 +731,7 @@ export function PostsPage() {
                             disabled={isBusy}
                           />
                           <datalist id={`post-assign-options-${post._id}`}>
-                            {assignableProfileOptions.map((entry) => (
+                            {allProfileOptions.map((entry) => (
                               <option key={entry.id} value={entry.label} />
                             ))}
                           </datalist>
@@ -720,10 +750,10 @@ export function PostsPage() {
                             className="btn-p post-card-auto"
                             onClick={() => handleAutoAssign(post)}
                             disabled={
-                              isBusy || assignableProfileOptions.length === 0
+                              isBusy || unclaimedProfileOptions.length === 0
                             }
                             title={
-                              assignableProfileOptions.length === 0
+                              unclaimedProfileOptions.length === 0
                                 ? "Every profile already has a post"
                                 : "System picks a profile without a post"
                             }
@@ -751,6 +781,19 @@ export function PostsPage() {
               current.map((p) => (p._id === updated._id ? updated : p)),
             );
             setEditingPost(updated);
+          }}
+        />
+      ) : null}
+
+      {isCreateModalOpen ? (
+        <CreatePostModal
+          profiles={profiles}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreated={(created) => {
+            if (created && created._id) {
+              setPosts((current) => [created, ...current]);
+              setToast("Post created.");
+            }
           }}
         />
       ) : null}
