@@ -604,12 +604,11 @@ router.post("/", upload.array("images"), async (req, res, next) => {
       ? await Image.insertMany(
           renamedFiles.map((file, index) => ({
             filename: `/images/${file.filename}`,
-            annotation: pageName,
-            type: String(assetTypes[index] || "post").trim() || "post",
+            altText: pageName,
+            tags: [String(assetTypes[index] || "post").trim() || "post"],
             sourceType: "scraped",
             aiGenerated: false,
             generationModel: null,
-            usedBy: linkedIdentity ? [{ userId: linkedIdentity._id }] : [],
             annotations: [],
           })),
         )
@@ -887,12 +886,11 @@ router.post("/:id/posts", upload.array("images"), async (req, res, next) => {
       ? await Image.insertMany(
           renamedFiles.map((file) => ({
             filename: `/images/${file.filename}`,
-            annotation: postText || page.pageName,
-            type: "post",
+            altText: postText || page.pageName,
+            tags: ["post"],
             sourceType: "scraped",
             aiGenerated: false,
             generationModel: null,
-            usedBy: linkedIdentity ? [{ userId: linkedIdentity }] : [],
             annotations: [],
           })),
         )
@@ -1014,12 +1012,11 @@ router.post("/:id/images", upload.array("images"), async (req, res, next) => {
     const createdImages = await Image.insertMany(
       renamedFiles.map((file, index) => ({
         filename: `/images/${file.filename}`,
-        annotation: page.pageName,
-        type: String(rawAssetTypes[index] || "post").trim() || "post",
+        altText: page.pageName,
+        tags: [String(rawAssetTypes[index] || "post").trim() || "post"],
         sourceType: "scraped",
         aiGenerated: false,
         generationModel: null,
-        usedBy: linkedIdentityId ? [{ userId: linkedIdentityId }] : [],
         annotations: [],
       })),
     );
@@ -1126,12 +1123,11 @@ router.post("/:id/generate-images", async (req, res, next) => {
     const createdImages = await Image.insertMany(
       writtenFiles.map(({ filename, type }) => ({
         filename: `/images/${filename}`,
-        annotation: page.pageName,
-        type,
+        altText: page.pageName,
+        tags: [type],
         sourceType: "generated",
         aiGenerated: true,
         generationModel: result.model,
-        usedBy: linkedIdentityId ? [{ userId: linkedIdentityId }] : [],
         annotations: [],
       })),
     );
