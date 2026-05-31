@@ -50,6 +50,18 @@ export function fetchPosts() {
   );
 }
 
+export function createPost({ images, caption, context, profileId }) {
+  return apiFetch("/api/posts", {
+    method: "POST",
+    body: JSON.stringify({
+      images: Array.isArray(images) ? images : [],
+      caption: caption || "",
+      context: context || "",
+      profileId: profileId || "",
+    }),
+  });
+}
+
 export function assignPostToProfile(postId, profileId) {
   return apiFetch(`/api/posts/${postId}/assign`, {
     method: "POST",
