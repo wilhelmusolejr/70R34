@@ -58,3 +58,9 @@ export function updateDefaultCountry(userId, country) {
     body: JSON.stringify({ country }),
   });
 }
+
+export function fetchUsers() {
+  return authFetch("/api/auth/users").then((data) =>
+    Array.isArray(data) ? data : [],
+  );
+}
