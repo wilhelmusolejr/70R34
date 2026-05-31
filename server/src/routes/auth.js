@@ -121,9 +121,14 @@ router.patch("/users/:userId/profiles/:profileId", async (req, res, next) => {
       return res.status(400).json({ message: "Invalid assignment status." });
     }
 
+    const update = { "profiles.$.assignmentStatus": assignmentStatus };
+    if (assignmentStatus === "completed") {
+      update["profiles.$.submittedAt"] = new Date().toISOString();
+    }
+
     const result = await User.updateOne(
       { _id: userId, "profiles.profileId": profileId },
-      { $set: { "profiles.$.assignmentStatus": assignmentStatus } },
+      { $set: update },
     );
     if (!result.matchedCount) {
       return res.status(404).json({ message: "User or profile assignment not found." });
@@ -131,6 +136,16 @@ router.patch("/users/:userId/profiles/:profileId", async (req, res, next) => {
 
     const user = await User.findById(userId).lean();
     res.json({ user: sanitizeUser(user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// List of users for dashboard filters and per-maker charts.
+router.get("/users", async (_req, res, next) => {
+  try {
+    const users = await User.find({}, { passwordHash: 0 }).lean();
+    res.json(users.map((user) => sanitizeUser(user)));
   } catch (error) {
     next(error);
   }
