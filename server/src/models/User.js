@@ -11,6 +11,7 @@ const UserProfileSchema = new Schema(
       enum: ["pending", "completed"],
       default: "pending",
     },
+    submittedAt: { type: String, default: "" },
   },
   { _id: false },
 );
