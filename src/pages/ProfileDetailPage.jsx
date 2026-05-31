@@ -104,6 +104,20 @@ function hasPageUrl(profile) {
   return String(profile?.pageUrl || "").trim().length > 0;
 }
 
+function validateUrl(value) {
+  const s = String(value || "").trim();
+  if (!s) return "";
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return "Must start with http:// or https://";
+    }
+    return "";
+  } catch {
+    return "Enter a valid URL (e.g. https://facebook.com/...)";
+  }
+}
+
 const TODAY = new Date().toLocaleDateString("en-CA", {
   timeZone: "Asia/Manila",
 });
@@ -393,14 +407,24 @@ function EditableText({
   editable = true,
   suggestions = null,
   numeric = false,
+  validate = null,
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
   const [copied, setCopied] = useState(false);
+  const [validationError, setValidationError] = useState("");
   const empty = value === 0 ? false : !value || String(value).trim() === "";
   const datalistId = useId();
 
   function save() {
+    if (validate) {
+      const err = validate(draft);
+      if (err) {
+        setValidationError(err);
+        return;
+      }
+    }
+    setValidationError("");
     if (numeric) {
       const digits = String(draft).replace(/\D+/g, "");
       onSave(digits === "" ? 0 : Number(digits));
@@ -412,6 +436,7 @@ function EditableText({
 
   function cancel() {
     setDraft(value === 0 || value ? String(value) : "");
+    setValidationError("");
     setEditing(false);
   }
 
@@ -433,7 +458,10 @@ function EditableText({
           <textarea
             className="ef-input ef-textarea"
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              if (validationError) setValidationError("");
+            }}
             autoFocus
             readOnly={!editable}
           />
@@ -442,13 +470,13 @@ function EditableText({
             <input
               className={`ef-input${mono ? " ef-mono" : ""}`}
               value={draft}
-              onChange={(e) =>
-                setDraft(
-                  numeric
-                    ? e.target.value.replace(/\D+/g, "")
-                    : e.target.value,
-                )
-              }
+              onChange={(e) => {
+                const next = numeric
+                  ? e.target.value.replace(/\D+/g, "")
+                  : e.target.value;
+                setDraft(next);
+                if (validationError) setValidationError("");
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") save();
                 if (e.key === "Escape") cancel();
@@ -476,6 +504,19 @@ function EditableText({
             Cancel
           </button>
         </div>
+        {validationError && (
+          <div
+            className="ef-error"
+            style={{
+              gridColumn: "1 / -1",
+              color: "var(--danger, #d33)",
+              fontSize: "12px",
+              marginTop: "4px",
+            }}
+          >
+            {validationError}
+          </div>
+        )}
       </div>
     );
   }
@@ -2997,6 +3038,7 @@ export function ProfileDetailPage() {
                   mono
                   copyable
                   editable={canEditField("profileUrl")}
+                  validate={validateUrl}
                 />
               </div>
             </div>
@@ -3011,6 +3053,7 @@ export function ProfileDetailPage() {
                   mono
                   copyable
                   editable={canEditField("pageUrl")}
+                  validate={validateUrl}
                 />
               </div>
             </div>

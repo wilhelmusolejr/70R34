@@ -137,6 +137,20 @@ function Field({ label, error, children }) {
   );
 }
 
+function validateUrl(value) {
+  const s = String(value || "").trim();
+  if (!s) return "";
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return "Must start with http:// or https://";
+    }
+    return "";
+  } catch {
+    return "Enter a valid URL (e.g. https://facebook.com/...)";
+  }
+}
+
 function SectionTitle({ title, action }) {
   return (
     <div
@@ -350,6 +364,14 @@ export function NewProfileModal({
     if (!currentForm.accountCreated) {
       nextErrors.accountCreated = "Account created date is required.";
     }
+    const profileUrlError = validateUrl(currentForm.profileUrl);
+    if (profileUrlError) {
+      nextErrors.profileUrl = profileUrlError;
+    }
+    const pageUrlError = validateUrl(currentForm.pageUrl);
+    if (pageUrlError) {
+      nextErrors.pageUrl = pageUrlError;
+    }
 
     return nextErrors;
   }
@@ -365,7 +387,12 @@ export function NewProfileModal({
     ) {
       return 1;
     }
-    if (nextErrors.profileCreated || nextErrors.accountCreated) {
+    if (
+      nextErrors.profileCreated ||
+      nextErrors.accountCreated ||
+      nextErrors.profileUrl ||
+      nextErrors.pageUrl
+    ) {
       return 6;
     }
     return 0;
@@ -380,7 +407,9 @@ export function NewProfileModal({
     3: false,
     4: false,
     5: false,
-    6: ["profileCreated", "accountCreated"].some((key) => errors[key]),
+    6: ["profileCreated", "accountCreated", "profileUrl", "pageUrl"].some(
+      (key) => errors[key],
+    ),
   };
 
   async function handleSubmit(e) {
@@ -1008,7 +1037,7 @@ export function NewProfileModal({
                     onChange={(e) => setField("accountCreated", e.target.value)}
                   />
                 </Field>
-                <Field label="Profile URL">
+                <Field label="Profile URL" error={errors.profileUrl}>
                   <input
                     className="npm-input"
                     placeholder="https://facebook.com/your-profile"
@@ -1016,7 +1045,7 @@ export function NewProfileModal({
                     onChange={(e) => setField("profileUrl", e.target.value)}
                   />
                 </Field>
-                <Field label="Page URL">
+                <Field label="Page URL" error={errors.pageUrl}>
                   <input
                     className="npm-input"
                     placeholder="https://facebook.com/your-page"
