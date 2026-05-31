@@ -9,6 +9,9 @@ import {
 } from "react-router-dom";
 import { loginAccount, registerAccount } from "./api/auth";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+// Legacy dashboard kept as backup — swap the import below to restore it.
+// import { DashboardPage } from "./pages/DashboardPage";
+import { DashboardPageV2 as DashboardPage } from "./pages/DashboardPageV2";
 import { ImageAssetDetailPage } from "./pages/ImageAssetDetailPage";
 import { ImagesPage } from "./pages/ImagesPage";
 import { LogsPage } from "./pages/LogsPage";
@@ -89,6 +92,9 @@ function MenuIcon({ open = false }) {
 
 function getDocumentTitle(pathname) {
   if (pathname === "/") {
+    return "DASHBOARD | 70R34";
+  }
+  if (pathname === "/profiles") {
     return "PROFILES | 70R34";
   }
   if (pathname.startsWith("/profile/")) {
@@ -227,8 +233,9 @@ function Layout({ children }) {
           </Link>
           <div className="nav-links">
             <NavLink to="/" end>
-              Profiles
+              Dashboard
             </NavLink>
+            <NavLink to="/profiles">Profiles</NavLink>
             <NavLink to="/images">Images</NavLink>
             <NavLink to="/pages">Pages</NavLink>
             <NavLink to="/posts">Posts</NavLink>
@@ -306,6 +313,9 @@ function Layout({ children }) {
           <div className="nav-mobile-menu">
             <div className="nav-mobile-links">
               <NavLink to="/" end onClick={() => setIsMobileNavOpen(false)}>
+                Dashboard
+              </NavLink>
+              <NavLink to="/profiles" onClick={() => setIsMobileNavOpen(false)}>
                 Profiles
               </NavLink>
               <NavLink to="/images" onClick={() => setIsMobileNavOpen(false)}>
@@ -527,7 +537,8 @@ function App() {
       <Router>
         <Layout>
           <Routes>
-            <Route path="/" element={<ProfilesPage />} />
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/profiles" element={<ProfilesPage />} />
             <Route path="/images" element={<ImagesPage />} />
             <Route path="/images/:id" element={<ImageAssetDetailPage />} />
             <Route path="/pages" element={<PagesPage />} />
