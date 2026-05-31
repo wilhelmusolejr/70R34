@@ -7,7 +7,7 @@ function normalizeIds(imageIds = []) {
 
 export function findUnpostedImages(filter = {}) {
   return Image.find({
-    type: "post",
+    tags: "post",
     postId: null,
     ...filter,
   });
@@ -23,16 +23,18 @@ export async function assertImagesAvailableForPost(imageIds = []) {
 
   const images = await Image.find(
     { _id: { $in: normalizedIds } },
-    { _id: 1, type: 1, postId: 1 },
+    { _id: 1, tags: 1, postId: 1 },
   ).lean();
 
   if (images.length !== normalizedIds.length) {
     throw new Error("One or more images do not exist.");
   }
 
-  const invalidType = images.find((image) => image.type !== "post");
-  if (invalidType) {
-    throw new Error("Only post-type images can belong to a Post.");
+  const invalidTag = images.find(
+    (image) => !Array.isArray(image.tags) || !image.tags.includes("post"),
+  );
+  if (invalidTag) {
+    throw new Error("Only images tagged 'post' can belong to a Post.");
   }
 
   const alreadyClaimed = images.find((image) => image.postId);
@@ -47,7 +49,7 @@ export async function claimImagesForPost(postId, imageIds = []) {
   const result = await Image.updateMany(
     {
       _id: { $in: normalizedIds },
-      type: "post",
+      tags: "post",
       postId: null,
     },
     {
