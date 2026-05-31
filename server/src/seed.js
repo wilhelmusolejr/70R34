@@ -34,25 +34,24 @@ try {
 
 await Profile.deleteMany({});
 await Profile.insertMany(documents);
+await HumanAsset.deleteMany({});
+const seededAssets = await HumanAsset.insertMany([
+  {
+    name: "Jerome Hamoep",
+    country: "US",
+  },
+]);
 await Image.deleteMany({});
-const seededImages = await Image.insertMany([
+await Image.insertMany([
   {
     filename: "/images/jerome-hamoep-dummy.svg",
-    annotation: "jerome_hamoep_placeholder_portrait",
-    type: "profile",
+    humanAssetId: seededAssets[0]._id,
+    altText: "jerome_hamoep_placeholder_portrait",
+    originalCaption: "",
+    tags: ["profile"],
     sourceType: "generated",
     aiGenerated: true,
     generationModel: "local-dummy-svg",
-    usedBy: [],
-  },
-]);
-await HumanAsset.deleteMany({});
-await HumanAsset.insertMany([
-  {
-    name: "Jerome Hamoep",
-    numberPossibleProfile: 3,
-    numberProfileUsing: [],
-    images: [seededImages[0]._id],
   },
 ]);
 
