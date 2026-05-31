@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import mongoose from "mongoose";
 import { Router } from "express";
 import { Image } from "../models/Image.js";
-import { Post } from "../models/Post.js";
+import { Post, POST_STATUSES } from "../models/Post.js";
 import { Profile } from "../models/Profile.js";
 
 const router = Router();
@@ -19,7 +19,7 @@ function isValidId(value) {
 
 function populatePostQuery(query) {
   return query
-    .populate("images", "filename annotation type")
+    .populate("images", "filename altText tags humanAssetId originalCaption")
     .populate("profileId", "firstName lastName");
 }
 
@@ -30,12 +30,16 @@ export function formatPost(doc) {
     images: (post.images || []).map((img) => ({
       _id: String(img._id || img),
       filename: img.filename || "",
-      annotation: img.annotation || "",
-      type: img.type || "post",
+      altText: img.altText || "",
+      originalCaption: img.originalCaption || "",
+      tags: Array.isArray(img.tags) ? img.tags : [],
+      humanAssetId: img.humanAssetId ? String(img.humanAssetId) : null,
     })),
     caption: post.caption || "",
     context: post.context || "",
     theme: post.theme || "",
+    status: post.status || "draft",
+    postedAt: post.postedAt || null,
     profileId: post.profileId ? String(post.profileId._id || post.profileId) : null,
     profile: post.profileId && post.profileId.firstName
       ? {
@@ -59,6 +63,69 @@ router.get("/", async (_req, res, next) => {
   }
 });
 
+router.post("/", async (req, res, next) => {
+  try {
+    const imageIds = Array.isArray(req.body?.images) ? req.body.images : [];
+    if (imageIds.length === 0) {
+      return res.status(400).json({ message: "Select at least one image." });
+    }
+    if (!imageIds.every(isValidId)) {
+      return res.status(400).json({ message: "One or more image ids are invalid." });
+    }
+
+    const profileIdInput = String(req.body?.profileId || "").trim();
+    if (profileIdInput && !isValidId(profileIdInput)) {
+      return res.status(400).json({ message: "Invalid profile id." });
+    }
+
+    const images = await Image.find({ _id: { $in: imageIds } }).select(
+      "_id postId",
+    );
+    if (images.length !== imageIds.length) {
+      return res.status(404).json({ message: "One or more images not found." });
+    }
+    const claimedCount = images.filter((img) => img.postId).length;
+    if (claimedCount > 0) {
+      return res.status(409).json({
+        message: `${claimedCount} of the selected images are already in another post.`,
+      });
+    }
+
+    let profile = null;
+    if (profileIdInput) {
+      profile = await Profile.findById(profileIdInput).select("_id");
+      if (!profile) {
+        return res.status(404).json({ message: "Profile not found." });
+      }
+    }
+
+    const post = await Post.create({
+      images: imageIds,
+      caption: String(req.body?.caption || ""),
+      context: String(req.body?.context || ""),
+      profileId: profile ? profile._id : null,
+      assignedAt: profile ? new Date() : null,
+    });
+
+    await Image.updateMany(
+      { _id: { $in: imageIds } },
+      { $set: { postId: post._id } },
+    );
+
+    if (profile) {
+      await Profile.updateOne(
+        { _id: profile._id },
+        { $addToSet: { posts: post._id } },
+      );
+    }
+
+    const populated = await populatePostQuery(Post.findById(post._id)).lean();
+    res.status(201).json(formatPost(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/available-images", async (req, res, next) => {
   try {
     const pageInput = Number.parseInt(req.query.page, 10);
@@ -70,13 +137,13 @@ router.get("/available-images", async (req, res, next) => {
         : 30;
     const skip = (page - 1) * limit;
 
-    const filter = { type: "post", postId: null };
+    const filter = { tags: "post", postId: null };
     const [items, total] = await Promise.all([
       Image.find(filter)
         .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
-        .select("_id filename annotation type createdAt")
+        .select("_id filename altText tags humanAssetId originalCaption createdAt")
         .lean(),
       Image.countDocuments(filter),
     ]);
@@ -84,8 +151,10 @@ router.get("/available-images", async (req, res, next) => {
     const images = items.map((img) => ({
       _id: String(img._id),
       filename: img.filename || "",
-      annotation: img.annotation || "",
-      type: img.type || "post",
+      altText: img.altText || "",
+      originalCaption: img.originalCaption || "",
+      tags: Array.isArray(img.tags) ? img.tags : [],
+      humanAssetId: img.humanAssetId ? String(img.humanAssetId) : null,
       createdAt: img.createdAt || null,
     }));
     const totalPages = limit > 0 ? Math.ceil(total / limit) : 1;
@@ -116,6 +185,23 @@ router.patch("/:id", async (req, res, next) => {
     if (typeof body.caption === "string") post.caption = body.caption;
     if (typeof body.context === "string") post.context = body.context;
     if (typeof body.theme === "string") post.theme = body.theme;
+    if (typeof body.status === "string") {
+      if (!POST_STATUSES.includes(body.status)) {
+        return res.status(400).json({
+          message: `status must be one of: ${POST_STATUSES.join(", ")}`,
+        });
+      }
+      const wasPosted = post.status === "posted";
+      post.status = body.status;
+      if (body.status === "posted" && !wasPosted) {
+        post.postedAt = post.postedAt || new Date();
+      } else if (body.status !== "posted") {
+        post.postedAt = null;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "postedAt")) {
+      post.postedAt = body.postedAt ? new Date(body.postedAt) : null;
+    }
     await post.save();
 
     const populated = await populatePostQuery(Post.findById(post._id)).lean();
