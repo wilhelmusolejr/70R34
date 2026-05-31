@@ -134,7 +134,6 @@ export function PostEditModal({ post, onClose, onUpdate }) {
       <div
         className="npm-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(900px, 100%)", maxHeight: "90vh" }}
       >
         <div className="npm-header">
           <div>
@@ -251,7 +250,7 @@ export function PostEditModal({ post, onClose, onUpdate }) {
                     <SafeImage
                       src={filename || ""}
                       alt={
-                        (typeof image === "object" && image.annotation) ||
+                        (typeof image === "object" && image.altText) ||
                         "Post image"
                       }
                       className="post-edit-tile-img"
@@ -313,11 +312,11 @@ export function PostEditModal({ post, onClose, onUpdate }) {
                     className="post-edit-tile post-edit-tile-add"
                     onClick={() => handleAddImage(image)}
                     disabled={busyImageId === image._id}
-                    title={image.annotation || "Add to post"}
+                    title={image.altText || "Add to post"}
                   >
                     <SafeImage
                       src={image.filename}
-                      alt={image.annotation || "Available image"}
+                      alt={image.altText || "Available image"}
                       className="post-edit-tile-img"
                     />
                     <span className="post-edit-tile-overlay">
