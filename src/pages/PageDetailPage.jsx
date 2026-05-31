@@ -373,7 +373,7 @@ export function PageDetailPage() {
             id: `post-${post.id}-${image._id || imageIndex}`,
             image,
             kind: `Post ${postIndex + 1}`,
-            label: image.annotation || image.filename.split("/").pop(),
+            label: image.altText || image.filename.split("/").pop(),
           })),
       ),
     ],
@@ -1227,7 +1227,7 @@ export function PageDetailPage() {
                               </div>
                               <div className="profile-image-meta">
                                 <div className="profile-image-name">
-                                  {image.annotation ||
+                                  {image.altText ||
                                     image.filename.split("/").pop()}
                                 </div>
                               </div>
