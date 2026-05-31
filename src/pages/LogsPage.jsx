@@ -35,8 +35,8 @@ function pickProfilePhoto(profile) {
     .map((entry) => (entry && typeof entry.imageId === "object" ? entry.imageId : null))
     .filter(Boolean);
   const preferred =
-    populated.find(
-      (img) => String(img.type || "").trim().toLowerCase() === "profile",
+    populated.find((img) =>
+      (img?.tags || []).some((tag) => String(tag).toLowerCase() === "profile"),
     ) || populated[0];
   return preferred?.filename || "";
 }
