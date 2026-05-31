@@ -125,12 +125,19 @@ const TrackerLogSchema = new Schema(
 
 const ProfileImageAssignmentSchema = new Schema(
   {
+    humanAssetId: {
+      type: Schema.Types.ObjectId,
+      ref: "HumanAsset",
+      default: null,
+    },
     imageId: {
       type: Schema.Types.ObjectId,
       ref: "Image",
       required: true,
     },
     assignedAt: { type: Date, default: Date.now },
+    tags: { type: [String], default: [] },
+    postCaption: { type: String, default: "" },
   },
   { _id: false },
 );
