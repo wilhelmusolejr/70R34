@@ -17,9 +17,23 @@ npm run dev    # dev server
 npm run build  # production build
 ```
 
+## Routes
+
+- `/` — **Dashboard** (was Profiles before; landing page is now activity overview)
+- `/profiles` — Profiles list (was `/`)
+- `/profile/:id` — Profile detail
+- `/images`, `/images/:id` — Image asset list + detail
+- `/pages`, `/pages/:id` — Pages list + detail
+- `/posts` — Posts
+- `/proxies` — Proxies
+- `/sharers` — Sharers
+- `/logs` — Logs
+
+When changing the routing, also update `getDocumentTitle` in `src/App.jsx` and any in-page `navigate("/...")` / `<Link to="/...">` references — there is no internal redirect from `/` to `/profiles`.
+
 ## The Core Entities
 
-### 1. Profiles (`/`)
+### 1. Profiles (`/profiles`)
 Fictional person identities used for Facebook accounts. Each profile has:
 - Personal info: name, gender, DOB, city, hometown, bio
 - Contact: emails (multiple, one selected), passwords (email + Facebook), phone, recovery email
@@ -89,7 +103,13 @@ Every field has a default, so a brand-new profile with only required `firstName`
   "socialLinks": [{ "platform": "instagram", "url": "..." }],
 
   "images": [                       // shape that `proxies` now mirrors
-    { "imageId": "ObjectId | <populated Image>", "assignedAt": "ISO date" }
+    {
+      "imageId": "ObjectId | <populated Image>",
+      "humanAssetId": "ObjectId|null",
+      "assignedAt": "ISO date",
+      "tags": ["post"],             // ASSIGNMENT tags — per-profile, editable from profile detail page modal
+      "postCaption": ""             // caption used when THIS profile posts THIS image to FB
+    }
   ],
   "trackerLog": [{ "date": "2026-04-22", "note": "..." }],
   "personal": {
@@ -122,6 +142,11 @@ Every field has a default, so a brand-new profile with only required `firstName`
 - `createdBy` — `{ id, username, role }` when set, else `null`. Older profiles created before this field existed will read as `null`.
 
 **Writing `proxies` back:** the UI must send entries as `{ proxyId: "<id-string>", assignedAt }` — `normalizeProfilePayload` + `serializeProfile` flatten populated objects to ids before PATCH. Do **not** delete a Proxy doc when unlinking from `proxies`; removal is a Profile-side array update only.
+
+**Two `tags` arrays for the same image (don't conflate):**
+- `Image.tags[]` — lives on the Image doc itself; shared across every profile using that image. Edit from the image asset page (`/images/:id`).
+- `Profile.images[].tags[]` — lives on the per-profile assignment; specific to that profile's use of the image. Edit from the profile detail page image modal.
+- Same split applies to `Profile.images[].postCaption` (assignment-level) vs `Image.originalCaption` (image-level): in the profile detail image modal the editable Post Caption writes to the assignment; the Image's altText / originalCaption / Image-level tags are written via `PATCH /api/human-assets/:assetId/images/:imageId` (and Image tags are shown read-only).
 
 ### 2. Images (`/images`)
 Real-person photo asset sets used as visual identity for profiles. Internally called **human assets** in the API and code. Each asset has:
@@ -164,6 +189,82 @@ Pool of Facebook URLs (profiles, pages, groups) the automation bot uses for enga
 
 **Page (`/sharers`):** lists all sharers grouped into one table per country, with search, country filter, add modal, and per-row delete. Add/Delete gated by `canWrite` (admin/maker); guests see a guard modal.
 
+### 6. Dashboard (`/`)
+Activity overview for the last 7 days. **Active source: `src/pages/DashboardPageV2.jsx`** (aliased as `DashboardPage` in `App.jsx`). The original `src/pages/DashboardPage.jsx` is kept as a backup — swap the import in `App.jsx` to restore it. Shared helpers (date bucketing, `countByDay`, `percentDelta`, `statusColor`, palette tables) live in `src/utils/dashboard.js`. No server endpoint of its own — aggregates client-side from `fetchProfiles`, `fetchPosts`, `fetchPages`, `fetchUsers`.
+
+- **Filter bar** with three multi-selects (each defaults to "All"):
+  - Makers (one per `User.role === "maker"`, color-coded)
+  - Countries (`US` / `IT`)
+  - Profile statuses (full `STATUS_OPTIONS`)
+- **Weekly totals** — six summary cards (profiles created, posts published, posts drafted, image assets added, pages created, tracker entries). Always reflects the filtered profile set (and unfiltered post/asset/page totals).
+- **Submitted today** sidebar (left, ~20%) — 2-column grid of per-maker cards showing today's submission count.
+- **Submissions per maker · last 7 days** chart (right, ~80%) — CSS grouped bar chart, one color per maker, 7 day columns. Today's column is outlined.
+- **Daily breakdown** matrix exists in code (`MetricRow`) but is currently hidden — can be re-added later.
+
+**Filter semantics:**
+- The Maker filter scopes "Profiles created" via `profile.createdBy.id` AND scopes the chart / submitted-today blocks to that maker's own assignments.
+- Country/status filters apply to profile-derived metrics AND to the submission blocks (a maker's submission is only counted when the referenced profile's country/status passes).
+- Posts / assets / pages totals are global (no filter applies); a note appears when filters are active.
+
+### 7. Users (auth)
+Auth subject. Source: `server/src/models/User.js`, `server/src/routes/auth.js`.
+
+```jsonc
+{
+  "_id": "ObjectId",
+  "username": "alice",            // unique
+  "role": "admin" | "maker" | "guest",
+  "defaultCountry": "US",         // US | IT (used by ProfilesPage filter default)
+  "profiles": [                   // makers' assigned profiles (admins typically have none)
+    {
+      "profileId": "ObjectId",
+      "assignedAt": "ISO date string",
+      "assignmentStatus": "pending" | "completed",
+      "submittedAt": "ISO date string"   // stamped when status flips to "completed"
+    }
+  ]
+}
+```
+
+**API: `/api/auth`**
+- `POST /register` — creates a `guest`. Use the DB to promote.
+- `POST /login` — returns sanitized user (no `passwordHash`).
+- `PATCH /users/:userId/default-country` — body `{ country: "US"|"IT" }`.
+- `PATCH /users/:userId/profiles/:profileId` — body `{ assignmentStatus: "pending"|"completed" }`. When flipping to `completed`, the server also stamps `submittedAt = now()`. This is the only source of `submittedAt`, so the Dashboard's submission chart/cards only count assignments completed AFTER this field was added.
+- `GET /users` — list all users (sanitized, no password hash). Used by the Dashboard for the maker filter and per-maker chart.
+
+### 8. Posts (`/posts`)
+A Post bundles a set of Images and is optionally assigned to a Profile to publish on Facebook. Source: `server/src/models/Post.js`, `server/src/routes/posts.js`.
+
+```jsonc
+{
+  "_id": "ObjectId",
+  "images": ["ObjectId"],           // Image refs. UNIQUE per image (one image -> one post)
+  "caption": "",                    // text shown on the FB post
+  "context": "",                    // internal note (not posted to FB)
+  "theme": "",
+  "profileId": "ObjectId|null",
+  "assignedAt": "ISO date|null",
+  "status": "draft|posted|failed",
+  "postedAt": "ISO date|null",
+  "generatedBy": "", "generationModel": ""
+}
+```
+
+- `Image.postId` is the back-ref kept in sync with `Post.images[]`. An image is "available" when `postId === null`. The Post → Image link is enforced server-side by claiming on add and releasing on remove.
+
+**API: `/api/posts`**
+- `GET /` — list all posts (populated images + assigned profile name).
+- `POST /` — **create** a new post from a set of unclaimed images. Body: `{ images: [imageId, ...], caption?, context?, profileId? }`. Validates that each image exists with `postId === null`, creates the post, claims the images, and if `profileId` is provided, sets `assignedAt = now()` and appends to `Profile.posts[]`.
+- `PATCH /:id` — update caption/context/etc.
+- `POST /:id/images` / `DELETE /:id/images/:imageId` — add/remove a single image (claims/releases `Image.postId`).
+- `POST /:id/assign` / `DELETE /:id/assign` — set or clear the owner Profile (mirrors `Profile.posts[]`).
+- `POST /:id/auto-assign`, `POST /auto-assign-all` — bot helpers.
+- `DELETE /:id`, `POST /bulk-delete`.
+- `GET /available-images` — paginated list of images with `tags: "post"` AND `postId: null` (used by `PostEditModal`'s picker).
+
+**Page (`/posts`):** post cards grouped by assignment state, with bulk select/delete, auto-assign, and a **Create Post** button (admin/maker only). The Create modal (`src/components/CreatePostModal.jsx`) shows every human asset with its full image grid; selection uses native checkboxes, claimed images render disabled with an "in use" overlay.
+
 ## Project Structure
 
 ```
@@ -180,8 +281,11 @@ src/
 ## Auth & Roles
 
 - Auth is backend-managed; session stored in `localStorage` (`pv_session`)
-- Roles: `admin`, `guest` (guests see masked confidential fields)
-- `canWrite(user)` — gates create/edit/delete actions
+- Roles: `admin`, `maker`, `guest`
+  - `admin` — full access
+  - `maker` — gets profiles assigned via `User.profiles[]`, submits them via the profile detail page Submit block (flips assignmentStatus → `completed` and stamps `submittedAt`)
+  - `guest` — read-only, confidential fields masked
+- `canWrite(user)` — gates create/edit/delete actions (admin + maker)
 - `canViewConfidential(user)` — gates sensitive fields (passwords, emails)
 - Guest badge shown in nav when role is `guest`
 
@@ -202,6 +306,12 @@ IMAGE_MODEL=black-forest-labs/FLUX.1-schnell
 In production, the server (`server/`) serves the built `dist/` and the API on the same port. Leave `VITE_API_URL` empty so API calls use relative paths. The `server/.env` only needs `MONGODB_URI` and `PORT`.
 
 Optional server env: `BOT_API_URL` — base URL of the automation bot that `POST /api/profiles/:id/run` forwards onboarding tasks to (defaults to `http://localhost:3000`, i.e. the bot running on the same host as the API server).
+
+## Scripts
+
+- `server/src/seed.js` — destructive starter seed (used by `npm run seed` if defined). Reads from `src/data.js`; wipes Profiles/HumanAssets/Images/Proxies and reinserts.
+- `server/scripts/migrate-image-structure.mjs` — one-shot, idempotent migration to the current Image/HumanAsset/Post/Profile schema. Dry-run by default; pass `--apply`.
+- `server/scripts/seed-simulation.mjs` — **additive** demo data for the Dashboard. Creates `sim_maker_*` users (password `simpassword`), a configurable number of `tags: ["sim"]` profiles with `createdAt` and tracker entries spread across the last 7 days, plus per-maker assignments with `submittedAt` stamps. Run as `cd server && node scripts/seed-simulation.mjs --apply`; add `--clean` to wipe sim data first. Targets only docs tagged `sim` (profiles) or with `sim_` username prefix (users), so real data is safe.
 
 ## CSS Conventions
 
