@@ -5,7 +5,6 @@ import path from "node:path";
 import mongoose from "mongoose";
 import { Router } from "express";
 import { fileURLToPath } from "node:url";
-import { HumanAsset } from "../models/HumanAsset.js";
 import { Image } from "../models/Image.js";
 import "../models/Post.js";
 import {
@@ -168,6 +167,39 @@ function normalizeProfilePayload(payload = {}) {
       const trimmed = String(rawCreatedBy || "").trim();
       nextPayload.createdBy = trimmed || null;
     }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(nextPayload, "images")) {
+    const rawImages = Array.isArray(nextPayload.images) ? nextPayload.images : [];
+    nextPayload.images = rawImages
+      .map((entry) => {
+        if (!entry) return null;
+        const rawImageId =
+          typeof entry.imageId === "object" && entry.imageId
+            ? entry.imageId._id || entry.imageId.id
+            : entry.imageId;
+        const imageId = String(rawImageId || "").trim();
+        if (!imageId) return null;
+        const rawAssetId =
+          typeof entry.humanAssetId === "object" && entry.humanAssetId
+            ? entry.humanAssetId._id || entry.humanAssetId.id
+            : entry.humanAssetId;
+        const humanAssetId = rawAssetId ? String(rawAssetId).trim() : null;
+        const assignedAt = entry.assignedAt ? new Date(entry.assignedAt) : new Date();
+        const tags = Array.isArray(entry.tags)
+          ? entry.tags.map((t) => String(t || "").trim()).filter(Boolean)
+          : [];
+        const postCaption =
+          typeof entry.postCaption === "string" ? entry.postCaption : "";
+        return {
+          humanAssetId: humanAssetId || null,
+          imageId,
+          assignedAt: Number.isNaN(assignedAt.getTime()) ? new Date() : assignedAt,
+          tags,
+          postCaption,
+        };
+      })
+      .filter(Boolean);
   }
 
   if (Object.prototype.hasOwnProperty.call(nextPayload, "proxies")) {
@@ -362,7 +394,7 @@ function getPopulatedProfileQuery(id) {
     })
     .populate({
       path: "posts",
-      populate: { path: "images", select: "filename annotation type" },
+      populate: { path: "images", select: "filename altText tags humanAssetId" },
       options: { sort: { createdAt: -1 } },
     })
     .populate("proxyId")
@@ -485,40 +517,14 @@ router.delete("/:id/images/:imageId", async (req, res, next) => {
     );
     await profile.save();
 
+    // Drop any face-box annotations on this image that pointed at this profile.
     await Image.updateOne(
       { _id: imageId },
       {
         $pull: {
-          usedBy: {
-            userId: profile._id,
-          },
-          annotations: {
-            profileId: profile._id,
-          },
+          annotations: { profileId: profile._id },
         },
       },
-    );
-
-    const impactedAssets = await HumanAsset.find({ images: imageId });
-
-    await Promise.all(
-      impactedAssets.map(async (asset) => {
-        const remainingImages = await Image.find(
-          { _id: { $in: asset.images } },
-          { usedBy: 1 },
-        ).lean();
-
-        const stillUsesAsset = remainingImages.some((image) =>
-          (image.usedBy || []).some((entry) => String(entry.userId) === String(profile._id)),
-        );
-
-        if (!stillUsesAsset) {
-          asset.numberProfileUsing = (asset.numberProfileUsing || []).filter(
-            (entry) => String(entry) !== String(profile._id),
-          );
-          await asset.save();
-        }
-      }),
     );
 
     const populatedProfile = await getPopulatedProfileQuery(id).lean();
