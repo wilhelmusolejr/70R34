@@ -14,26 +14,31 @@ const DEFAULT_BASE_URL = "https://7or34.space";
 // email -> { url, emailPassword } changes to apply. url:null means "No Facebook"
 // was noted, so we leave profileUrl alone.
 const TARGETS = [
-  {
-    email: "adriano.desantis1981@outlook.com",
-    url: "https://www.facebook.com/profile.php?id=61590186341416",
-  },
-  {
-    email: "adolfo.vitali83@outlook.com",
-    url: "https://www.facebook.com/profile.php?id=61590221229964",
-  },
-  {
-    email: "mariangela.russo2000@outlook.com",
-    url: "https://www.facebook.com/profile.php?id=61590639681944",
-  },
-  {
-    email: "giovanni.romano1994@outlook.com",
-    url: "https://www.facebook.com/profile.php?id=61590671480400",
-  },
-  {
-    email: "salvatore.martini87@outlook.com",
-    url: "https://www.facebook.com/profile.php?id=61590115784781",
-  },
+  { email: "roberta.donati1996@outlook.com",    url: "https://www.facebook.com/profile.php?id=61590445083031" },
+  { email: "rocco.cossu1994@outlook.com",       url: "https://www.facebook.com/profile.php?id=61590201163392" },
+  { email: "pietro.cattaneo1988@outlook.com",   url: "https://www.facebook.com/profile.php?id=61590195553886" },
+  { email: "concetta.rizzi1985@outlook.com",    url: "https://www.facebook.com/profile.php?id=61590180764722" },
+  { email: "dario.damiani1999@outlook.com",     url: "https://www.facebook.com/profile.php?id=61590619705638" },
+  { email: "costanza.barone1995@outlook.com",   url: "https://www.facebook.com/profile.php?id=61590184694462" },
+  { email: "massimo.mancini1998@outlook.com",   url: "https://www.facebook.com/profile.php?id=61590700492003" },
+  { email: "claudia.rossi1985@outlook.com",     url: "https://www.facebook.com/profile.php?id=61590693142371" },
+  { email: "eleonora.rinaldi89@outlook.com",    url: "https://www.facebook.com/profile.php?id=61590435933469" },
+  { email: "miriam1986bertolini@outlook.com",   url: "https://www.facebook.com/profile.php?id=61590380885793" },
+  { email: "aurelio.riva1983@outlook.com",      url: "https://www.facebook.com/profile.php?id=61590678682994" },
+  { email: "mirko.battaglia1986@outlook.com",   url: "https://www.facebook.com/profile.php?id=61590149086033" },
+  { email: "camilla.cossu1988@outlook.com",     url: "https://www.facebook.com/profile.php?id=61590274960648" },
+  { email: "alessandra.ferraro2000@outlook.com",url: "https://www.facebook.com/profile.php?id=61590661253687" },
+  { email: "flavia.conti85@outlook.com",        url: "https://www.facebook.com/profile.php?id=61590670973324" },
+  { email: "raimondo.ferraro99@outlook.com",    url: "https://www.facebook.com/profile.php?id=61590690442533" },
+  { email: "elisabetta.pinto83@outlook.com",    url: "https://www.facebook.com/profile.php?id=61590546958772" },
+  { email: "valentina.conti94@outlook.com",     url: "https://www.facebook.com/profile.php?id=61590481201701" },
+  { email: "delia.colombo1993@outlook.com",     url: "https://www.facebook.com/profile.php?id=61590655074017" },
+  { email: "fabio.lombardi86@outlook.com",      url: "https://www.facebook.com/profile.php?id=61590157125723" },
+  { email: "emanuele.damiani1986@outlook.com",  url: "https://www.facebook.com/profile.php?id=61590258161534" },
+  { email: "simona.castelli01@outlook.com",     url: "https://www.facebook.com/profile.php?id=61590445743432" },
+  { email: "valentina.sanna1998@outlook.com",   url: "https://www.facebook.com/profile.php?id=61590476552044" },
+  { email: "noemi.desantis95@outlook.com",      url: "https://www.facebook.com/profile.php?id=61590689422697" },
+  { email: "letizia.bellini1997@outlook.com",   url: "https://www.facebook.com/profile.php?id=61590676043422" },
 ];
 
 function parseArgs(argv) {
