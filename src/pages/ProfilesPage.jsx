@@ -118,6 +118,57 @@ function loadStoredFilters() {
   }
 }
 
+const COUNTRY_FLAGS = {
+  US: "🇺🇸",
+  IT: "🇮🇹",
+};
+
+function CountryFlag({ country }) {
+  const code = (country || "US").toUpperCase();
+  const flag = COUNTRY_FLAGS[code];
+  if (!flag) return null;
+  return (
+    <span title={code} style={{ verticalAlign: "middle" }}>
+      {flag}
+    </span>
+  );
+}
+
+function GenderGlyph({ gender }) {
+  const value = String(gender || "").trim().toLowerCase();
+  let glyph = "";
+  let color = "";
+  let label = "";
+  if (value === "male" || value === "m") {
+    glyph = "♂";
+    color = "#3b82f6";
+    label = "Male";
+  } else if (value === "female" || value === "f") {
+    glyph = "♀";
+    color = "#ec4899";
+    label = "Female";
+  } else if (value) {
+    glyph = "⚧";
+    color = "#a855f7";
+    label = gender;
+  }
+  if (!glyph) return null;
+  return (
+    <span
+      title={label}
+      style={{
+        marginLeft: 6,
+        color,
+        fontWeight: 700,
+        fontSize: "1em",
+        verticalAlign: "middle",
+      }}
+    >
+      {glyph}
+    </span>
+  );
+}
+
 function getAvatarColor(id) {
   const str = String(id || "");
   let hash = 0;
@@ -164,11 +215,8 @@ function getUserAvatarFilename(profile) {
   if (!userImages.length) return "";
 
   const preferred =
-    userImages.find(
-      (image) =>
-        String(image?.type || "")
-          .trim()
-          .toLowerCase() === "profile",
+    userImages.find((image) =>
+      (image?.tags || []).some((tag) => String(tag).toLowerCase() === "profile"),
     ) || userImages[0];
 
   return preferred?.filename || "";
@@ -1013,6 +1061,7 @@ export function ProfilesPage() {
                       />
                     </th>
                   ) : null}
+                  <th style={{ width: 36, textAlign: "center" }} title="Country" />
                   <th>Profile</th>
                   <th>Status</th>
                   {!isMaker && <th>Profile Created</th>}
@@ -1053,6 +1102,17 @@ export function ProfilesPage() {
                           />
                         </td>
                       ) : null}
+                      <td
+                        data-label="Country"
+                        style={{
+                          width: 36,
+                          textAlign: "center",
+                          fontSize: "1.2em",
+                          verticalAlign: "middle",
+                        }}
+                      >
+                        <CountryFlag country={profile.country} />
+                      </td>
                       <td data-label="Profile">
                         <div className="pcell">
                           <div
@@ -1070,6 +1130,7 @@ export function ProfilesPage() {
                           <div>
                             <div className="pname">
                               {profile.firstName} {profile.lastName}
+                              <GenderGlyph gender={profile.gender} />
                             </div>
                             <div className="pcity">{profile.city}</div>
                             <div className="pcity">
