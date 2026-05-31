@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 
 const { Schema, model } = mongoose;
 
-const IMAGE_TYPES = ["profile", "cover", "post", "document"];
 const IMAGE_SOURCE_TYPES = ["generated", "scraped", "stock", "real"];
 
 const ImageAnnotationSchema = new Schema(
@@ -22,26 +21,17 @@ const ImageAnnotationSchema = new Schema(
   { _id: true },
 );
 
-const ImageUsageSchema = new Schema(
-  {
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: "Profile",
-      required: true,
-    },
-  },
-  { _id: false },
-);
-
 const ImageSchema = new Schema(
   {
     filename: { type: String, required: true, trim: true },
-    annotation: { type: String, default: "", trim: true },
-    type: {
-      type: String,
-      enum: IMAGE_TYPES,
-      required: true,
+    humanAssetId: {
+      type: Schema.Types.ObjectId,
+      ref: "HumanAsset",
+      default: null,
     },
+    originalCaption: { type: String, default: "", trim: true },
+    altText: { type: String, default: "", trim: true },
+    tags: { type: [String], default: [] },
     sourceType: {
       type: String,
       enum: IMAGE_SOURCE_TYPES,
@@ -54,7 +44,6 @@ const ImageSchema = new Schema(
       ref: "Post",
       default: null,
     },
-    usedBy: { type: [ImageUsageSchema], default: [] },
     annotations: { type: [ImageAnnotationSchema], default: [] },
   },
   {
@@ -64,8 +53,9 @@ const ImageSchema = new Schema(
 );
 
 ImageSchema.index({ filename: 1 }, { unique: true });
-ImageSchema.index({ type: 1, sourceType: 1 });
-ImageSchema.index({ type: 1, postId: 1 });
+ImageSchema.index({ humanAssetId: 1 });
+ImageSchema.index({ tags: 1, sourceType: 1 });
+ImageSchema.index({ tags: 1, postId: 1 });
 
-export { IMAGE_TYPES, IMAGE_SOURCE_TYPES };
+export { IMAGE_SOURCE_TYPES };
 export const Image = model("Image", ImageSchema);
