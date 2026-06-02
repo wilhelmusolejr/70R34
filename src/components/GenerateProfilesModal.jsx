@@ -76,6 +76,7 @@ export function GenerateProfilesModal({
     setError("");
 
     try {
+      const today = new Date().toLocaleDateString("en-CA");
       const profiles = generateBatch(count, {
         country: form.country,
         gender: form.gender,
@@ -83,7 +84,11 @@ export function GenerateProfilesModal({
         maxAge,
         emailDomain: form.emailDomain.trim() || "outlook.com",
         status: form.status,
-      }).map((profile) => ({ ...profile, identityPrompt: buildIdentityPrompt(profile) }));
+      }).map((profile) => ({
+        ...profile,
+        profileCreated: today,
+        identityPrompt: buildIdentityPrompt(profile),
+      }));
       const result = await bulkCreateProfiles(profiles, currentUser?.id);
       if (result.user) {
         login(result.user);
