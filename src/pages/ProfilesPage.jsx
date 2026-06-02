@@ -61,21 +61,31 @@ function fmtDate(s) {
   });
 }
 
-function getInactiveDays(profile) {
-  const entries = profile?.trackerLog || [];
-  const latestEntry = entries.length ? entries[entries.length - 1] : null;
-  const basisDate = latestEntry?.date || profile?.profileCreated;
-  if (!basisDate) return "-";
+const DAY_MS = 86400000;
 
-  const lastTracked = new Date(basisDate);
-  const today = new Date(TODAY);
-  if (Number.isNaN(lastTracked.getTime()) || Number.isNaN(today.getTime())) {
-    return "-";
+function getDailyPostStatus(profile) {
+  const last = profile?.onboarding?.lastSharedAt;
+  if (!last) {
+    return { ready: true, label: "Ready", detail: "Never shared" };
   }
-
-  const diffDays = Math.floor((today - lastTracked) / 86400000);
-  if (diffDays <= 0) return "Today";
-  return `${diffDays}d`;
+  const lastDate = new Date(last);
+  if (Number.isNaN(lastDate.getTime())) {
+    return { ready: true, label: "Ready", detail: "Never shared" };
+  }
+  const elapsed = Date.now() - lastDate.getTime();
+  if (elapsed < DAY_MS) {
+    const remaining = DAY_MS - elapsed;
+    const hours = Math.floor(remaining / 3600000);
+    const mins = Math.floor((remaining % 3600000) / 60000);
+    const label = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    return { ready: false, label, detail: "until next share" };
+  }
+  const overdueDays = Math.floor((elapsed - DAY_MS) / DAY_MS);
+  return {
+    ready: true,
+    label: "Ready",
+    detail: overdueDays > 0 ? `${overdueDays}d delayed` : "Due now",
+  };
 }
 
 function getFriendsDisplay(profile) {
@@ -1064,8 +1074,8 @@ export function ProfilesPage() {
                   <th style={{ width: 36, textAlign: "center" }} title="Country" />
                   <th>Profile</th>
                   <th>Status</th>
-                  {!isMaker && <th>Profile Created</th>}
-                  {!isMaker && <th>Inactive</th>}
+                  {!isMaker && <th>Account Created</th>}
+                  {!isMaker && <th>Next Post</th>}
                   <th>Links</th>
                   {!isMaker && <th>Requirements</th>}
                   {!isMaker && (
@@ -1150,25 +1160,37 @@ export function ProfilesPage() {
                         </span>
                       </td>
                       {!isMaker && (
-                      <td data-label="Profile Created">
+                      <td data-label="Account Created">
                         <div className="dcell">
                           <div className="dv">
-                            {fmtDate(profile.profileCreated)}
+                            {fmtDate(profile.accountCreated)}
                           </div>
                           <div className="da">
-                            {ago(profile.profileCreated)}
+                            {ago(profile.accountCreated)}
                           </div>
                         </div>
                       </td>
                       )}
                       {!isMaker && (
-                      <td data-label="Inactive">
-                        <div className="dcell">
-                          <div className="dv">
-                            {isAdmin ? getInactiveDays(profile) : mask("")}
+                      <td data-label="Next Post">
+                        {isAdmin ? (() => {
+                          const ps = getDailyPostStatus(profile);
+                          return (
+                            <div className="dcell">
+                              <div
+                                className="dv"
+                                style={ps.ready ? { color: "#16a34a" } : undefined}
+                              >
+                                {ps.label}
+                              </div>
+                              <div className="da">{ps.detail}</div>
+                            </div>
+                          );
+                        })() : (
+                          <div className="dcell">
+                            <div className="dv">{mask("")}</div>
                           </div>
-                          <div className="da">Since last tracked</div>
-                        </div>
+                        )}
                       </td>
                       )}
                       <td data-label="Links">
