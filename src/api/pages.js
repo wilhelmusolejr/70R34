@@ -109,6 +109,10 @@ export function generatePageBrandImages(pageId, payload = {}) {
   });
 }
 
+export function getPageBrandImagesStatus(pageId) {
+  return apiFetch(`/api/pages/${pageId}/generate-images/status`);
+}
+
 export function updatePage(pageId, payload) {
   return apiFetch(`/api/pages/${pageId}`, {
     method: "PATCH",

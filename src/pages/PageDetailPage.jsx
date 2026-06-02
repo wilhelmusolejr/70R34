@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getPageImagesDownloadUrl } from "../api/pageDownloads";
 import { fetchProfiles } from "../api/profiles";
@@ -12,6 +12,7 @@ import {
   generateBulkPagePosts,
   generatePageBrandImages,
   generatePagePost,
+  getPageBrandImagesStatus,
   updatePage,
 } from "../api/pages";
 import "../App.css";
@@ -247,6 +248,7 @@ export function PageDetailPage() {
   const [isGeneratingBrandImages, setIsGeneratingBrandImages] = useState(false);
   const [generateBrandImagesError, setGenerateBrandImagesError] = useState("");
   const [lastBrandGeneration, setLastBrandGeneration] = useState(null);
+  const brandImagesPollRef = useRef(null);
   const [
     isGenerateBrandImagesModalOpen,
     setIsGenerateBrandImagesModalOpen,
@@ -745,37 +747,79 @@ export function PageDetailPage() {
     setIsGenerateBrandImagesModalOpen(false);
   }
 
+  function stopBrandImagesPoll() {
+    if (brandImagesPollRef.current) {
+      clearInterval(brandImagesPollRef.current);
+      brandImagesPollRef.current = null;
+    }
+  }
+
+  function applyBrandImagesResult(status) {
+    if (status?.page) setPage(status.page);
+    if (status?.generation) setLastBrandGeneration(status.generation);
+    const errors = Array.isArray(status?.errors) ? status.errors : [];
+    if (errors.length > 0) {
+      const detail = errors.map((e) => `${e.slot}: ${e.message}`).join(" — ");
+      setGenerateBrandImagesError(
+        `Partial success — kept what worked. ${detail}`,
+      );
+    } else {
+      setIsGenerateBrandImagesModalOpen(false);
+    }
+  }
+
+  function startBrandImagesPoll(pageId) {
+    stopBrandImagesPoll();
+
+    const tick = async () => {
+      try {
+        const status = await getPageBrandImagesStatus(pageId);
+        if (status?.status === "running") return;
+
+        if (status?.status === "failed") {
+          stopBrandImagesPoll();
+          setGenerateBrandImagesError(
+            status.error?.message || "Image generation failed.",
+          );
+          setIsGeneratingBrandImages(false);
+          return;
+        }
+
+        if (status?.status === "completed") {
+          stopBrandImagesPoll();
+          applyBrandImagesResult(status);
+          setIsGeneratingBrandImages(false);
+          return;
+        }
+
+        // status === "idle" — server forgot the job (restarted). Stop spinner.
+        stopBrandImagesPoll();
+        setIsGeneratingBrandImages(false);
+      } catch {
+        // Transient network error during poll; keep the interval running.
+      }
+    };
+
+    brandImagesPollRef.current = setInterval(tick, 4000);
+    tick();
+  }
+
   async function handleConfirmGenerateBrandImages() {
     if (!page) return;
     try {
       setIsGeneratingBrandImages(true);
       setGenerateBrandImagesError("");
-      const response = await generatePageBrandImages(page.id);
-      if (response?.page) {
-        setPage(response.page);
-      }
-      if (response?.generation) {
-        setLastBrandGeneration(response.generation);
-      }
-      const errors = Array.isArray(response?.errors) ? response.errors : [];
-      if (errors.length > 0) {
-        const detail = errors
-          .map((e) => `${e.slot}: ${e.message}`)
-          .join(" — ");
-        setGenerateBrandImagesError(
-          `Partial success — kept what worked. ${detail}`,
-        );
-        return;
-      }
-      setIsGenerateBrandImagesModalOpen(false);
+      await generatePageBrandImages(page.id);
+      startBrandImagesPoll(page.id);
     } catch (err) {
       setGenerateBrandImagesError(
-        err?.message || "Failed to generate brand images.",
+        err?.message || "Failed to start brand image generation.",
       );
-    } finally {
       setIsGeneratingBrandImages(false);
     }
   }
+
+  useEffect(() => stopBrandImagesPoll, []);
 
   const isAddPostBusy = isSubmittingPost || isGeneratingPost;
   const isAddBulkPostBusy = isBulkGeneratingPosts;
@@ -1875,7 +1919,7 @@ export function PageDetailPage() {
                   <div className="npm-spinner" />
                   <div className="npm-loading-title">Generating brand images</div>
                   <div className="npm-loading-copy">
-                    Calling OpenAI for profile + cover (≈ 40s total). Keep this modal open until it finishes.
+                    Running in the background — profile + cover usually take 30–180s. Keep this modal open; we'll poll for the result.
                   </div>
                 </div>
               ) : null}

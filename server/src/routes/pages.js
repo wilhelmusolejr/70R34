@@ -1049,44 +1049,33 @@ router.post("/:id/images", upload.array("images"), async (req, res, next) => {
   }
 });
 
-// Generate a brand profile + cover image pair via OpenAI from the page's
-// stored `generationPrompt`, write them to disk, and attach them as
-// `profile` / `cover` page assets in a single call.
-router.post("/:id/generate-images", async (req, res, next) => {
+// Brand image generation runs in the background because gpt-image-1 can take
+// 60–180s and Cloudflare's edge times out long-lived requests with a 502.
+// The POST kicks off the job and returns 202 immediately; the client polls
+// the status endpoint. Job state lives in-process — on restart the job is
+// lost and the next status poll returns "idle".
+const brandImageJobs = new Map();
+const BRAND_IMAGE_JOB_TTL_MS = 10 * 60 * 1000;
+
+function scheduleBrandImageJobCleanup(pageId) {
+  const timer = setTimeout(() => {
+    const job = brandImageJobs.get(pageId);
+    if (job && job.status !== "running") {
+      brandImageJobs.delete(pageId);
+    }
+  }, BRAND_IMAGE_JOB_TTL_MS);
+  timer.unref?.();
+}
+
+async function runBrandImageJob({ pageId, brief, quality, country }) {
+  const job = brandImageJobs.get(pageId);
+  if (!job) return;
+
   try {
-    const { id } = req.params;
-    if (!ensureValidPageId(id)) {
-      return res.status(400).json({ message: "Invalid page id" });
-    }
-
-    const page = await Page.findById(id).populate("linkedIdentities", "_id");
-    if (!page) {
-      return res.status(404).json({ message: "Page not found" });
-    }
-
-    const brief = String(page.generationPrompt || "").trim();
-    if (!brief) {
-      return res.status(400).json({
-        message:
-          "Page has no generationPrompt — set it before generating brand images.",
-      });
-    }
-
-    const quality = req.body?.quality
-      ? String(req.body.quality).trim()
-      : undefined;
-
-    let result;
-    try {
-      result = await generateBrandImages(brief, {
-        ...(quality ? { quality } : {}),
-        country: page.country,
-      });
-    } catch (err) {
-      return res.status(502).json({
-        message: err?.message || "Image generation failed",
-      });
-    }
+    const result = await generateBrandImages(brief, {
+      ...(quality ? { quality } : {}),
+      country,
+    });
 
     const errors = [];
     if (!result.profile.ok) {
@@ -1097,22 +1086,29 @@ router.post("/:id/generate-images", async (req, res, next) => {
     }
 
     const succeededSlots = [
-      result.profile.ok
-        ? { type: "profile", payload: result.profile }
-        : null,
+      result.profile.ok ? { type: "profile", payload: result.profile } : null,
       result.cover.ok ? { type: "cover", payload: result.cover } : null,
     ].filter(Boolean);
 
     if (succeededSlots.length === 0) {
-      return res.status(502).json({
-        message: errors
-          .map((e) => `${e.slot}: ${e.message}`)
-          .join("; "),
+      job.status = "failed";
+      job.finishedAt = new Date().toISOString();
+      job.error = {
+        message: errors.map((e) => `${e.slot}: ${e.message}`).join("; "),
         errors,
-      });
+      };
+      return;
     }
 
-    const linkedIdentityId = page.linkedIdentities?.[0]?._id || null;
+    const page = await Page.findById(pageId);
+    if (!page) {
+      job.status = "failed";
+      job.finishedAt = new Date().toISOString();
+      job.error = {
+        message: "Page was deleted before generation finished.",
+      };
+      return;
+    }
 
     const writtenFiles = succeededSlots.map(({ type, payload }) => {
       const filename = `page_${type}_${randomUUID()}.png`;
@@ -1144,13 +1140,15 @@ router.post("/:id/generate-images", async (req, res, next) => {
 
     await page.save();
 
-    const populatedPage = await Page.findById(id)
+    const populatedPage = await Page.findById(pageId)
       .populate("linkedIdentities", "id firstName lastName pageUrl")
       .populate("assets.imageId")
       .populate("posts.images")
       .lean();
 
-    res.status(errors.length > 0 ? 207 : 201).json({
+    job.status = "completed";
+    job.finishedAt = new Date().toISOString();
+    job.result = {
       page: formatPage(populatedPage),
       generation: {
         model: result.model,
@@ -1173,10 +1171,109 @@ router.post("/:id/generate-images", async (req, res, next) => {
           : null,
       },
       errors,
+    };
+  } catch (err) {
+    job.status = "failed";
+    job.finishedAt = new Date().toISOString();
+    job.error = { message: err?.message || "Image generation failed" };
+  } finally {
+    scheduleBrandImageJobCleanup(pageId);
+  }
+}
+
+router.post("/:id/generate-images", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!ensureValidPageId(id)) {
+      return res.status(400).json({ message: "Invalid page id" });
+    }
+
+    const page = await Page.findById(id).populate("linkedIdentities", "_id");
+    if (!page) {
+      return res.status(404).json({ message: "Page not found" });
+    }
+
+    const brief = String(page.generationPrompt || "").trim();
+    if (!brief) {
+      return res.status(400).json({
+        message:
+          "Page has no generationPrompt — set it before generating brand images.",
+      });
+    }
+
+    const existing = brandImageJobs.get(id);
+    if (existing && existing.status === "running") {
+      return res.status(202).json({
+        job: {
+          status: existing.status,
+          startedAt: existing.startedAt,
+          resumed: true,
+        },
+      });
+    }
+
+    const quality = req.body?.quality
+      ? String(req.body.quality).trim()
+      : undefined;
+
+    const job = {
+      status: "running",
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      result: null,
+      error: null,
+    };
+    brandImageJobs.set(id, job);
+
+    runBrandImageJob({
+      pageId: id,
+      brief,
+      quality,
+      country: page.country,
+    }).catch((err) => {
+      // runBrandImageJob handles its own errors, but guard against any
+      // unhandled rejection so the process doesn't crash.
+      const current = brandImageJobs.get(id);
+      if (current && current.status === "running") {
+        current.status = "failed";
+        current.finishedAt = new Date().toISOString();
+        current.error = { message: err?.message || "Unhandled job failure" };
+        scheduleBrandImageJobCleanup(id);
+      }
+    });
+
+    res.status(202).json({
+      job: { status: job.status, startedAt: job.startedAt, resumed: false },
     });
   } catch (error) {
     next(error);
   }
+});
+
+router.get("/:id/generate-images/status", (req, res) => {
+  const { id } = req.params;
+  if (!ensureValidPageId(id)) {
+    return res.status(400).json({ message: "Invalid page id" });
+  }
+
+  const job = brandImageJobs.get(id);
+  if (!job) {
+    return res.json({ status: "idle" });
+  }
+
+  const base = {
+    status: job.status,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+  };
+
+  if (job.status === "running") {
+    return res.json(base);
+  }
+  if (job.status === "failed") {
+    return res.json({ ...base, error: job.error });
+  }
+  return res.json({ ...base, ...job.result });
 });
 
 export default router;
