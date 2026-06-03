@@ -260,6 +260,7 @@ async function callOpenAI({ prompt, size, model, quality, apiKey }) {
     throw makeApiError(`OpenAI returned non-JSON (HTTP ${response.status})`, {
       status: response.status,
       code: "non_json",
+      retryAfterMs: parseRetryAfterMs(response.headers, null),
     });
   }
 
@@ -269,6 +270,10 @@ async function callOpenAI({ prompt, size, model, quality, apiKey }) {
       {
         status: response.status,
         code: data?.error?.code || data?.error?.type || null,
+        retryAfterMs: parseRetryAfterMs(
+          response.headers,
+          data?.error?.message,
+        ),
       },
     );
   }
@@ -287,20 +292,64 @@ async function callOpenAI({ prompt, size, model, quality, apiKey }) {
   };
 }
 
-// Retry once on transient rate-limit. `insufficient_quota` is permanent —
-// no point retrying, it just delays the user seeing the real error.
-async function callOpenAIWithRetry(args, { retries = 1, backoffMs = 1500 } = {}) {
+// OpenAI signals retry timing two ways: a `Retry-After` header (seconds) and
+// inline text like "Please try again in 12s" / "in 1.5s". Parse whichever is
+// present so we wait the right amount instead of guessing.
+function parseRetryAfterMs(headers, message) {
+  const headerValue = headers?.get?.("retry-after");
+  if (headerValue) {
+    const sec = Number(headerValue);
+    if (Number.isFinite(sec) && sec > 0) return Math.round(sec * 1000);
+  }
+  if (message) {
+    const m = String(message).match(/try again in\s+([\d.]+)\s*(ms|s)/i);
+    if (m) {
+      const value = Number(m[1]);
+      if (Number.isFinite(value) && value > 0) {
+        return m[2].toLowerCase() === "ms"
+          ? Math.round(value)
+          : Math.round(value * 1000);
+      }
+    }
+  }
+  return null;
+}
+
+// Retry on transient failures. 429 = rate limit (respect server-provided
+// retry-after). 5xx + non_json = upstream/Cloudflare wobbles. `insufficient_quota`
+// and `billing_hard_limit_reached` are permanent — no point retrying.
+const PERMANENT_CODES = new Set([
+  "insufficient_quota",
+  "billing_hard_limit_reached",
+]);
+
+async function callOpenAIWithRetry(
+  args,
+  { retries = 5, baseBackoffMs = 2000, maxWaitMs = 60_000 } = {},
+) {
   let attempt = 0;
   while (true) {
     try {
       return await callOpenAI(args);
     } catch (err) {
-      const transient =
-        err?.status === 429 && err?.code !== "insufficient_quota";
+      const isPermanent = PERMANENT_CODES.has(err?.code);
+      const isRateLimit = err?.status === 429;
+      const isUpstreamWobble =
+        (err?.status >= 500 && err?.status < 600) || err?.code === "non_json";
+      const transient = !isPermanent && (isRateLimit || isUpstreamWobble);
+
       if (!transient || attempt >= retries) throw err;
-      await new Promise((resolve) =>
-        setTimeout(resolve, backoffMs * 2 ** attempt),
+
+      // Prefer server-provided retry-after; otherwise exponential backoff with
+      // jitter. Cap to maxWaitMs so a misbehaving header can't stall forever.
+      const suggested = err?.retryAfterMs;
+      const expo = baseBackoffMs * 2 ** attempt;
+      const jitter = Math.floor(Math.random() * 500);
+      const waitMs = Math.min(
+        maxWaitMs,
+        Math.max(suggested || 0, expo) + jitter,
       );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
       attempt += 1;
     }
   }
@@ -331,6 +380,9 @@ function errorToInfo(err) {
  * @param {string} [opts.quality]
  * @param {string} [opts.country]
  * @param {object} [opts.profileVariation]
+ * @param {Array<"profile"|"cover">} [opts.slots] - Which slots to generate.
+ *   Defaults to both. Slots not included are returned as `null` so callers can
+ *   distinguish "not requested" from "requested but failed".
  */
 export async function generateBrandImages(brief, opts = {}) {
   const apiKey = opts.apiKey || process.env.OPENAI_API_KEY || "";
@@ -341,6 +393,12 @@ export async function generateBrandImages(brief, opts = {}) {
   const model = opts.model || process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
   const quality =
     opts.quality || process.env.OPENAI_IMAGE_QUALITY || "medium";
+
+  const requestedSlots = Array.isArray(opts.slots) && opts.slots.length
+    ? new Set(opts.slots)
+    : new Set(["profile", "cover"]);
+  const wantsProfile = requestedSlots.has("profile");
+  const wantsCover = requestedSlots.has("cover");
 
   const parsed = parseBrief(brief);
   const {
@@ -353,24 +411,29 @@ export async function generateBrandImages(brief, opts = {}) {
   });
 
   const [profileSettled, coverSettled] = await Promise.allSettled([
-    callOpenAIWithRetry({
-      prompt: profilePrompt,
-      size: PROFILE_SIZE,
-      model,
-      quality,
-      apiKey,
-    }),
-    callOpenAIWithRetry({
-      prompt: coverPrompt,
-      size: COVER_SIZE,
-      model,
-      quality,
-      apiKey,
-    }),
+    wantsProfile
+      ? callOpenAIWithRetry({
+          prompt: profilePrompt,
+          size: PROFILE_SIZE,
+          model,
+          quality,
+          apiKey,
+        })
+      : Promise.resolve(null),
+    wantsCover
+      ? callOpenAIWithRetry({
+          prompt: coverPrompt,
+          size: COVER_SIZE,
+          model,
+          quality,
+          apiKey,
+        })
+      : Promise.resolve(null),
   ]);
 
-  const profileResult =
-    profileSettled.status === "fulfilled"
+  const profileResult = !wantsProfile
+    ? null
+    : profileSettled.status === "fulfilled"
       ? {
           ok: true,
           bytes: profileSettled.value.bytes,
@@ -382,8 +445,9 @@ export async function generateBrandImages(brief, opts = {}) {
         }
       : { ok: false, error: errorToInfo(profileSettled.reason) };
 
-  const coverResult =
-    coverSettled.status === "fulfilled"
+  const coverResult = !wantsCover
+    ? null
+    : coverSettled.status === "fulfilled"
       ? {
           ok: true,
           bytes: coverSettled.value.bytes,
@@ -395,8 +459,8 @@ export async function generateBrandImages(brief, opts = {}) {
       : { ok: false, error: errorToInfo(coverSettled.reason) };
 
   const subtotalEstimate =
-    (profileResult.ok ? profileResult.costEstimate : 0) +
-    (coverResult.ok ? coverResult.costEstimate : 0);
+    (profileResult?.ok ? profileResult.costEstimate : 0) +
+    (coverResult?.ok ? coverResult.costEstimate : 0);
 
   return {
     brandName: parsed.brandName,

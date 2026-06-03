@@ -1072,27 +1072,28 @@ function scheduleBrandImageJobCleanup(pageId) {
   timer.unref?.();
 }
 
-async function runBrandImageJob({ pageId, brief, quality, country }) {
+async function runBrandImageJob({ pageId, brief, quality, country, slots }) {
   const job = brandImageJobs.get(pageId);
   if (!job) return;
 
   try {
     const result = await generateBrandImages(brief, {
       ...(quality ? { quality } : {}),
+      ...(slots ? { slots } : {}),
       country,
     });
 
     const errors = [];
-    if (!result.profile.ok) {
+    if (result.profile && !result.profile.ok) {
       errors.push({ slot: "profile", ...result.profile.error });
     }
-    if (!result.cover.ok) {
+    if (result.cover && !result.cover.ok) {
       errors.push({ slot: "cover", ...result.cover.error });
     }
 
     const succeededSlots = [
-      result.profile.ok ? { type: "profile", payload: result.profile } : null,
-      result.cover.ok ? { type: "cover", payload: result.cover } : null,
+      result.profile?.ok ? { type: "profile", payload: result.profile } : null,
+      result.cover?.ok ? { type: "cover", payload: result.cover } : null,
     ].filter(Boolean);
 
     if (succeededSlots.length === 0) {
@@ -1160,14 +1161,14 @@ async function runBrandImageJob({ pageId, brief, quality, country }) {
         quality: result.quality,
         brandName: result.brandName,
         subtotalEstimate: result.subtotalEstimate,
-        profile: result.profile.ok
+        profile: result.profile?.ok
           ? {
               size: result.profile.size,
               costEstimate: result.profile.costEstimate,
               revised: result.profile.revised,
             }
           : null,
-        cover: result.cover.ok
+        cover: result.cover?.ok
           ? {
               size: result.cover.size,
               costEstimate: result.cover.costEstimate,
@@ -1221,6 +1222,19 @@ router.post("/:id/generate-images", async (req, res, next) => {
       ? String(req.body.quality).trim()
       : undefined;
 
+    const VALID_SLOTS = new Set(["profile", "cover"]);
+    const rawSlots = Array.isArray(req.body?.slots) ? req.body.slots : null;
+    const slots = rawSlots
+      ? [...new Set(rawSlots.map((s) => String(s).trim().toLowerCase()))].filter(
+          (s) => VALID_SLOTS.has(s),
+        )
+      : null;
+    if (rawSlots && slots.length === 0) {
+      return res.status(400).json({
+        message: 'slots must contain at least one of "profile" or "cover".',
+      });
+    }
+
     const job = {
       status: "running",
       startedAt: new Date().toISOString(),
@@ -1235,6 +1249,7 @@ router.post("/:id/generate-images", async (req, res, next) => {
       brief,
       quality,
       country: page.country,
+      ...(slots ? { slots } : {}),
     }).catch((err) => {
       // runBrandImageJob handles its own errors, but guard against any
       // unhandled rejection so the process doesn't crash.
