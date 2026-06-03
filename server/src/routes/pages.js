@@ -482,6 +482,7 @@ function formatPage(page) {
     pageName: page.pageName,
     pageId: page.pageId,
     category: page.category,
+    country: page.country,
     followerCount: page.followerCount,
     likeCount: page.likeCount,
     generationPrompt: page.generationPrompt,
@@ -572,6 +573,7 @@ router.post("/", upload.array("images"), async (req, res, next) => {
     const pageName = String(req.body?.pageName || "").trim();
     const pageId = String(req.body?.pageId || "").trim();
     const category = String(req.body?.category || "").trim();
+    const country = String(req.body?.country || "").trim().toUpperCase();
     const followerCount = Number.parseInt(req.body?.followerCount || "0", 10) || 0;
     const likeCount = Number.parseInt(req.body?.likeCount || "0", 10) || 0;
     const generationPrompt = String(req.body?.generationPrompt || "").trim();
@@ -618,6 +620,7 @@ router.post("/", upload.array("images"), async (req, res, next) => {
       pageName,
       pageId,
       category,
+      ...(country ? { country } : {}),
       followerCount,
       likeCount,
       bio,
@@ -739,10 +742,12 @@ router.post("/bulk", async (req, res, next) => {
       .map((entry) => {
         const pageName = String(entry?.pageName || "").trim();
         if (!pageName) return null;
+        const country = String(entry?.country || "").trim().toUpperCase();
         return {
           pageName,
           pageId: String(entry?.pageId || "").trim(),
           category: String(entry?.category || "").trim(),
+          ...(country ? { country } : {}),
           followerCount: Number.parseInt(entry?.followerCount || 0, 10) || 0,
           likeCount: Number.parseInt(entry?.likeCount || 0, 10) || 0,
           bio: String(entry?.bio || "").trim(),

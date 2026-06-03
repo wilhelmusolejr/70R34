@@ -6,6 +6,7 @@ import { SafeImage } from "../components/SafeImage";
 import { GeneratePagesModal } from "../components/GeneratePagesModal";
 import { useAuth } from "../context/AuthContext";
 import { generatePageInformation } from "../generator/pages";
+import { DEFAULT_COUNTRY } from "../generator/countries/index.js";
 import "../App.css";
 
 function EmptyState({ title, description }) {
@@ -91,6 +92,7 @@ function PagesTable({ title, rows, onAutoAssign, autoAssignBusyId }) {
             <tr>
               <th>Page Name</th>
               <th>Status</th>
+              <th>Country</th>
               <th>Category</th>
               <th>Assigned Profile</th>
               <th>Assets</th>
@@ -123,6 +125,15 @@ function PagesTable({ title, rows, onAutoAssign, autoAssignBusyId }) {
                 </td>
                 <td>
                   <PageStatusBadge status={page.status} />
+                </td>
+                <td>
+                  {page.country ? (
+                    <span title={page.country} style={{ whiteSpace: "nowrap" }}>
+                      {page.country === "IT" ? "🇮🇹" : "🇺🇸"} {page.country}
+                    </span>
+                  ) : (
+                    <span className="nol">—</span>
+                  )}
                 </td>
                 <td>{page.category || <span className="nol">No category</span>}</td>
                 <td>
@@ -190,6 +201,7 @@ export function PagesPage() {
     pageName: "",
     pageId: "",
     category: "",
+    country: "",
     followerCount: "0",
     likeCount: "0",
     generationPrompt: "",
@@ -289,12 +301,14 @@ export function PagesPage() {
   }
 
   function handleGeneratePageInformation() {
-    const generated = generatePageInformation();
+    const country = currentUser?.defaultCountry || DEFAULT_COUNTRY;
+    const generated = generatePageInformation({ country });
     setPageForm((current) => ({
       ...current,
       pageName: generated.pageName,
       pageId: generated.pageId,
       category: generated.category,
+      country: generated.country,
       followerCount: generated.followerCount,
       likeCount: generated.likeCount,
       engagementScore: generated.engagementScore,
