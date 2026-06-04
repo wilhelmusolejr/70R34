@@ -168,6 +168,7 @@ const ONBOARDING_KEYS = [
   "groupJoinedAt",
   "highlightsSetAt",
   "publishPostAt",
+  "pageSetAt",
   "recoveryEmailSetAt",
   "lastSharedAt",
 ];

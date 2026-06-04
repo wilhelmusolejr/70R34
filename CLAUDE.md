@@ -111,7 +111,7 @@ Every field has a default, so a brand-new profile with only required `firstName`
       "postCaption": ""             // caption used when THIS profile posts THIS image to FB
     }
   ],
-  "trackerLog": [{ "date": "2026-04-22", "note": "..." }],
+  "trackerLog": [{ "date": "2026-04-22", "note": "Markdown ok — rendered with react-markdown on the profile detail page" }],
   "personal": {
     "relationshipStatus": "Single", // see RELATIONSHIP_STATUSES enum
     "relationshipStatusSince": "",

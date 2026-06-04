@@ -20,6 +20,7 @@ import {
 } from "../api/profiles";
 import { updateProxy } from "../api/proxies";
 import { SafeImage } from "../components/SafeImage";
+import ReactMarkdown from "react-markdown";
 
 const PROXY_TYPE_OPTIONS = ["residential", "isp", "datacenter", "mobile"];
 const PROXY_PROTOCOL_OPTIONS = ["http", "https", "socks5"];
@@ -134,6 +135,7 @@ const ONBOARDING_SECTIONS = [
       { key: "marketplaceSetAt", label: "Set Marketplace" },
       { key: "groupJoinedAt", label: "Join Group" },
       { key: "publishPostAt", label: "Publish Post" },
+      { key: "pageSetAt", label: "Set Page" },
       { key: "lastSharedAt", label: "Daily Share", isDailyShare: true },
     ],
   },
@@ -2749,8 +2751,16 @@ export function ProfileDetailPage() {
                   <div className="dl">
                     {isAdmin ? (entry.date || "No date") : mask("")}
                   </div>
-                  <div className="dv" style={{ flex: 1 }}>
-                    {isAdmin ? (entry.note || "—") : mask("")}
+                  <div className="dv tracker-note" style={{ flex: 1 }}>
+                    {isAdmin ? (
+                      entry.note ? (
+                        <ReactMarkdown>{entry.note}</ReactMarkdown>
+                      ) : (
+                        "—"
+                      )
+                    ) : (
+                      mask("")
+                    )}
                   </div>
                   {writeable && (
                     <button
@@ -4307,12 +4317,14 @@ export function ProfileDetailPage() {
                   <input className="npm-input" value={TODAY} readOnly />
                 </label>
                 <label className="npm-field">
-                  <span className="npm-label">Note (optional)</span>
+                  <span className="npm-label">
+                    Note (optional) — Markdown supported
+                  </span>
                   <textarea
                     className="npm-input npm-textarea"
                     value={trackerNote}
                     onChange={(e) => setTrackerNote(e.target.value)}
-                    placeholder="Add an optional note..."
+                    placeholder="Add an optional note... Markdown ok (**bold**, *italic*, lists, links)."
                     autoFocus
                   />
                 </label>
