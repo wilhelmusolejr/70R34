@@ -531,6 +531,69 @@ async function syncProfilePageReference({
   }
 }
 
+// Auto-assign an available page to a profile that does not have one yet.
+// Body: { profileId, country? }. Guards:
+//   1. profile.pageId must be empty (no linkedPage)
+//   2. profile.pageUrl must be empty
+// Only then is the oldest unowned page (optionally filtered by country) linked.
+router.post("/auto-assign", async (req, res, next) => {
+  try {
+    const profileId = String(req.body?.profileId || "").trim();
+    if (!mongoose.isValidObjectId(profileId)) {
+      return res.status(400).json({ message: "Invalid or missing profileId" });
+    }
+
+    const profile = await Profile.findById(profileId);
+    if (!profile) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    // Guard: the profile must not already have a page.
+    const hasLinkedPage = Boolean(profile.pageId);
+    const hasPageUrl = Boolean(String(profile.pageUrl || "").trim());
+    if (hasLinkedPage || hasPageUrl) {
+      return res.status(409).json({
+        message: "Profile already has a page",
+        pageId: profile.pageId ? String(profile.pageId) : null,
+        pageUrl: profile.pageUrl || "",
+      });
+    }
+
+    // Pick the oldest unowned page (optionally constrained by country).
+    const query = { linkedIdentities: { $size: 0 } };
+    const country = String(req.body?.country || "").trim().toUpperCase();
+    if (country) query.country = country;
+
+    const page = await Page.findOne(query).sort({ createdAt: 1 });
+    if (!page) {
+      return res.status(404).json({
+        message: country
+          ? `No available page without an owner for country ${country}`
+          : "No available page without an owner",
+      });
+    }
+
+    page.linkedIdentities = [profile._id];
+    await page.save();
+
+    await syncProfilePageReference({
+      pageObjectId: page._id,
+      previousProfileId: null,
+      nextProfileId: profile._id,
+    });
+
+    const populatedPage = await Page.findById(page._id)
+      .populate("linkedIdentities", "id firstName lastName pageUrl")
+      .populate("assets.imageId")
+      .populate("posts.images")
+      .lean();
+
+    res.json(formatPage(populatedPage));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/", async (_req, res, next) => {
   try {
     const pages = await Page.find()
