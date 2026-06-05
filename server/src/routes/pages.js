@@ -535,7 +535,9 @@ async function syncProfilePageReference({
 // Body: { profileId, country? }. Guards:
 //   1. profile.pageId must be empty (no linkedPage)
 //   2. profile.pageUrl must be empty
-// Only then is the oldest unowned page (optionally filtered by country) linked.
+// Only then is the oldest unowned page linked. The page country is matched to
+// the profile's own country by default (body `country` overrides it), so an IT
+// profile is never given a US page.
 router.post("/auto-assign", async (req, res, next) => {
   try {
     const profileId = String(req.body?.profileId || "").trim();
@@ -559,9 +561,13 @@ router.post("/auto-assign", async (req, res, next) => {
       });
     }
 
-    // Pick the oldest unowned page (optionally constrained by country).
+    // Pick the oldest unowned page, matched to the profile's country so an
+    // IT profile never receives a US page (and vice versa). An explicit
+    // `country` in the body overrides the profile's own country.
+    const country =
+      String(req.body?.country || "").trim().toUpperCase() ||
+      String(profile.country || "").trim().toUpperCase();
     const query = { linkedIdentities: { $size: 0 } };
-    const country = String(req.body?.country || "").trim().toUpperCase();
     if (country) query.country = country;
 
     const page = await Page.findOne(query).sort({ createdAt: 1 });
