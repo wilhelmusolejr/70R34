@@ -7,7 +7,7 @@ import multer from "multer";
 import { Router } from "express";
 import mongoose from "mongoose";
 import { Image } from "../models/Image.js";
-import { Page } from "../models/Page.js";
+import { Page, PAGE_COUNTRIES } from "../models/Page.js";
 import { Profile } from "../models/Profile.js";
 import { mapImageDoc } from "../utils/publicImageUrl.js";
 import { generateBrandImages } from "../services/openaiImages.js";
@@ -535,9 +535,11 @@ async function syncProfilePageReference({
 // Body: { profileId, country? }. Guards:
 //   1. profile.pageId must be empty (no linkedPage)
 //   2. profile.pageUrl must be empty
-// Only then is the oldest unowned page linked. The page country is matched to
-// the profile's own country by default (body `country` overrides it), so an IT
-// profile is never given a US page.
+// The oldest unowned page is linked. `country` selects HOW the page country is
+// chosen:
+//   - "profile" (default): only pages matching the profile's own country.
+//   - "random": prefer the profile's country, but fall back to any country.
+//   - "US" | "IT" (explicit code): only pages in that country.
 router.post("/auto-assign", async (req, res, next) => {
   try {
     const profileId = String(req.body?.profileId || "").trim();
@@ -561,22 +563,41 @@ router.post("/auto-assign", async (req, res, next) => {
       });
     }
 
-    // Pick the oldest unowned page, matched to the profile's country so an
-    // IT profile never receives a US page (and vice versa). An explicit
-    // `country` in the body overrides the profile's own country.
-    const country =
-      String(req.body?.country || "").trim().toUpperCase() ||
-      String(profile.country || "").trim().toUpperCase();
-    const query = { linkedIdentities: { $size: 0 } };
-    if (country) query.country = country;
+    // Decide how to pick the country of the page to assign.
+    const mode = String(req.body?.country || "profile").trim();
+    const modeKey = mode.toLowerCase();
+    const profileCountry = String(profile.country || "").trim().toUpperCase();
+    const baseQuery = { linkedIdentities: { $size: 0 } };
+    const oldestUnowned = (extra) =>
+      Page.findOne({ ...baseQuery, ...extra }).sort({ createdAt: 1 });
 
-    const page = await Page.findOne(query).sort({ createdAt: 1 });
+    let page = null;
+    let noMatchMessage = "No available page without an owner";
+
+    if (modeKey === "random") {
+      // Prefer the profile's country, then fall back to any country.
+      if (profileCountry) page = await oldestUnowned({ country: profileCountry });
+      if (!page) page = await oldestUnowned({});
+    } else if (modeKey === "profile") {
+      // Strictly the profile's own country.
+      page = await oldestUnowned(profileCountry ? { country: profileCountry } : {});
+      if (profileCountry) {
+        noMatchMessage = `No available page without an owner for country ${profileCountry}`;
+      }
+    } else {
+      // Explicit country code (e.g. "US", "IT").
+      const country = mode.toUpperCase();
+      if (!PAGE_COUNTRIES.includes(country)) {
+        return res.status(400).json({
+          message: `country must be "random", "profile", or one of: ${PAGE_COUNTRIES.join(", ")}`,
+        });
+      }
+      page = await oldestUnowned({ country });
+      noMatchMessage = `No available page without an owner for country ${country}`;
+    }
+
     if (!page) {
-      return res.status(404).json({
-        message: country
-          ? `No available page without an owner for country ${country}`
-          : "No available page without an owner",
-      });
+      return res.status(404).json({ message: noMatchMessage });
     }
 
     page.linkedIdentities = [profile._id];
