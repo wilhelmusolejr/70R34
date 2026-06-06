@@ -282,6 +282,95 @@ function MakerSubmissionsChart({ makers, makerColor, days, submissionsByMaker })
   );
 }
 
+function PageSetChart({ days, passed, failed }) {
+  // Stacked bar per day: profiles whose Set Page step was stamped that day,
+  // split by whether the profile currently has a pageUrl (passed) or not
+  // (failed). Note: pass/fail is current state, so older days are re-judged as
+  // page URLs get backfilled.
+  const max = Math.max(
+    1,
+    ...days.map((d) => (passed[d.key] || 0) + (failed[d.key] || 0)),
+  );
+
+  const hasAny = days.some(
+    (d) => (passed[d.key] || 0) + (failed[d.key] || 0) > 0,
+  );
+  if (!hasAny) {
+    return (
+      <div className="dashboard-chart-empty">
+        No Set Page steps stamped in the last 7 days.
+      </div>
+    );
+  }
+
+  return (
+    <div className="dashboard-chart">
+      <div className="dashboard-chart-grid">
+        {days.map((day) => {
+          const pass = passed[day.key] || 0;
+          const fail = failed[day.key] || 0;
+          const total = pass + fail;
+          return (
+            <div
+              key={day.key}
+              className={`dashboard-chart-col${day.isToday ? " is-today" : ""}`}
+            >
+              <div className="dashboard-chart-bars">
+                {total > 0 ? (
+                  <div
+                    className="dashboard-pageset-stack"
+                    style={{ height: `${Math.max(6, (total / max) * 100)}%` }}
+                    title={`${day.label}: ${total} set · ${pass} passed · ${fail} failed`}
+                  >
+                    {fail > 0 ? (
+                      <div
+                        className="dashboard-pageset-seg dashboard-pageset-fail"
+                        style={{ height: `${(fail / total) * 100}%` }}
+                      >
+                        <span className="dashboard-chart-bar-value">{fail}</span>
+                      </div>
+                    ) : null}
+                    {pass > 0 ? (
+                      <div
+                        className="dashboard-pageset-seg dashboard-pageset-pass"
+                        style={{ height: `${(pass / total) * 100}%` }}
+                      >
+                        <span className="dashboard-chart-bar-value">{pass}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="dashboard-chart-bar dashboard-chart-bar-empty" />
+                )}
+              </div>
+              <div className="dashboard-chart-axis">
+                <div className="dashboard-chart-weekday">{day.weekday}</div>
+                <div className="dashboard-chart-day">{day.label}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="dashboard-chart-legend">
+        <span className="dashboard-chart-legend-item">
+          <span
+            className="dashboard-chart-legend-dot"
+            style={{ background: "var(--green, #34c759)" }}
+          />
+          Passed · has page URL
+        </span>
+        <span className="dashboard-chart-legend-item">
+          <span
+            className="dashboard-chart-legend-dot"
+            style={{ background: "var(--red, #ff375f)" }}
+          />
+          Failed · no page URL
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function TrendLineChart({ days, series }) {
   // series: [{ label, color, counts: { dateKey: number } }]
   const WIDTH = 720;
@@ -577,6 +666,42 @@ export function DashboardPageV2() {
   const pagesCreated = useMemo(
     () => countByDay(pages, (p) => p.createdAt, days),
     [pages, days],
+  );
+
+  // ----- Set Page step: stamped per day, split by pass (has pageUrl) / fail -----
+  const hasPageUrl = (p) => Boolean(p.pageUrl && String(p.pageUrl).trim());
+  const pageSetPassed = useMemo(
+    () =>
+      countByDay(
+        filteredProfiles.filter(
+          (p) => p.onboarding?.pageSetAt && hasPageUrl(p),
+        ),
+        (p) => p.onboarding.pageSetAt,
+        days,
+      ),
+    [filteredProfiles, days],
+  );
+  const pageSetFailed = useMemo(
+    () =>
+      countByDay(
+        filteredProfiles.filter(
+          (p) => p.onboarding?.pageSetAt && !hasPageUrl(p),
+        ),
+        (p) => p.onboarding.pageSetAt,
+        days,
+      ),
+    [filteredProfiles, days],
+  );
+  const pageSetTotals = useMemo(
+    () => ({
+      passed: sumValues(pageSetPassed),
+      failed: sumValues(pageSetFailed),
+      today: {
+        passed: pageSetPassed[todayKey] || 0,
+        failed: pageSetFailed[todayKey] || 0,
+      },
+    }),
+    [pageSetPassed, pageSetFailed, todayKey],
   );
 
   // Snapshot counts (not week-bucketed) — respect profile filters.
@@ -1017,6 +1142,36 @@ export function DashboardPageV2() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="dashboard-section-head">
+        <h2>Set Page · last 7 days</h2>
+        <span className="dashboard-section-sub">
+          <strong>{pageSetTotals.passed + pageSetTotals.failed}</strong> stamped
+          {" · "}
+          <span className="dashboard-pageset-stat-pass">
+            {pageSetTotals.passed} passed
+          </span>
+          {" · "}
+          <span className="dashboard-pageset-stat-fail">
+            {pageSetTotals.failed} failed
+          </span>
+          {" · today "}
+          {pageSetTotals.today.passed}/{pageSetTotals.today.passed +
+            pageSetTotals.today.failed}{" "}
+          ok
+        </span>
+      </div>
+      <div className="dashboard-card">
+        {loading ? (
+          <div className="dashboard-chart-empty">Loading…</div>
+        ) : (
+          <PageSetChart
+            days={days}
+            passed={pageSetPassed}
+            failed={pageSetFailed}
+          />
+        )}
       </div>
 
       <div className="dashboard-section-head">

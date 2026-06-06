@@ -1591,6 +1591,40 @@ nav {
   outline: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   outline-offset: -1px;
 }
+.dashboard-pageset-stack {
+  width: 100%;
+  max-width: 36px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: 6px 6px 0 0;
+  overflow: hidden;
+  transition: opacity var(--t);
+}
+.dashboard-pageset-stack:hover {
+  opacity: 0.85;
+}
+.dashboard-pageset-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+}
+.dashboard-pageset-pass {
+  background: var(--green, #34c759);
+}
+.dashboard-pageset-fail {
+  background: var(--red, #ff375f);
+}
+.dashboard-pageset-stat-pass {
+  color: var(--green, #34c759);
+  font-weight: 700;
+}
+.dashboard-pageset-stat-fail {
+  color: var(--red, #ff375f);
+  font-weight: 700;
+}
 .dashboard-chart-axis {
   text-align: center;
 }

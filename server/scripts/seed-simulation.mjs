@@ -166,6 +166,22 @@ function buildProfilePayload(country, makerIds) {
   const assignedMakerId =
     Math.random() < 0.5 ? pick(makerIds) : null;
 
+  // ~55% have the Set Page onboarding step stamped within the last 7 days.
+  // Of those, ~65% "passed" (a pageUrl was written back) and ~35% "failed"
+  // (page step stamped but no pageUrl) — drives the Dashboard "Set Page" chart.
+  const onboarding = {};
+  let pageUrl = "";
+  if (Math.random() < 0.55) {
+    const pageSetDaysAgo = randInt(0, 6);
+    onboarding.pageSetAt = randomTimeInDay(pageSetDaysAgo);
+    if (Math.random() < 0.65) {
+      pageUrl = `https://www.facebook.com/profile.php?id=${randInt(
+        61500000000000,
+        61599999999999,
+      )}`;
+    }
+  }
+
   return {
     payload: {
       firstName,
@@ -177,6 +193,8 @@ function buildProfilePayload(country, makerIds) {
       city: country === "IT" ? pick(["Milan", "Rome", "Florence", "Turin"]) : pick(["NYC", "Boston", "LA", "Chicago"]),
       createdBy: assignedMakerId || undefined,
       trackerLog,
+      onboarding,
+      pageUrl,
     },
     createdAt,
     assignedMakerId,
