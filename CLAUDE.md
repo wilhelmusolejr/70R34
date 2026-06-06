@@ -112,6 +112,9 @@ Every field has a default, so a brand-new profile with only required `firstName`
     }
   ],
   "trackerLog": [{ "date": "2026-04-22", "note": "Markdown ok — rendered with react-markdown on the profile detail page" }],
+  "statusHistory": [             // SERVER-MANAGED append-only status audit — do NOT set from a client
+    { "from": "Active", "to": "Banned", "at": "2026-06-07T13:22:05.123Z" }
+  ],
   "personal": {
     "relationshipStatus": "Single", // see RELATIONSHIP_STATUSES enum
     "relationshipStatusSince": "",
@@ -142,6 +145,8 @@ Every field has a default, so a brand-new profile with only required `firstName`
 - `createdBy` — `{ id, username, role }` when set, else `null`. Older profiles created before this field existed will read as `null`.
 
 **Writing `proxies` back:** the UI must send entries as `{ proxyId: "<id-string>", assignedAt }` — `normalizeProfilePayload` + `serializeProfile` flatten populated objects to ids before PATCH. Do **not** delete a Proxy doc when unlinking from `proxies`; removal is a Profile-side array update only.
+
+**`statusHistory` is server-managed (append-only audit of status changes):** never set it from a client — `normalizeProfilePayload` strips it on the way in and `serializeProfile` drops it on save. It is written entirely server-side in `server/src/models/Profile.js`: a `findOneAndUpdate` hook appends `{ from, to, at }` whenever `status` actually changes (no-op changes are ignored), and a `pre("save")` hook (plus the `POST /bulk` route, since `insertMany` skips middleware) seeds an initial `{ from: "", to: <status>, at }` entry on creation. Going-forward only — profiles created before this existed have `statusHistory: []` until their next status change. Surfaced as the Dashboard "Banned today" card (counts `to: "Banned"` entries dated today) and the profile detail page's read-only "Status History" card.
 
 **Two `tags` arrays for the same image (don't conflate):**
 - `Image.tags[]` — lives on the Image doc itself; shared across every profile using that image. Edit from the image asset page (`/images/:id`).
