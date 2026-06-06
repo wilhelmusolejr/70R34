@@ -812,6 +812,12 @@ export function DashboardPageV2() {
   const attentionCounts = useMemo(() => {
     const flagged = filteredProfiles.filter((p) => p.status === "Flagged").length;
     const banned = filteredProfiles.filter((p) => p.status === "Banned").length;
+    // Profiles whose status transitioned to "Banned" today (from statusHistory).
+    const bannedToday = filteredProfiles.filter((p) =>
+      (p.statusHistory || []).some(
+        (h) => h.to === "Banned" && toLocalDateKey(h.at) === todayKey,
+      ),
+    ).length;
     const needsSetup = filteredProfiles.filter((p) =>
       ["Need Setup", "Pending Profile"].includes(p.status),
     ).length;
@@ -828,8 +834,8 @@ export function DashboardPageV2() {
           ).length,
         0,
       );
-    return { flagged, banned, needsSetup, needChecking, pendingAssignments };
-  }, [filteredProfiles, users]);
+    return { flagged, banned, bannedToday, needsSetup, needChecking, pendingAssignments };
+  }, [filteredProfiles, users, todayKey]);
 
   // ----- Totals -----
   const totals = {
@@ -1032,8 +1038,15 @@ export function DashboardPageV2() {
         />
         <AttentionCard
           tone="danger"
+          value={attentionCounts.bannedToday}
+          label="Banned today"
+          sub="status changed to Banned today"
+          to="/profiles"
+        />
+        <AttentionCard
+          tone="danger"
           value={attentionCounts.banned}
-          label="Banned"
+          label="Banned (total)"
           sub="removed from rotation"
           to="/profiles"
         />

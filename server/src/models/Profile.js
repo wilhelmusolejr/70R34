@@ -123,6 +123,18 @@ const TrackerLogSchema = new Schema(
   { _id: false },
 );
 
+// Append-only record of profile status transitions. Written by the
+// findOneAndUpdate hook below whenever `status` actually changes, so the
+// dashboard can answer "how many got banned today" and similar questions.
+const StatusHistorySchema = new Schema(
+  {
+    from: { type: String, default: "" },
+    to: { type: String, default: "" },
+    at: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const ProfileImageAssignmentSchema = new Schema(
   {
     humanAssetId: {
@@ -254,6 +266,7 @@ const ProfileSchema = new Schema(
     },
     friendRequests: { type: [FriendRequestSchema], default: [] },
     trackerLog: { type: [TrackerLogSchema], default: [] },
+    statusHistory: { type: [StatusHistorySchema], default: [] },
     personal: { type: PersonalSchema, default: () => ({}) },
     work: { type: [WorkSchema], default: [] },
     education: {
@@ -287,6 +300,40 @@ const ProfileSchema = new Schema(
 
 ProfileSchema.index({ status: 1 });
 ProfileSchema.index({ profileCreated: 1 });
+
+// Record status transitions on any findOneAndUpdate-based update (PATCH /:id,
+// PUT /:id, etc.). When the incoming update changes `status` to a different
+// value, append { from, to, at } to statusHistory in the same write.
+ProfileSchema.pre("findOneAndUpdate", async function recordStatusChange() {
+  const update = this.getUpdate() || {};
+  const nextStatus =
+    update.status !== undefined ? update.status : update.$set?.status;
+  if (nextStatus === undefined) return; // status not being touched
+
+  const current = await this.model
+    .findOne(this.getQuery())
+    .select("status")
+    .lean();
+  if (!current || current.status === nextStatus) return; // no real change
+
+  const entry = { from: current.status || "", to: nextStatus, at: new Date() };
+  if (!update.$push) update.$push = {};
+  update.$push.statusHistory = entry;
+  this.setUpdate(update);
+});
+
+// Seed an initial statusHistory entry when a profile is first created, so the
+// timeline starts at creation. `from` is empty because there's no prior status.
+// Covers Profile.create() and new Profile().save(); the bulk insertMany path
+// sets this itself since insertMany skips document middleware.
+ProfileSchema.pre("save", function seedInitialStatusHistory(next) {
+  if (this.isNew && (!this.statusHistory || this.statusHistory.length === 0)) {
+    this.statusHistory = [
+      { from: "", to: this.status, at: this.createdAt || new Date() },
+    ];
+  }
+  next();
+});
 
 export { PROFILE_STATUSES, RELATIONSHIP_STATUSES, FRIEND_REQUEST_STATUSES, PROFILE_COUNTRIES, ONBOARDING_KEYS };
 export const Profile = model("Profile", ProfileSchema);

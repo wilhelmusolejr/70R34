@@ -126,6 +126,12 @@ async function fetchIpInfoForCandidates(candidates) {
 function normalizeProfilePayload(payload = {}) {
   const nextPayload = { ...payload };
 
+  // statusHistory is server-managed: it's appended by the Profile
+  // findOneAndUpdate hook whenever status changes. Never let a client set it
+  // directly — doing so would both allow tampering and conflict with the hook's
+  // $push on the same path.
+  delete nextPayload.statusHistory;
+
   if (Object.prototype.hasOwnProperty.call(nextPayload, "pageId")) {
     const rawPageId = nextPayload.pageId;
 
@@ -548,11 +554,18 @@ router.post("/bulk", async (req, res, next) => {
     }
 
     const createdByMaker = ownerUser?.role === "maker";
-    const documents = incoming.map((profile) => ({
-      ...profile,
-      status: createdByMaker ? "Pending Profile" : profile.status,
-      createdBy: ownerUser?._id || null,
-    }));
+    const documents = incoming.map((profile) => {
+      const { statusHistory: _ignored, ...rest } = profile;
+      const status = createdByMaker ? "Pending Profile" : profile.status;
+      const initialStatus = status || "Available";
+      return {
+        ...rest,
+        status,
+        createdBy: ownerUser?._id || null,
+        // insertMany skips the pre-save hook, so seed the initial history here.
+        statusHistory: [{ from: "", to: initialStatus, at: new Date() }],
+      };
+    });
 
     let inserted = [];
     try {

@@ -107,7 +107,7 @@ const LAST_NAMES_IT = [
 
 const STATUSES = [
   "Available", "Need Setup", "Need Checking", "Pending Profile",
-  "Active", "Ready", "Delivered",
+  "Active", "Ready", "Delivered", "Flagged", "Banned",
 ];
 const COUNTRIES = ["US", "IT"];
 const GENDERS = ["male", "female"];
@@ -182,6 +182,18 @@ function buildProfilePayload(country, makerIds) {
     }
   }
 
+  // Currently-Banned profiles get a statusHistory entry recording when they
+  // were banned (random day in the last 7) so the Dashboard "Banned today"
+  // card has data to show.
+  const statusHistory = [];
+  if (status === "Banned") {
+    statusHistory.push({
+      from: pick(["Active", "Flagged", "Ready"]),
+      to: "Banned",
+      at: randomTimeInDay(randInt(0, 6)),
+    });
+  }
+
   return {
     payload: {
       firstName,
@@ -195,6 +207,7 @@ function buildProfilePayload(country, makerIds) {
       trackerLog,
       onboarding,
       pageUrl,
+      statusHistory,
     },
     createdAt,
     assignedMakerId,

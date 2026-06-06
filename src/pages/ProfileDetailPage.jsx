@@ -250,7 +250,14 @@ function getDefaultProfile() {
 }
 
 function serializeProfile(profile) {
-  const { linkedPage: _linkedPage, linkedProxy: _linkedProxy, ...rest } = profile || {};
+  // statusHistory is server-managed (appended on status change), so never send
+  // it back on save — the server strips it too, but drop it here to be safe.
+  const {
+    linkedPage: _linkedPage,
+    linkedProxy: _linkedProxy,
+    statusHistory: _statusHistory,
+    ...rest
+  } = profile || {};
 
   const proxies = Array.isArray(rest.proxies)
     ? rest.proxies
@@ -339,6 +346,7 @@ function normalizeProfile(raw) {
       ...emptyOnboarding(),
       ...(raw?.onboarding || {}),
     },
+    statusHistory: raw?.statusHistory || [],
   };
 }
 
@@ -2781,6 +2789,56 @@ export function ProfileDetailPage() {
               ))
             ) : (
               <div className="muted">No tracker log entries yet.</div>
+            )}
+          </SectionCard>
+          )}
+
+          {!isMaker && (
+          <SectionCard title="Status History" scrollMaxHeight={300}>
+            {(profile.statusHistory || []).length ? (
+              [...(profile.statusHistory || [])]
+                .sort((a, b) => new Date(b.at) - new Date(a.at))
+                .map((entry, index, arr) => (
+                  <div
+                    key={`${entry.at}-${index}`}
+                    className="dr"
+                    style={{
+                      borderBottom:
+                        index === arr.length - 1 ? "none" : undefined,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <div className="dl">{fmtDateTime(entry.at)}</div>
+                    <div
+                      className="dv"
+                      style={{
+                        flex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span
+                        className={`sbadge ${STATUS_CLASS[entry.from] || "sp"}`}
+                      >
+                        <span className="sdot2" />
+                        {entry.from || "—"}
+                      </span>
+                      <span style={{ color: "var(--text2)" }}>→</span>
+                      <span
+                        className={`sbadge ${STATUS_CLASS[entry.to] || "sp"}`}
+                      >
+                        <span className="sdot2" />
+                        {entry.to || "—"}
+                      </span>
+                    </div>
+                  </div>
+                ))
+            ) : (
+              <div className="muted">No status changes recorded yet.</div>
             )}
           </SectionCard>
           )}
