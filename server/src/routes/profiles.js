@@ -474,6 +474,86 @@ router.get("/", async (req, res, next) => {
   }
 });
 
+// Set Page pass/fail counts for a single day, mirroring the Dashboard's
+// "Set Page · last 7 days" breakdown: a profile counts toward the day its
+// onboarding.pageSetAt was stamped, split by whether it currently has a
+// pageUrl (passed) or not (failed).
+//
+//   GET /api/profiles/page-set-stats?date=YYYY-MM-DD
+//
+// Optional `tzOffset` (minutes, same sign as JS getTimezoneOffset, e.g. -480
+// for UTC+8) shifts the day boundaries so the count matches a browser in that
+// timezone. Defaults to UTC.
+router.get("/page-set-stats", async (req, res, next) => {
+  try {
+    const dateInput = String(req.query.date || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+      return res
+        .status(400)
+        .json({ message: "Query param `date` is required as YYYY-MM-DD" });
+    }
+
+    let tzOffset = 0;
+    if (req.query.tzOffset !== undefined) {
+      const parsed = Number.parseInt(req.query.tzOffset, 10);
+      if (!Number.isInteger(parsed) || Math.abs(parsed) > 14 * 60) {
+        return res.status(400).json({
+          message: "Query param `tzOffset` must be minutes within ±840",
+        });
+      }
+      tzOffset = parsed;
+    }
+
+    // Local midnight in the requested timezone, expressed as a UTC instant.
+    const start = new Date(`${dateInput}T00:00:00.000Z`);
+    if (Number.isNaN(start.getTime())) {
+      return res.status(400).json({ message: "Invalid date" });
+    }
+    start.setUTCMinutes(start.getUTCMinutes() + tzOffset);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+    const [row] = await Profile.aggregate([
+      { $match: { "onboarding.pageSetAt": { $gte: start, $lt: end } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          passed: {
+            $sum: {
+              $cond: [
+                {
+                  $gt: [
+                    {
+                      $strLenCP: {
+                        $trim: { input: { $ifNull: ["$pageUrl", ""] } },
+                      },
+                    },
+                    0,
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const total = row?.total || 0;
+    const passed = row?.passed || 0;
+    res.json({
+      date: dateInput,
+      tzOffset,
+      passed,
+      failed: total - passed,
+      total,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
