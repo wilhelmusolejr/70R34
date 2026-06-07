@@ -138,6 +138,16 @@ router.get("/available-images", async (req, res, next) => {
     const skip = (page - 1) * limit;
 
     const filter = { tags: "post", postId: null };
+
+    // Optional: scope to a single human asset so callers can pull a coherent
+    // set (multiple photos from the same persona) instead of the global pool.
+    const humanAssetIdInput = String(req.query.humanAssetId || "").trim();
+    if (humanAssetIdInput) {
+      if (!isValidId(humanAssetIdInput)) {
+        return res.status(400).json({ message: "Invalid humanAssetId." });
+      }
+      filter.humanAssetId = humanAssetIdInput;
+    }
     const [items, total] = await Promise.all([
       Image.find(filter)
         .sort({ createdAt: -1, _id: -1 })
