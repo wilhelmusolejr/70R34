@@ -248,6 +248,7 @@ A Post bundles a set of Images and is optionally assigned to a Profile to publis
   "caption": "",                    // text shown on the FB post
   "context": "",                    // internal note (not posted to FB)
   "theme": "",
+  "country": "",                    // optional 2-letter code (US, IT), stored uppercase; "" = none
   "profileId": "ObjectId|null",
   "assignedAt": "ISO date|null",
   "status": "draft|posted|failed",
@@ -259,8 +260,8 @@ A Post bundles a set of Images and is optionally assigned to a Profile to publis
 - `Image.postId` is the back-ref kept in sync with `Post.images[]`. An image is "available" when `postId === null`. The Post → Image link is enforced server-side by claiming on add and releasing on remove.
 
 **API: `/api/posts`**
-- `GET /` — list all posts (populated images + assigned profile name).
-- `POST /` — **create** a new post from a set of unclaimed images. Body: `{ images: [imageId, ...], caption?, context?, profileId? }`. Validates that each image exists with `postId === null`, creates the post, claims the images, and if `profileId` is provided, sets `assignedAt = now()` and appends to `Profile.posts[]`.
+- `GET /` — list all posts (populated images + assigned profile name). Optional `?country=US` filter (2-letter code; empty matches posts with no country).
+- `POST /` — **create** a new post from a set of unclaimed images. Body: `{ images: [imageId, ...], caption?, context?, country?, profileId? }`. `country` is an optional 2-letter code (stored uppercase). Validates that each image exists with `postId === null`, creates the post, claims the images, and if `profileId` is provided, sets `assignedAt = now()` and appends to `Profile.posts[]`.
 - `PATCH /:id` — update caption/context/etc.
 - `POST /:id/images` / `DELETE /:id/images/:imageId` — add/remove a single image (claims/releases `Image.postId`).
 - `POST /:id/assign` / `DELETE /:id/assign` — set or clear the owner Profile (mirrors `Profile.posts[]`).

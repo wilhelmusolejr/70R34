@@ -10,6 +10,7 @@ const PostSchema = new Schema(
     caption: { type: String, default: "" },
     context: { type: String, default: "" },
     theme: { type: String, default: "" },
+    country: { type: String, default: "", uppercase: true, trim: true },
     profileId: { type: Schema.Types.ObjectId, ref: "Profile", default: null },
     assignedAt: { type: Date, default: null },
     status: { type: String, enum: POST_STATUSES, default: "draft" },
@@ -23,6 +24,7 @@ const PostSchema = new Schema(
 PostSchema.index({ profileId: 1 });
 PostSchema.index({ status: 1 });
 PostSchema.index({ theme: 1 });
+PostSchema.index({ country: 1 });
 PostSchema.index({ images: 1 }, { unique: true });
 
 export { POST_STATUSES };

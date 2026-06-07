@@ -17,6 +17,17 @@ function isValidId(value) {
   return mongoose.Types.ObjectId.isValid(value);
 }
 
+// Country is an optional 2-letter code (US, IT, ...), stored uppercase.
+// Empty string clears it. Returns { ok, value } or { ok: false, message }.
+function normalizeCountry(raw) {
+  const value = String(raw ?? "").trim().toUpperCase();
+  if (!value) return { ok: true, value: "" };
+  if (!/^[A-Z]{2}$/.test(value)) {
+    return { ok: false, message: "country must be a 2-letter code (e.g. US)." };
+  }
+  return { ok: true, value };
+}
+
 function populatePostQuery(query) {
   return query
     .populate("images", "filename altText tags humanAssetId originalCaption")
@@ -38,6 +49,7 @@ export function formatPost(doc) {
     caption: post.caption || "",
     context: post.context || "",
     theme: post.theme || "",
+    country: post.country || "",
     status: post.status || "draft",
     postedAt: post.postedAt || null,
     profileId: post.profileId ? String(post.profileId._id || post.profileId) : null,
@@ -54,9 +66,20 @@ export function formatPost(doc) {
   };
 }
 
-router.get("/", async (_req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
-    const posts = await populatePostQuery(Post.find()).sort({ createdAt: -1 }).lean();
+    const filter = {};
+    if (req.query.country !== undefined) {
+      const country = normalizeCountry(req.query.country);
+      if (!country.ok) {
+        return res.status(400).json({ message: country.message });
+      }
+      filter.country = country.value;
+    }
+
+    const posts = await populatePostQuery(Post.find(filter))
+      .sort({ createdAt: -1 })
+      .lean();
     res.json(posts.map(formatPost));
   } catch (error) {
     next(error);
@@ -76,6 +99,11 @@ router.post("/", async (req, res, next) => {
     const profileIdInput = String(req.body?.profileId || "").trim();
     if (profileIdInput && !isValidId(profileIdInput)) {
       return res.status(400).json({ message: "Invalid profile id." });
+    }
+
+    const country = normalizeCountry(req.body?.country);
+    if (!country.ok) {
+      return res.status(400).json({ message: country.message });
     }
 
     const images = await Image.find({ _id: { $in: imageIds } }).select(
@@ -103,6 +131,7 @@ router.post("/", async (req, res, next) => {
       images: imageIds,
       caption: String(req.body?.caption || ""),
       context: String(req.body?.context || ""),
+      country: country.value,
       profileId: profile ? profile._id : null,
       assignedAt: profile ? new Date() : null,
     });
@@ -195,6 +224,13 @@ router.patch("/:id", async (req, res, next) => {
     if (typeof body.caption === "string") post.caption = body.caption;
     if (typeof body.context === "string") post.context = body.context;
     if (typeof body.theme === "string") post.theme = body.theme;
+    if (Object.prototype.hasOwnProperty.call(body, "country")) {
+      const country = normalizeCountry(body.country);
+      if (!country.ok) {
+        return res.status(400).json({ message: country.message });
+      }
+      post.country = country.value;
+    }
     if (typeof body.status === "string") {
       if (!POST_STATUSES.includes(body.status)) {
         return res.status(400).json({
