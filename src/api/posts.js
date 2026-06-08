@@ -82,6 +82,13 @@ export function autoAssignPost(postId) {
   });
 }
 
+export function autoAssignPostToProfile(profileId) {
+  return apiFetch(`/api/posts/auto-assign-to-profile`, {
+    method: "POST",
+    body: JSON.stringify({ profileId }),
+  });
+}
+
 export function autoAssignAllPosts() {
   return apiFetch(`/api/posts/auto-assign-all`, {
     method: "POST",

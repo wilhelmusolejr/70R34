@@ -506,6 +506,47 @@ router.post("/:id/auto-assign", async (req, res, next) => {
   }
 });
 
+router.post("/auto-assign-to-profile", async (req, res, next) => {
+  try {
+    const profileId = String(req.body?.profileId || "").trim();
+    if (!isValidId(profileId)) {
+      return res.status(400).json({ message: "Invalid profile id." });
+    }
+
+    const profile = await Profile.findById(profileId).select("_id country");
+    if (!profile) return res.status(404).json({ message: "Profile not found." });
+
+    const alreadyOwns = await Post.exists({ profileId: profile._id });
+    if (alreadyOwns) {
+      return res.status(409).json({ message: "Profile already owns a post." });
+    }
+
+    const country = String(profile.country || "").toUpperCase() || "US";
+    // Posts with no country default to US, so a US profile also matches them.
+    const countryFilter = country === "US" ? { $in: ["US", ""] } : country;
+    const updated = await Post.findOneAndUpdate(
+      { profileId: null, country: countryFilter },
+      { profileId: profile._id, assignedAt: new Date() },
+      { new: true, sort: { createdAt: -1, _id: -1 } },
+    );
+    if (!updated) {
+      return res.status(409).json({
+        message: `No unassigned post is available for country ${country}.`,
+      });
+    }
+
+    await Profile.updateOne(
+      { _id: profile._id },
+      { $addToSet: { posts: updated._id } },
+    );
+
+    const populated = await populatePostQuery(Post.findById(updated._id)).lean();
+    res.json(formatPost(populated));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.delete("/:id", async (req, res, next) => {
   try {
     const postId = String(req.params.id || "").trim();
