@@ -3,6 +3,7 @@ import {
   BrowserRouter as Router,
   Link,
   NavLink,
+  Navigate,
   Routes,
   Route,
   useLocation,
@@ -232,9 +233,11 @@ function Layout({ children }) {
             <span className="nav-word">70R34</span>
           </Link>
           <div className="nav-links">
-            <NavLink to="/" end>
-              Dashboard
-            </NavLink>
+            {currentUser?.role === "admin" && (
+              <NavLink to="/" end>
+                Dashboard
+              </NavLink>
+            )}
             <NavLink to="/profiles">Profiles</NavLink>
             <NavLink to="/images">Images</NavLink>
             <NavLink to="/pages">Pages</NavLink>
@@ -312,9 +315,11 @@ function Layout({ children }) {
         {isMobileNavOpen ? (
           <div className="nav-mobile-menu">
             <div className="nav-mobile-links">
-              <NavLink to="/" end onClick={() => setIsMobileNavOpen(false)}>
-                Dashboard
-              </NavLink>
+              {currentUser?.role === "admin" && (
+                <NavLink to="/" end onClick={() => setIsMobileNavOpen(false)}>
+                  Dashboard
+                </NavLink>
+              )}
               <NavLink to="/profiles" onClick={() => setIsMobileNavOpen(false)}>
                 Profiles
               </NavLink>
@@ -531,13 +536,23 @@ function Layout({ children }) {
   );
 }
 
+// The Dashboard is admin-only. Non-admins hitting "/" are redirected to the
+// Profiles list (their default landing page).
+function DashboardRoute() {
+  const { currentUser } = useAuth();
+  if (currentUser?.role !== "admin") {
+    return <Navigate to="/profiles" replace />;
+  }
+  return <DashboardPage />;
+}
+
 function App() {
   return (
     <AuthProvider>
       <Router>
         <Layout>
           <Routes>
-            <Route path="/" element={<DashboardPage />} />
+            <Route path="/" element={<DashboardRoute />} />
             <Route path="/profiles" element={<ProfilesPage />} />
             <Route path="/images" element={<ImagesPage />} />
             <Route path="/images/:id" element={<ImageAssetDetailPage />} />

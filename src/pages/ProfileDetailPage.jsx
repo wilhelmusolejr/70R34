@@ -2843,6 +2843,7 @@ export function ProfileDetailPage() {
           </SectionCard>
           )}
 
+          {!isMaker && (
           <SectionCard title="Onboarding Checklist">
             <div
               style={{
@@ -2960,6 +2961,7 @@ export function ProfileDetailPage() {
               ))}
             </div>
           </SectionCard>
+          )}
 
           <SectionCard title="Notes">
             <EditableText
