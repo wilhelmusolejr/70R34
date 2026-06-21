@@ -36,6 +36,28 @@ const DRY_RUN = process.env.DRY_RUN === "1" || process.env.DRY_RUN === "true";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Permanent OpenAI billing failures — retrying or moving to the next page is
+// guaranteed to fail the same way, so we abort the whole run on first sight.
+// Mirrors PERMANENT_CODES in server/src/services/openaiImages.js.
+const BILLING_CODES = new Set([
+  "insufficient_quota",
+  "billing_hard_limit_reached",
+]);
+
+// A failed job exposes errors at status.error.errors[]; a partial (still "ok")
+// job exposes them at status.errors[]. Each entry carries a `code`. Return the
+// first billing-coded entry found, or null.
+function findBillingError(status) {
+  if (!status) return null;
+  const buckets = [status.errors, status.error?.errors];
+  for (const errs of buckets) {
+    if (!Array.isArray(errs)) continue;
+    const hit = errs.find((e) => BILLING_CODES.has(e?.code));
+    if (hit) return hit;
+  }
+  return null;
+}
+
 function fmt(d = new Date()) {
   return d.toISOString().slice(11, 19);
 }
@@ -114,15 +136,16 @@ async function processOne(page) {
     log(`→ start  ${label}`);
     await startGeneration(page.id);
     const result = await pollUntilDone(page.id);
+    const billing = findBillingError(result.status);
     if (result.ok) {
       const errs = result.status?.errors || [];
       const tag = errs.length > 0 ? "partial" : "ok";
       log(`✓ ${tag.padEnd(7)} ${label}${errs.length ? ` — ${errs.map((e) => `${e.slot}: ${e.message}`).join(", ")}` : ""}`);
-      return { page, ok: true, partial: errs.length > 0, errs };
+      return { page, ok: true, partial: errs.length > 0, errs, billing };
     }
     const msg = result.status?.error?.message || result.reason || "unknown";
     log(`✗ failed  ${label} — ${msg}`);
-    return { page, ok: false, error: msg };
+    return { page, ok: false, error: msg, billing };
   } catch (err) {
     log(`✗ error   ${label} — ${err.message}`);
     return { page, ok: false, error: err.message };
@@ -135,24 +158,40 @@ async function runWithConcurrency(items, concurrency, handler) {
   // Shared rolling clock so all workers respect MIN_INTERVAL_MS between starts,
   // even when concurrency > 1. At concurrency 1 it's just "wait until next tick".
   let nextStartAt = Date.now();
+  // Set once a billing error is seen — drains the queue so no further pages are
+  // attempted. In-flight pages on other workers still finish.
+  let billingAbort = null;
 
   async function worker() {
     while (queue.length) {
+      if (billingAbort) break;
       const item = queue.shift();
       const wait = nextStartAt - Date.now();
       if (wait > 0) {
         log(`  (pacing — waiting ${Math.ceil(wait / 1000)}s before next page)`);
         await sleep(wait);
       }
+      if (billingAbort) break;
       nextStartAt = Date.now() + MIN_INTERVAL_MS;
       const result = await handler(item);
       results.push(result);
+      if (result?.billing && !billingAbort) {
+        billingAbort = result.billing;
+        const remaining = queue.length;
+        queue.length = 0; // drain — stop pulling new pages
+        log(
+          `‼ BILLING ABORT — ${billingAbort.code}: ${billingAbort.message}`,
+        );
+        log(
+          `  Stopping run. ${remaining} pending page(s) left untouched. Top up OpenAI billing and re-run.`,
+        );
+      }
     }
   }
   await Promise.all(
     Array.from({ length: Math.min(concurrency, items.length) }, worker),
   );
-  return results;
+  return { results, billingAbort };
 }
 
 async function main() {
@@ -178,7 +217,11 @@ async function main() {
 
   log(`Starting with concurrency=${CONCURRENCY}. Each page takes ~30–180s.`);
   const started = Date.now();
-  const results = await runWithConcurrency(pending, CONCURRENCY, processOne);
+  const { results, billingAbort } = await runWithConcurrency(
+    pending,
+    CONCURRENCY,
+    processOne,
+  );
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
 
   const ok = results.filter((r) => r.ok && !r.partial).length;
@@ -195,6 +238,13 @@ async function main() {
       .forEach((r) =>
         log(`  - ${r.page.country || "??"} | ${r.page.pageName} (${r.page.id}): ${r.error}`),
       );
+  }
+
+  if (billingAbort) {
+    log(
+      `Run aborted early due to billing (${billingAbort.code}). Pending pages were not all processed.`,
+    );
+    process.exitCode = 2;
   }
 }
 

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { feature } from "topojson-client";
+import { CircleMarker, GeoJSON, MapContainer, Popup, useMap } from "react-leaflet";
 import { Link } from "react-router-dom";
+import countries110m from "world-atlas/countries-110m.json";
 import { fetchProfiles } from "../api/profiles";
 import { fetchPosts } from "../api/posts";
 import { fetchPages } from "../api/pages";
@@ -12,7 +15,11 @@ import {
   sumValues,
   toLocalDateKey,
 } from "../utils/dashboard";
+import { buildProfileLocationPoints } from "../utils/profileLocations";
+import "leaflet/dist/leaflet.css";
 import "../App.css";
+
+const WORLD_COUNTRIES = feature(countries110m, countries110m.objects.countries);
 
 const COUNTRY_OPTIONS = [
   { code: "US", label: "United States", flag: "🇺🇸" },
@@ -282,7 +289,7 @@ function MakerSubmissionsChart({ makers, makerColor, days, submissionsByMaker })
   );
 }
 
-function PageSetChart({ days, passed, failed }) {
+function PageSetChart({ days, passed, failed, selectedKey, onSelectDay }) {
   // Stacked bar per day: profiles whose Set Page step was stamped that day,
   // split by whether the profile currently has a pageUrl (passed) or not
   // (failed). Note: pass/fail is current state, so older days are re-judged as
@@ -310,10 +317,22 @@ function PageSetChart({ days, passed, failed }) {
           const pass = passed[day.key] || 0;
           const fail = failed[day.key] || 0;
           const total = pass + fail;
+          const isSelected = selectedKey === day.key;
           return (
             <div
               key={day.key}
-              className={`dashboard-chart-col${day.isToday ? " is-today" : ""}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelectDay?.(isSelected ? null : day.key)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelectDay?.(isSelected ? null : day.key);
+                }
+              }}
+              className={`dashboard-chart-col dashboard-chart-col-clickable${
+                day.isToday ? " is-today" : ""
+              }${isSelected ? " is-selected" : ""}`}
             >
               <div className="dashboard-chart-bars">
                 {total > 0 ? (
@@ -548,6 +567,208 @@ function PipelineFunnel({ stages, fallout }) {
   );
 }
 
+function MapAutoFit({ points, resetKey }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!points.length) {
+      map.setView([20, 0], 2);
+      return;
+    }
+    const bounds = points.map((point) => [point.lat, point.lon]);
+    map.fitBounds(bounds, {
+      padding: [42, 42],
+      maxZoom: points.length === 1 ? 7 : 11,
+    });
+  }, [map, points, resetKey]);
+
+  return null;
+}
+
+function ProfileLocationMap({ points, missing }) {
+  const countryGroups = useMemo(() => {
+    const groups = new Map();
+    for (const point of points) {
+      const country = point.country || "Unknown";
+      if (!groups.has(country)) {
+        groups.set(country, { country, count: 0, cities: 0 });
+      }
+      const group = groups.get(country);
+      group.count += point.count;
+      group.cities += 1;
+    }
+    return [...groups.values()].sort((a, b) => b.count - a.count);
+  }, [points]);
+  const [selectedMapCountries, setSelectedMapCountries] = useState([]);
+  const [resetMapKey, setResetMapKey] = useState(0);
+  const visiblePoints = useMemo(() => {
+    if (!selectedMapCountries.length) return points;
+    return points.filter((point) => selectedMapCountries.includes(point.country));
+  }, [points, selectedMapCountries]);
+  const cityGroups = useMemo(() => {
+    const groups = new Map();
+    for (const point of visiblePoints) {
+      const country = point.country || "Unknown";
+      if (!groups.has(country)) {
+        groups.set(country, {
+          country,
+          count: 0,
+          cities: [],
+        });
+      }
+      const group = groups.get(country);
+      group.count += point.count;
+      group.cities.push(point);
+    }
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        cities: group.cities.sort((a, b) => b.count - a.count),
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [visiblePoints]);
+  const maxCount = Math.max(1, ...visiblePoints.map((point) => point.count));
+  const palette = ["#2f80ed", "#27c46b", "#f59e0b"];
+
+  const toggleMapCountry = (country) => {
+    setSelectedMapCountries((current) =>
+      current.length === 0
+        ? countryGroups
+            .map((group) => group.country)
+            .filter((entry) => entry !== country)
+        : current.includes(country)
+        ? current.filter((entry) => entry !== country)
+        : [...current, country],
+    );
+  };
+
+  return (
+    <div className="dashboard-location-map">
+      <div className="dashboard-map-panel">
+        <button
+          type="button"
+          className="dashboard-map-reset"
+          onClick={() => setResetMapKey((current) => current + 1)}
+        >
+          Reset map
+        </button>
+        <MapContainer
+          className="dashboard-leaflet-map"
+          center={[20, 0]}
+          zoom={2}
+          minZoom={2}
+          maxZoom={13}
+          scrollWheelZoom
+          worldCopyJump
+          zoomControl
+        >
+          <GeoJSON
+            data={WORLD_COUNTRIES}
+            className="dashboard-map-geojson"
+            style={() => ({
+              color: "#444",
+              weight: 0.7,
+              fillColor: "#2f2f2f",
+              fillOpacity: 0.9,
+            })}
+          />
+          <MapAutoFit points={visiblePoints} resetKey={resetMapKey} />
+          {visiblePoints.map((point, index) => {
+            const radius = 6 + Math.sqrt(point.count / maxCount) * 14;
+            const color = palette[index % palette.length];
+            return (
+              <CircleMarker
+                key={point.key}
+                center={[point.lat, point.lon]}
+                radius={radius}
+                pathOptions={{
+                  color: "rgba(255,255,255,0.72)",
+                  weight: 1.6,
+                  fillColor: color,
+                  fillOpacity: 0.76,
+                }}
+              >
+                <Popup>
+                  <div className="dashboard-map-popup">
+                    <strong>
+                      {point.city}, {point.country}
+                    </strong>
+                    <span>
+                      {point.count} profile{point.count === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                </Popup>
+              </CircleMarker>
+            );
+          })}
+        </MapContainer>
+      </div>
+      <div className="dashboard-map-list">
+        <div className="dashboard-map-list-head">
+          <span>{visiblePoints.length} cities plotted</span>
+          {missing ? <span>{missing} without coordinates</span> : null}
+        </div>
+        <details className="dashboard-map-filter" open>
+          <summary>Countries</summary>
+          <div className="dashboard-map-filter-options">
+            <label className="dashboard-map-filter-row">
+              <input
+                type="checkbox"
+                checked={selectedMapCountries.length === 0}
+                onChange={() => setSelectedMapCountries([])}
+              />
+              <span>All countries</span>
+              <em>{points.reduce((sum, point) => sum + point.count, 0)}</em>
+            </label>
+            {countryGroups.map((group) => (
+              <label key={group.country} className="dashboard-map-filter-row">
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedMapCountries.length === 0 ||
+                    selectedMapCountries.includes(group.country)
+                  }
+                  onChange={() => toggleMapCountry(group.country)}
+                />
+                <span>{group.country}</span>
+                <em>{group.count}</em>
+              </label>
+            ))}
+          </div>
+        </details>
+        {cityGroups.length ? (
+          <div className="dashboard-map-country-list">
+            {cityGroups.map((group) => (
+              <details key={group.country} className="dashboard-map-country-group">
+                <summary>
+                  <span>{group.country}</span>
+                  <em>
+                    {group.count} profile{group.count === 1 ? "" : "s"}
+                  </em>
+                </summary>
+                <ol className="dashboard-map-city-list">
+                  {group.cities.map((point) => (
+                    <li key={point.key}>
+                      <span className="dashboard-map-city-name">
+                        {point.city}
+                      </span>
+                      <span className="dashboard-map-city-count">{point.count}</span>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            ))}
+          </div>
+        ) : (
+          <div className="dashboard-chart-empty">
+            No current city values can be plotted for this view.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function toggleArrayValue(setter, value) {
   setter((current) =>
     current.includes(value)
@@ -704,6 +925,32 @@ export function DashboardPageV2() {
     [pageSetPassed, pageSetFailed, todayKey],
   );
 
+  // Profiles whose Set Page step was stamped on the selected day (defaults to
+  // today), split pass/fail. Drives the per-day breakdown under the chart.
+  const [pageSetSelectedKey, setPageSetSelectedKey] = useState(todayKey);
+  const pageSetDayProfiles = useMemo(() => {
+    if (!pageSetSelectedKey) return { passed: [], failed: [] };
+    const onDay = (p) =>
+      p.onboarding?.pageSetAt &&
+      toLocalDateKey(p.onboarding.pageSetAt) === pageSetSelectedKey;
+    const sortByName = (a, b) =>
+      `${a.firstName || ""} ${a.lastName || ""}`.localeCompare(
+        `${b.firstName || ""} ${b.lastName || ""}`,
+      );
+    return {
+      passed: filteredProfiles
+        .filter((p) => onDay(p) && hasPageUrl(p))
+        .sort(sortByName),
+      failed: filteredProfiles
+        .filter((p) => onDay(p) && !hasPageUrl(p))
+        .sort(sortByName),
+    };
+  }, [filteredProfiles, pageSetSelectedKey]);
+  const pageSetSelectedLabel = useMemo(
+    () => days.find((d) => d.key === pageSetSelectedKey)?.label || "",
+    [days, pageSetSelectedKey],
+  );
+
   // Snapshot counts (not week-bucketed) — respect profile filters.
   const profilesRunning = useMemo(
     () => filteredProfiles.filter((p) => p.status === "Active").length,
@@ -807,6 +1054,11 @@ export function DashboardPageV2() {
       color: statusColor(label),
     }));
   }, [filteredProfiles]);
+
+  const profileLocationMap = useMemo(
+    () => buildProfileLocationPoints(filteredProfiles),
+    [filteredProfiles],
+  );
 
   // ----- Attention row counts -----
   const attentionCounts = useMemo(() => {
@@ -1095,6 +1347,25 @@ export function DashboardPageV2() {
         )}
       </div>
 
+      <div className="dashboard-section-head">
+        <h2>Profile location map</h2>
+        <span className="dashboard-section-sub">
+          Current city from profiles in view
+        </span>
+      </div>
+      <div className="dashboard-card">
+        {loading ? (
+          <div className="dashboard-chart-empty">Loading map...</div>
+        ) : filteredProfiles.length === 0 ? (
+          <div className="dashboard-chart-empty">No profiles in view.</div>
+        ) : (
+          <ProfileLocationMap
+            points={profileLocationMap.points}
+            missing={profileLocationMap.missing}
+          />
+        )}
+      </div>
+
       <div className="dashboard-split">
         <aside className="dashboard-split-aside">
           <div className="dashboard-section-head">
@@ -1179,11 +1450,69 @@ export function DashboardPageV2() {
         {loading ? (
           <div className="dashboard-chart-empty">Loading…</div>
         ) : (
-          <PageSetChart
-            days={days}
-            passed={pageSetPassed}
-            failed={pageSetFailed}
-          />
+          <>
+            <PageSetChart
+              days={days}
+              passed={pageSetPassed}
+              failed={pageSetFailed}
+              selectedKey={pageSetSelectedKey}
+              onSelectDay={setPageSetSelectedKey}
+            />
+            <div className="dashboard-pageset-day">
+              {pageSetSelectedKey ? (
+                <>
+                  <div className="dashboard-pageset-day-head">
+                    <strong>{pageSetSelectedLabel || pageSetSelectedKey}</strong>
+                    <span>
+                      {pageSetDayProfiles.passed.length +
+                        pageSetDayProfiles.failed.length}{" "}
+                      stamped · {pageSetDayProfiles.passed.length} passed ·{" "}
+                      {pageSetDayProfiles.failed.length} failed
+                    </span>
+                  </div>
+                  {pageSetDayProfiles.passed.length +
+                  pageSetDayProfiles.failed.length ? (
+                    <ul className="dashboard-pageset-day-list">
+                      {[
+                        ...pageSetDayProfiles.failed.map((p) => ({
+                          p,
+                          ok: false,
+                        })),
+                        ...pageSetDayProfiles.passed.map((p) => ({
+                          p,
+                          ok: true,
+                        })),
+                      ].map(({ p, ok }) => (
+                        <li key={p._id}>
+                          <Link to={`/profile/${p._id}`}>
+                            {`${p.firstName || ""} ${p.lastName || ""}`.trim() ||
+                              "(unnamed)"}
+                          </Link>
+                          <span
+                            className={`dashboard-pageset-pill ${
+                              ok
+                                ? "dashboard-pageset-stat-pass"
+                                : "dashboard-pageset-stat-fail"
+                            }`}
+                          >
+                            {ok ? "passed" : "failed"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="dashboard-chart-empty">
+                      No Set Page steps stamped on this day.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="dashboard-pageset-day-hint">
+                  Select a day above to see which profiles were set.
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 

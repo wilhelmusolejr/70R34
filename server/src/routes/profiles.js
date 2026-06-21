@@ -30,10 +30,9 @@ const projectRoot = path.resolve(__dirname, "../../..");
 
 // Base URL of the automation bot that runs onboarding steps. Override with the
 // BOT_API_URL env var; defaults to the bot listening locally on :3000.
-const BOT_API_URL = (process.env.BOT_API_URL || "http://localhost:3000").replace(
-  /\/+$/,
-  "",
-);
+const BOT_API_URL = (
+  process.env.BOT_API_URL || "http://localhost:3000"
+).replace(/\/+$/, "");
 
 function isValidId(value) {
   return mongoose.Types.ObjectId.isValid(value);
@@ -50,7 +49,9 @@ function sanitizeUser(user) {
 }
 
 function normalizeText(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
 
 function normalizeIp(value) {
@@ -176,7 +177,9 @@ function normalizeProfilePayload(payload = {}) {
   }
 
   if (Object.prototype.hasOwnProperty.call(nextPayload, "images")) {
-    const rawImages = Array.isArray(nextPayload.images) ? nextPayload.images : [];
+    const rawImages = Array.isArray(nextPayload.images)
+      ? nextPayload.images
+      : [];
     nextPayload.images = rawImages
       .map((entry) => {
         if (!entry) return null;
@@ -191,7 +194,9 @@ function normalizeProfilePayload(payload = {}) {
             ? entry.humanAssetId._id || entry.humanAssetId.id
             : entry.humanAssetId;
         const humanAssetId = rawAssetId ? String(rawAssetId).trim() : null;
-        const assignedAt = entry.assignedAt ? new Date(entry.assignedAt) : new Date();
+        const assignedAt = entry.assignedAt
+          ? new Date(entry.assignedAt)
+          : new Date();
         const tags = Array.isArray(entry.tags)
           ? entry.tags.map((t) => String(t || "").trim()).filter(Boolean)
           : [];
@@ -200,7 +205,9 @@ function normalizeProfilePayload(payload = {}) {
         return {
           humanAssetId: humanAssetId || null,
           imageId,
-          assignedAt: Number.isNaN(assignedAt.getTime()) ? new Date() : assignedAt,
+          assignedAt: Number.isNaN(assignedAt.getTime())
+            ? new Date()
+            : assignedAt,
           tags,
           postCaption,
         };
@@ -209,7 +216,9 @@ function normalizeProfilePayload(payload = {}) {
   }
 
   if (Object.prototype.hasOwnProperty.call(nextPayload, "proxies")) {
-    const rawProxies = Array.isArray(nextPayload.proxies) ? nextPayload.proxies : [];
+    const rawProxies = Array.isArray(nextPayload.proxies)
+      ? nextPayload.proxies
+      : [];
     nextPayload.proxies = rawProxies
       .map((entry) => {
         if (!entry) return null;
@@ -219,10 +228,14 @@ function normalizeProfilePayload(payload = {}) {
             : entry.proxyId;
         const id = String(rawId || "").trim();
         if (!id) return null;
-        const assignedAt = entry.assignedAt ? new Date(entry.assignedAt) : new Date();
+        const assignedAt = entry.assignedAt
+          ? new Date(entry.assignedAt)
+          : new Date();
         return {
           proxyId: id,
-          assignedAt: Number.isNaN(assignedAt.getTime()) ? new Date() : assignedAt,
+          assignedAt: Number.isNaN(assignedAt.getTime())
+            ? new Date()
+            : assignedAt,
         };
       })
       .filter(Boolean);
@@ -250,7 +263,9 @@ function normalizeProfilePayload(payload = {}) {
         return {
           senderProfileId: id,
           status,
-          receivedAt: Number.isNaN(receivedAt.getTime()) ? new Date() : receivedAt,
+          receivedAt: Number.isNaN(receivedAt.getTime())
+            ? new Date()
+            : receivedAt,
         };
       })
       .filter(Boolean);
@@ -260,7 +275,9 @@ function normalizeProfilePayload(payload = {}) {
 }
 
 function getSelectedEmail(profile) {
-  const selectedEmail = (profile?.emails || []).find((email) => email?.selected);
+  const selectedEmail = (profile?.emails || []).find(
+    (email) => email?.selected,
+  );
   return normalizeText(selectedEmail?.address);
 }
 
@@ -324,7 +341,14 @@ function formatFriendRequestSender(value) {
       status: value.status || "",
     };
   }
-  return { id: String(value), firstName: "", lastName: "", profileUrl: "", avatarUrl: "", status: "" };
+  return {
+    id: String(value),
+    firstName: "",
+    lastName: "",
+    profileUrl: "",
+    avatarUrl: "",
+    status: "",
+  };
 }
 
 function formatCreatedBy(value) {
@@ -381,7 +405,8 @@ function formatProfile(profile) {
     friendRequests,
     pageId: linkedPage?.id || (profile?.pageId ? String(profile.pageId) : ""),
     linkedPage,
-    proxyId: linkedProxy?.id || (profile?.proxyId ? String(profile.proxyId) : ""),
+    proxyId:
+      linkedProxy?.id || (profile?.proxyId ? String(profile.proxyId) : ""),
     linkedProxy,
     createdBy,
   };
@@ -393,14 +418,14 @@ function getPopulatedProfileQuery(id) {
     .populate({
       path: "pageId",
       select: "pageName pageId bio assets posts createdAt updatedAt",
-      populate: [
-        { path: "assets.imageId" },
-        { path: "posts.images" },
-      ],
+      populate: [{ path: "assets.imageId" }, { path: "posts.images" }],
     })
     .populate({
       path: "posts",
-      populate: { path: "images", select: "filename altText tags humanAssetId" },
+      populate: {
+        path: "images",
+        select: "filename altText tags humanAssetId",
+      },
       options: { sort: { createdAt: -1 } },
     })
     .populate("proxyId")
@@ -432,7 +457,8 @@ router.get("/", async (req, res, next) => {
         ? limitInput
         : null;
 
-    const random = String(req.query.random || "").trim() === "1" ||
+    const random =
+      String(req.query.random || "").trim() === "1" ||
       String(req.query.random || "").toLowerCase() === "true";
 
     const populateAndFormat = (docs) => docs.map(formatProfile);
@@ -448,7 +474,8 @@ router.get("/", async (req, res, next) => {
         { path: "pageId", select: "pageName pageId" },
         {
           path: "proxyId",
-          select: "host port username source type protocol status label country city",
+          select:
+            "host port username source type protocol status label country city",
         },
         { path: "proxies.proxyId" },
         { path: "createdBy", select: "username role" },
@@ -460,7 +487,10 @@ router.get("/", async (req, res, next) => {
     let query = Profile.find(filter)
       .populate("images.imageId")
       .populate("pageId", "pageName pageId")
-      .populate("proxyId", "host port username source type protocol status label country city")
+      .populate(
+        "proxyId",
+        "host port username source type protocol status label country city",
+      )
       .populate("proxies.proxyId")
       .populate("createdBy", "username role")
       .sort({ _id: 1 });
@@ -595,7 +625,9 @@ router.delete("/:id/images/:imageId", async (req, res, next) => {
     );
 
     if (!hadAssignment) {
-      return res.status(404).json({ message: "Image is not assigned to this profile" });
+      return res
+        .status(404)
+        .json({ message: "Image is not assigned to this profile" });
     }
 
     profile.images = (profile.images || []).filter(
@@ -655,14 +687,18 @@ router.post("/bulk", async (req, res, next) => {
         inserted = bulkErr.insertedDocs;
       } else {
         console.error("insertMany failed:", bulkErr.message);
-        return res.status(500).json({ message: bulkErr.message || "Insert failed" });
+        return res
+          .status(500)
+          .json({ message: bulkErr.message || "Insert failed" });
       }
     }
 
     let updatedUser = null;
 
     if (ownerUser && inserted.length) {
-      const existingIds = new Set((ownerUser.profiles || []).map((entry) => String(entry.profileId)));
+      const existingIds = new Set(
+        (ownerUser.profiles || []).map((entry) => String(entry.profileId)),
+      );
       const assignedAt = new Date().toISOString().slice(0, 10);
 
       const newAssignments = inserted
@@ -724,9 +760,8 @@ router.post("/", async (req, res, next) => {
 
     const payload = normalizeProfilePayload({
       ...req.body,
-      status: ownerUser?.role === "maker"
-        ? "Pending Profile"
-        : req.body?.status,
+      status:
+        ownerUser?.role === "maker" ? "Pending Profile" : req.body?.status,
       createdBy: ownerUser?._id || null,
     });
     delete payload.userId;
@@ -908,7 +943,8 @@ router.post("/:id/proxies", async (req, res, next) => {
     const port = Number.parseInt(portStr, 10);
     if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
       return res.status(400).json({
-        message: "Entry must be in host:port[:user:pass] format with a valid port (1–65535).",
+        message:
+          "Entry must be in host:port[:user:pass] format with a valid port (1–65535).",
       });
     }
 
@@ -932,7 +968,9 @@ router.post("/:id/proxies", async (req, res, next) => {
     }
 
     const statusInput = String(req.body?.status || "pending").trim();
-    const status = PROXY_STATUSES.includes(statusInput) ? statusInput : "pending";
+    const status = PROXY_STATUSES.includes(statusInput)
+      ? statusInput
+      : "pending";
 
     const toTrimmedOrNull = (value) => {
       if (value === null || value === undefined) return null;
@@ -1031,7 +1069,9 @@ router.post("/:id/proxy-log", async (req, res, next) => {
     };
 
     if (!entry.ip) {
-      return res.status(400).json({ message: "Could not determine IP address" });
+      return res
+        .status(400)
+        .json({ message: "Could not determine IP address" });
     }
 
     const updated = await Profile.findByIdAndUpdate(
@@ -1078,16 +1118,37 @@ router.post("/:id/run", async (req, res, next) => {
             {
               type: "homepage_interaction",
               steps: [
-                { type: "wait", params: { min: 8, max: 15 } },
-                { type: "like_posts", params: { count: 2 } },
-                { type: "share_posts", params: { count: 1 } },
-                { type: "wait", params: { min: 30, max: 50 } },
+                {
+                  type: "scroll",
+                  params: { min: 30, max: 60, direction: "down" },
+                },
               ],
             },
+
             {
-              type: "connect_loop",
-              params: { count: 5, skipIfFriendsAbove: 30 },
+              type: "visit_profile",
+              params: { pool: "sharers" },
+              steps: [
+                { type: "connect" },
+                { type: "scroll", params: { min: 30, max: 60 } },
+                { type: "like_posts", params: { min: 1, max: 4 } },
+                { type: "share_posts", params: { count: 1 } },
+              ],
             },
+
+            { type: "wait", params: { min: 10, max: 15 } },
+
+            {
+              type: "visit_profile",
+              params: { pool: "sharers" },
+              steps: [
+                { type: "connect" },
+                { type: "scroll", params: { min: 30, max: 60 } },
+                { type: "like_posts", params: { min: 1, max: 4 } },
+                { type: "share_posts", params: { count: 1 } },
+              ],
+            },
+
             { type: "wait", params: { min: 10, max: 15 } },
           ],
         }),
@@ -1247,23 +1308,28 @@ router.get("/:id/images/download", async (req, res, next) => {
 
     const validImages = [
       ...(profile.images || []).map((entry) => entry.imageId),
-      ...((profile.pageId?.assets || []).map((asset) => asset.imageId)),
-      ...((profile.pageId?.posts || []).flatMap((post) => post.images || [])),
-    ]
-      .filter((image) => image?.filename);
+      ...(profile.pageId?.assets || []).map((asset) => asset.imageId),
+      ...(profile.pageId?.posts || []).flatMap((post) => post.images || []),
+    ].filter((image) => image?.filename);
 
     if (!validImages.length) {
-      return res.status(404).json({ message: "No images found for this profile" });
+      return res
+        .status(404)
+        .json({ message: "No images found for this profile" });
     }
 
-    const safeName = `${profile.firstName || ""} ${profile.lastName || ""}`
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || `profile-${profile._id}`;
+    const safeName =
+      `${profile.firstName || ""} ${profile.lastName || ""}`
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || `profile-${profile._id}`;
 
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename="${safeName}-images.zip"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${safeName}-images.zip"`,
+    );
 
     const archive = archiver("zip", { zlib: { level: 9 } });
     archive.on("error", (error) => {
