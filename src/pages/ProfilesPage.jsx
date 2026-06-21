@@ -5,6 +5,7 @@ import {
   updateProfile,
 } from "../api/profiles";
 import { BulkEditModal } from "../components/BulkEditModal";
+import { ExportProfilesModal } from "../components/ExportProfilesModal";
 import { GenerateProfilesModal } from "../components/GenerateProfilesModal";
 import { NewProfileModal } from "../components/NewProfileModal";
 import { SafeImage } from "../components/SafeImage";
@@ -271,6 +272,7 @@ export function ProfilesPage() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
   const [isBulkApplying, setIsBulkApplying] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -638,6 +640,13 @@ export function ProfilesPage() {
         onApply={applyBulkEdits}
         isApplying={isBulkApplying}
       />
+      <ExportProfilesModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        profiles={visibleProfiles}
+        currentViewProfiles={sorted}
+        onToast={setToast}
+      />
       {trackerTarget && (
         <div className="npm-backdrop" onClick={closeTrackerModal}>
           <div
@@ -717,6 +726,17 @@ export function ProfilesPage() {
             >
               Copy IDs
             </button>
+            {isAdmin && (
+              <button
+                type="button"
+                className="btn-s"
+                onClick={() => setIsExportOpen(true)}
+                disabled={loading || visibleProfiles.length === 0}
+                title="Export profiles to CSV / Excel"
+              >
+                Export
+              </button>
+            )}
             {writeable && !isMaker && (
               <button
                 type="button"
