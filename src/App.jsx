@@ -142,6 +142,7 @@ function Layout({ children }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
   const [wipFeature, setWipFeature] = useState("");
 
   useEffect(() => {
@@ -180,6 +181,8 @@ function Layout({ children }) {
   }
 
   async function handleAuthSubmit() {
+    if (authLoading) return;
+
     const trimmedUsername = username.trim();
     const trimmedPassword = password.trim();
 
@@ -188,6 +191,7 @@ function Layout({ children }) {
       return;
     }
 
+    setAuthLoading(true);
     try {
       setAuthError("");
       const result =
@@ -206,6 +210,8 @@ function Layout({ children }) {
       closeAuth();
     } catch (error) {
       setAuthError(error.message || "Authentication failed.");
+    } finally {
+      setAuthLoading(false);
     }
   }
 
@@ -382,7 +388,12 @@ function Layout({ children }) {
                   {authMode === "login" ? "Login" : "Register"}
                 </h2>
               </div>
-              <button className="npm-close" type="button" onClick={closeAuth}>
+              <button
+                className="npm-close"
+                type="button"
+                onClick={closeAuth}
+                disabled={authLoading}
+              >
                 x
               </button>
             </div>
@@ -422,6 +433,7 @@ function Layout({ children }) {
                       setAuthMode("login");
                       setAuthError("");
                     }}
+                    disabled={authLoading}
                   >
                     Login
                   </button>
@@ -432,6 +444,7 @@ function Layout({ children }) {
                       setAuthMode("register");
                       setAuthError("");
                     }}
+                    disabled={authLoading}
                   >
                     Register
                   </button>
@@ -467,7 +480,12 @@ function Layout({ children }) {
                 ) : null}
 
                 <div className="npm-footer auth-footer">
-                  <button type="button" className="btn-s" onClick={closeAuth}>
+                  <button
+                    type="button"
+                    className="btn-s"
+                    onClick={closeAuth}
+                    disabled={authLoading}
+                  >
                     Cancel
                   </button>
                   <div className="npm-footer-actions">
@@ -476,12 +494,28 @@ function Layout({ children }) {
                         type="button"
                         className="btn-s"
                         onClick={handleLogout}
+                        disabled={authLoading}
                       >
                         Logout
                       </button>
                     ) : null}
-                    <button type="submit" className="btn-p">
-                      {authMode === "login" ? "Login" : "Register"}
+                    <button
+                      type="submit"
+                      className="btn-p"
+                      disabled={authLoading}
+                    >
+                      {authLoading ? (
+                        <>
+                          <span className="btn-spinner" aria-hidden="true" />
+                          {authMode === "login"
+                            ? "Signing in..."
+                            : "Creating account..."}
+                        </>
+                      ) : authMode === "login" ? (
+                        "Login"
+                      ) : (
+                        "Register"
+                      )}
                     </button>
                   </div>
                 </div>

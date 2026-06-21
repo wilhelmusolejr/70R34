@@ -50,6 +50,11 @@ const MAKER_EDITABLE_FIELDS = new Set([
   "recoveryEmail",
 ]);
 
+// From the detail page a maker may only move an assigned profile between these
+// two statuses. Choosing "Banned" drops it out of their Profiles list, whose
+// view is limited to Available / Pending Profile (see allowedStatusesFor).
+const MAKER_STATUS_OPTIONS = ["Pending Profile", "Banned"];
+
 function getAvatarColor(id) {
   const str = String(id || "");
   let hash = 0;
@@ -1011,7 +1016,12 @@ function SectionCard({ title, badge, children, scrollMaxHeight }) {
   );
 }
 
-function StatusSelect({ value, onChange, disabled = false }) {
+function StatusSelect({
+  value,
+  onChange,
+  disabled = false,
+  options = STATUS_OPTIONS,
+}) {
   return (
     <span className={`sbadge ${STATUS_CLASS[value] || "sp"}`}>
       <span className="sdot2" />
@@ -1032,7 +1042,7 @@ function StatusSelect({ value, onChange, disabled = false }) {
           cursor: "pointer",
         }}
       >
-        {STATUS_OPTIONS.map((status) => (
+        {options.map((status) => (
           <option
             key={status}
             value={status}
@@ -2211,7 +2221,8 @@ export function ProfileDetailPage() {
                 <StatusSelect
                   value={profile.status}
                   onChange={(value) => upTopLevel("status", value)}
-                  disabled={!writeable}
+                  disabled={isMaker ? !makerOwnsProfile : !writeable}
+                  options={isMaker ? MAKER_STATUS_OPTIONS : STATUS_OPTIONS}
                 />
                 {profile.tags?.map((t, i) => (
                   <span key={`${t}-${i}`} className="tag tv">
@@ -3794,7 +3805,14 @@ export function ProfileDetailPage() {
                     onClick={handleSubmitProfile}
                     disabled={submittingProfile}
                   >
-                    {submittingProfile ? "Submitting..." : "Submit Profile"}
+                    {submittingProfile ? (
+                      <>
+                        <span className="btn-spinner" aria-hidden="true" />
+                        Submitting...
+                      </>
+                    ) : (
+                      "Submit Profile"
+                    )}
                   </button>
                   {submitError ? (
                     <span style={{ color: "var(--red)", fontSize: "12px" }}>
