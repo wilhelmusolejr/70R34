@@ -217,7 +217,14 @@ function StatusDonut({ slices }) {
   );
 }
 
-function MakerSubmissionsChart({ makers, makerColor, days, submissionsByMaker }) {
+function MakerSubmissionsChart({
+  makers,
+  makerColor,
+  days,
+  submissionsByMaker,
+  selectedKey,
+  onSelectDay,
+}) {
   const allValues = makers.flatMap((maker) =>
     Object.values(submissionsByMaker[maker.id] || {}),
   );
@@ -239,11 +246,23 @@ function MakerSubmissionsChart({ makers, makerColor, days, submissionsByMaker })
               value: (submissionsByMaker[maker.id] || {})[day.key] || 0,
             }))
             .filter((entry) => entry.value > 0);
+          const isSelected = selectedKey === day.key;
 
           return (
             <div
               key={day.key}
-              className={`dashboard-chart-col${day.isToday ? " is-today" : ""}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelectDay?.(day.key)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelectDay?.(day.key);
+                }
+              }}
+              className={`dashboard-chart-col dashboard-chart-col-clickable${
+                day.isToday ? " is-today" : ""
+              }${isSelected ? " is-selected" : ""}`}
             >
               <div className="dashboard-chart-bars">
                 {bars.length ? (
@@ -1032,13 +1051,22 @@ export function DashboardPageV2() {
     selectedStatuses,
   ]);
 
+  // Which day the "Submitted" cards + maker modal reflect. Defaults to today,
+  // but clicking a column in the submissions chart re-points it to that day.
+  const [submittedSelectedKey, setSubmittedSelectedKey] = useState(todayKey);
+  const submittedDay = useMemo(
+    () => days.find((d) => d.key === submittedSelectedKey) || null,
+    [days, submittedSelectedKey],
+  );
+  const submittedIsToday = submittedSelectedKey === todayKey;
+
   const submittedTodayByMaker = useMemo(
     () =>
       visibleMakers.map((maker) => ({
         maker,
-        count: (submissionsByMaker[maker.id] || {})[todayKey] || 0,
+        count: (submissionsByMaker[maker.id] || {})[submittedSelectedKey] || 0,
       })),
-    [visibleMakers, submissionsByMaker, todayKey],
+    [visibleMakers, submissionsByMaker, submittedSelectedKey],
   );
 
   // ----- Status breakdown (filtered) -----
@@ -1369,9 +1397,25 @@ export function DashboardPageV2() {
       <div className="dashboard-split">
         <aside className="dashboard-split-aside">
           <div className="dashboard-section-head">
-            <h2>Submitted today</h2>
+            <h2>
+              {submittedIsToday
+                ? "Submitted today"
+                : `Submitted · ${submittedDay?.label || submittedSelectedKey}`}
+            </h2>
             <span className="dashboard-section-sub">
               <strong>{totals.submittedToday}</strong> total
+              {submittedIsToday ? null : (
+                <>
+                  {" · "}
+                  <button
+                    type="button"
+                    className="dashboard-link-btn"
+                    onClick={() => setSubmittedSelectedKey(todayKey)}
+                  >
+                    back to today
+                  </button>
+                </>
+              )}
             </span>
           </div>
           <div className="dashboard-submitted-grid-2col">
@@ -1398,7 +1442,9 @@ export function DashboardPageV2() {
                   </div>
                   <div className="dashboard-submitted-value">{count}</div>
                   <div className="dashboard-submitted-foot">
-                    submitted today
+                    {submittedIsToday
+                      ? "submitted today"
+                      : `submitted ${submittedDay?.label || ""}`.trim()}
                   </div>
                 </div>
               ))
@@ -1412,6 +1458,9 @@ export function DashboardPageV2() {
         <div className="dashboard-split-main">
           <div className="dashboard-section-head">
             <h2>Submissions per maker · last 7 days</h2>
+            <span className="dashboard-section-sub">
+              Click a day to update the Submitted cards
+            </span>
           </div>
           <div className="dashboard-chart-wrap">
             {loading ? (
@@ -1422,6 +1471,8 @@ export function DashboardPageV2() {
                 makerColor={makerColor}
                 days={days}
                 submissionsByMaker={submissionsByMaker}
+                selectedKey={submittedSelectedKey}
+                onSelectDay={setSubmittedSelectedKey}
               />
             )}
           </div>
@@ -1550,7 +1601,9 @@ export function DashboardPageV2() {
         <MakerProfilesModal
           maker={infoModalMaker}
           profiles={profiles}
-          todayKey={todayKey}
+          dayKey={submittedSelectedKey}
+          dayLabel={submittedDay?.label || ""}
+          isToday={submittedIsToday}
           onClose={() => setInfoModalMaker(null)}
         />
       ) : null}
@@ -1558,7 +1611,7 @@ export function DashboardPageV2() {
   );
 }
 
-function MakerProfilesModal({ maker, profiles, todayKey, onClose }) {
+function MakerProfilesModal({ maker, profiles, dayKey, dayLabel, isToday, onClose }) {
   const profileById = new Map(
     profiles.map((p) => [String(p._id || p.id || ""), p]),
   );
@@ -1567,7 +1620,7 @@ function MakerProfilesModal({ maker, profiles, todayKey, onClose }) {
       (a) =>
         a.assignmentStatus === "completed" &&
         a.submittedAt &&
-        toLocalDateKey(a.submittedAt) === todayKey,
+        toLocalDateKey(a.submittedAt) === dayKey,
     )
     .map((a) => ({
       assignment: a,
@@ -1595,7 +1648,8 @@ function MakerProfilesModal({ maker, profiles, todayKey, onClose }) {
           <div>
             <div className="npm-kicker">Maker</div>
             <h2 className="npm-title">
-              {maker.username} · {submittedToday.length} submitted today
+              {maker.username} · {submittedToday.length} submitted{" "}
+              {isToday ? "today" : dayLabel}
             </h2>
           </div>
           <button className="npm-close" type="button" onClick={onClose}>
@@ -1605,7 +1659,8 @@ function MakerProfilesModal({ maker, profiles, todayKey, onClose }) {
         <div className="npm-body">
           {submittedToday.length === 0 ? (
             <div className="dashboard-chart-empty">
-              This maker hasn&apos;t submitted any profiles today.
+              This maker hasn&apos;t submitted any profiles{" "}
+              {isToday ? "today" : `on ${dayLabel}`}.
             </div>
           ) : (
             <ul className="dashboard-maker-profile-list">

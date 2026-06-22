@@ -1658,6 +1658,15 @@ nav {
   color: var(--accent);
   font-weight: 700;
 }
+.dashboard-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
 .dashboard-pageset-day {
   margin-top: 16px;
   padding-top: 14px;
